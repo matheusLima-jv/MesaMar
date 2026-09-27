@@ -2,7 +2,7 @@
 
 Comanda digital para quiosques e carrinhos de praia. O cliente faz um cadastro rápido no quiosque, recebe um QR pessoal, pede pelo celular e fecha a conta sem chamar garçom. O dono recebe os pedidos numa fila por ordem de chegada.
 
-> **Status:** Fase 0 (fundação técnica). O plano completo, com as fases e os portões de validação, está em [`docs/MESAMAR_PROMPT.md`](docs/MESAMAR_PROMPT.md).
+> **Status:** Fase 1 em andamento (landing page + lista de espera). O plano completo, com as fases e os portões de validação, está em [`docs/MESAMAR_PROMPT.md`](docs/MESAMAR_PROMPT.md).
 
 ## Stack
 
@@ -43,6 +43,8 @@ mesamar/
 docker compose up --build
 ```
 
+- Landing page: http://localhost:8080/
+- Política de privacidade: http://localhost:8080/privacidade
 - Health check: http://localhost:8080/actuator/health → `{"status":"UP", ...}`
 - App do quiosque (placeholder): http://localhost:8080/staff/
 - Página do cliente (placeholder): http://localhost:8080/cliente/
@@ -92,6 +94,8 @@ Para corrigir o estilo automaticamente: `./gradlew ktlintFormat`.
 | `prod` | Servidor | Logs em JSON (ECS); todos os segredos vêm de variáveis de ambiente |
 
 Variáveis de ambiente: veja [`.env.example`](.env.example). O `.env` **nunca** vai para o git.
+
+Para ver o botão de WhatsApp da landing localmente, crie um `.env` com `MESAMAR_WHATSAPP=55DDDNUMERO` (só dígitos) e rode `docker compose up --build` de novo.
 
 ## CI
 

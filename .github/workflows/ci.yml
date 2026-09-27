@@ -81,7 +81,9 @@ jobs:
           curl -fsS http://localhost:8080/actuator/health | tee /dev/stderr | grep -q '"status":"UP"'
           curl -fsS http://localhost:8080/staff/ | grep -q 'data-app="web-staff"'
           curl -fsS http://localhost:8080/cliente/ | grep -q 'data-app="web-customer"'
-          echo "::notice title=Smoke test::docker compose up OK — health UP, /staff/ e /cliente/ servidos"
+          curl -fsS http://localhost:8080/ | grep -q 'Seu cliente pede pelo celular'
+          curl -fsS http://localhost:8080/privacidade | grep -q 'Lei Geral de Proteção de Dados'
+          echo "::notice title=Smoke test::docker compose up OK — health UP · landing · privacidade · /staff/ · /cliente/"
 
       - name: Logs do compose (se falhar)
         if: failure()
