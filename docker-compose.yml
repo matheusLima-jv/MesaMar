@@ -1,0 +1,36 @@
+# Ambiente local completo: aplicação + PostgreSQL.
+#   docker compose up --build
+#   http://localhost:8080/actuator/health
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-mesamar}
+      POSTGRES_USER: ${DB_USER:-mesamar}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-mesamar}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Usa o perfil local (logs legíveis, detalhes no health) mesmo dentro do Docker.
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-mesamar}
+      DB_USER: ${DB_USER:-mesamar}
+      DB_PASSWORD: ${DB_PASSWORD:-mesamar}
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:

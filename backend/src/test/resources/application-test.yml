@@ -1,0 +1,5 @@
+# Perfil dos testes automatizados. O datasource vem do Testcontainers (@ServiceConnection).
+logging:
+  level:
+    root: WARN
+    br.com.mesamar: INFO

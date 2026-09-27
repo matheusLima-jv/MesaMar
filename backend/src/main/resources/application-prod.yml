@@ -1,0 +1,13 @@
+# Servidor de produção. Todos os segredos vêm de variáveis de ambiente (ver .env.example).
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+logging:
+  structured:
+    format:
+      console: ecs # logs em JSON para facilitar a leitura no servidor
+  level:
+    root: INFO
