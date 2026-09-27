@@ -36,16 +36,24 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       - name: ktlint
-        run: ./gradlew --no-daemon ktlintCheck
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon ktlintCheck 2>&1 | tee -a build.log
 
       # `build` roda npm ci + build dos fronts, compila o Kotlin e executa todos os
       # testes (incluindo os de integração com PostgreSQL via Testcontainers).
       - name: Build e testes
-        run: ./gradlew --no-daemon build
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon build 2>&1 | tee -a build.log
+
+      - name: Anotar falhas
+        if: failure()
+        run: bash .github/scripts/annotate-failures.sh build.log
 
       - name: Relatório de testes
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-report
           path: backend/build/reports/tests/test
