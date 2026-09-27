@@ -3,6 +3,7 @@ package br.com.mesamar.config
 import jakarta.validation.constraints.Pattern
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.validation.annotation.Validated
+import java.net.URLEncoder
 
 /**
  * Configurações públicas do site (landing e páginas institucionais).
@@ -29,6 +30,9 @@ data class SiteProperties(
     fun absoluteUrl(path: String): String = publicBaseUrl + path
 
     /** Link wa.me com mensagem pré-preenchida (texto codificado para URL). */
-    fun whatsappLink(message: String): String =
-        "https://wa.me/$whatsappNumber?text=" + java.net.URLEncoder.encode(message, Charsets.UTF_8).replace("+", "%20")
+    fun whatsappLink(message: String): String {
+        // URLEncoder usa "+" para espaço (padrão de formulário); em links o correto é %20.
+        val encoded = URLEncoder.encode(message, Charsets.UTF_8).replace("+", "%20")
+        return "https://wa.me/$whatsappNumber?text=$encoded"
+    }
 }
