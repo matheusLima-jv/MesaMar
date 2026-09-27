@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/build
+**/.gradle
+**/.kotlin
+.git
+.github
+.idea
+.env
+.env.*
+e2e
+docs
