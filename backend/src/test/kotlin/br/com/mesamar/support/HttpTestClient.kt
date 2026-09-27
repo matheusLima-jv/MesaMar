@@ -17,12 +17,15 @@ class HttpTestClient(
             .connectTimeout(Duration.ofSeconds(5))
             .build()
 
-    fun get(path: String): HttpResponse<String> {
-        val request =
-            HttpRequest
-                .newBuilder(URI.create("http://localhost:$port$path"))
-                .GET()
-                .build()
-        return client.send(request, HttpResponse.BodyHandlers.ofString())
-    }
+    fun get(path: String): HttpResponse<String> = client.send(request(path), HttpResponse.BodyHandlers.ofString())
+
+    fun getBytes(path: String): HttpResponse<ByteArray> = client.send(request(path), HttpResponse.BodyHandlers.ofByteArray())
+
+    private fun request(path: String): HttpRequest =
+        HttpRequest
+            .newBuilder(URI.create("http://localhost:$port$path"))
+            .GET()
+            .build()
 }
+
+fun HttpResponse<*>.header(name: String): String = headers().firstValue(name).orElse("")
