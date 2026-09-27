@@ -110,8 +110,7 @@ class LandingPageTest(
         }
     }
 
-    private fun metaContent(name: String): String? =
-        Regex("""<meta name="$name" content="([^"]*)"""").find(html)?.groupValues?.get(1)
+    private fun metaContent(name: String): String? = Regex("""<meta name="$name" content="([^"]*)"""").find(html)?.groupValues?.get(1)
 
     private fun metaProperty(property: String): String? =
         Regex("""<meta property="$property" content="([^"]*)"""").find(html)?.groupValues?.get(1)
