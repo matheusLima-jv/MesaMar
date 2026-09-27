@@ -10,9 +10,13 @@ import java.time.Duration
 /**
  * Cache longo só para arquivos com hash no nome.
  *
- * - /css/** e /img/** da landing: o hash é gerado aqui (VersionResourceResolver) e o
- *   Thymeleaf escreve a URL já versionada (ex.: /css/landing-3f2a….css).
- * - /staff/assets/** e /cliente/assets/**: o Vite já gera nomes com hash.
+ * - CSS e imagens da landing (pastas css e img): o hash é gerado aqui
+ *   (VersionResourceResolver) e o Thymeleaf escreve a URL já versionada
+ *   (ex.: /css/landing-3f2a….css).
+ * - Pastas assets dos fronts (staff e cliente): o Vite já gera nomes com hash.
+ *
+ * Obs.: não escrever padrões com barra seguida de dois asteriscos dentro deste
+ * comentário, porque o Kotlin interpreta como início de comentário aninhado.
  *
  * Os index.html dos fronts e as páginas da landing NÃO entram aqui, para que
  * uma versão nova apareça no próximo acesso.
