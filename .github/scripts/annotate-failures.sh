@@ -44,7 +44,8 @@ fi
 
 # 2) Erros de compilação, ktlint e "What went wrong" do Gradle
 if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
-  errors=$(grep -nE '^e: |\.kts?:[0-9]+:[0-9]+|What went wrong|^> |error:|ERROR|FAILURE|Could not|Caused by' "$LOG_FILE" | head -80)
+  errors=$( (grep -nE '^e: |\.kts?:[0-9]+:[0-9]+|error:|ERROR|Could not|Caused by|Exception' "$LOG_FILE"; \
+             grep -n -A8 'What went wrong' "$LOG_FILE") | grep -v -- '--stacktrace\|--info\|--scan\|help.gradle.org' | sort -t: -k1,1n -u | head -80)
   if [ -n "$errors" ]; then
     chunk=""
     while IFS= read -r line; do
