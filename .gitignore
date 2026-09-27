@@ -1,0 +1,28 @@
+# Gradle / Kotlin
+.gradle/
+build/
+.kotlin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Fronts
+node_modules/
+dist/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# Segredos e ambiente local
+.env
+.env.*
+!.env.example
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Playwright
+e2e/test-results/
+e2e/playwright-report/
