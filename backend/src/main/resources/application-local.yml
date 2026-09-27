@@ -1,0 +1,13 @@
+# Desenvolvimento na máquina do desenvolvedor.
+spring:
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    br.com.mesamar: DEBUG
+
+management:
+  endpoint:
+    health:
+      show-details: always
