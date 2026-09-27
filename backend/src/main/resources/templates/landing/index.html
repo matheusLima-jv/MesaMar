@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MesaMar — comanda digital para barracas de praia no Guarujá</title>
+  <meta name="description" content="O cliente pede pelo celular, você recebe os pedidos na ordem de chegada e sabe quem vai pagar. Sem app para baixar e com o Pix direto na sua chave. Piloto gratuito na temporada 2026/27.">
+  <link rel="canonical" href="http://localhost:8080/" th:href="${canonicalUrl}">
+  <meta name="theme-color" content="#07313f">
+
+  <!-- Open Graph: prévia do link no WhatsApp, Instagram e Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:site_name" content="MesaMar">
+  <meta property="og:title" content="MesaMar — seu cliente pede pelo celular, você recebe na ordem certa">
+  <meta property="og:description" content="Comanda digital para barracas de praia do Guarujá. Piloto gratuito na temporada 2026/27.">
+  <meta property="og:url" content="http://localhost:8080/" th:content="${canonicalUrl}">
+  <meta property="og:image" content="http://localhost:8080/img/og-mesamar.png" th:content="${site.absoluteUrl('/img/og-mesamar.png')}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="MesaMar: comanda digital para barracas de praia">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" href="../../static/img/favicon.svg" th:href="@{/img/favicon.svg}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../../static/img/apple-touch-icon.png" th:href="@{/img/apple-touch-icon.png}">
+  <link rel="stylesheet" href="../../static/css/landing.css" th:href="@{/css/landing.css}">
+
+  <!-- Cloudflare Web Analytics: sem cookies, só entra se o token estiver configurado -->
+  <script th:fragment="analytics" th:if="${site != null and site.hasAnalytics}" defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          th:data-cf-beacon="|{&quot;token&quot;: &quot;${site.cloudflareAnalyticsToken}&quot;}|"></script>
+</head>
+<body>
+<a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="site-header" th:fragment="siteHeader">
+  <div class="wrap">
+    <a class="brand" href="/" th:href="@{/}" aria-label="MesaMar, página inicial">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="16" fill="#07313f"/>
+        <circle cx="22" cy="10" r="4" fill="#ffb703"/>
+        <path d="M5 20c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2 2-1 2-1" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M5 25c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2" fill="none" stroke="#7fc8d8" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      MesaMar
+    </a>
+    <a class="btn btn-sun btn-small" href="/#piloto">Quero o piloto</a>
+  </div>
+</header>
+
+<main id="conteudo">
+
+  <!-- ===================== HERO ===================== -->
+  <section class="hero" aria-labelledby="titulo">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Para barracas de praia · Guarujá</p>
+        <h1 id="titulo">Seu cliente pede pelo celular, você recebe na ordem certa e ninguém sai sem pagar.</h1>
+        <p class="lead">Chega de caderninho na areia. O cliente faz um cadastro rápido no seu quiosque, recebe um QR e pede sozinho. Você vê cada pedido numa fila, sabe o que falta entregar e é avisado quando ele vai pagar.</p>
+
+        <div class="cta-row">
+          <a class="btn btn-sun" href="#piloto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            Quero o piloto grátis
+          </a>
+          <a class="btn btn-whats" href="https://wa.me/" th:if="${site.hasWhatsapp}" th:href="${whatsappLink}"
+             target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.66 15l-1.3 4.76 4.88-1.28A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.18-1.14l-.3-.18-2.9.76.78-2.83-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.14c-.25-.12-1.46-.72-1.69-.8-.23-.09-.39-.13-.56.12-.16.24-.64.8-.78.96-.15.17-.29.19-.54.06a6.7 6.7 0 0 1-1.97-1.22 7.4 7.4 0 0 1-1.37-1.7c-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.16.04-.3-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.41-.56-.42h-.48a.92.92 0 0 0-.66.31 2.8 2.8 0 0 0-.87 2.07 4.85 4.85 0 0 0 1.02 2.58 11.1 11.1 0 0 0 4.25 3.76c.6.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.46-.6 1.67-1.18.2-.58.2-1.07.14-1.18-.06-.1-.22-.16-.47-.28Z"/></svg>
+            Falar no WhatsApp
+          </a>
+        </div>
+
+        <ul class="trust">
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            Sem app para o cliente baixar
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            Pix direto na sua chave
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+            Piloto gratuito 2026/27
+          </li>
+        </ul>
+      </div>
+
+      <figure class="queue-demo" aria-label="Exemplo ilustrativo da fila de pedidos do dono">
+        <div class="queue-head">Fila de pedidos <span>3 pendentes</span></div>
+        <div class="order late">
+          <div class="order-top"><span>#21 <span class="spot">GS 7</span></span><span class="wait">12 min</span></div>
+          <p>Ana · 2 cervejas, 1 porção de batata</p>
+        </div>
+        <div class="order mid">
+          <div class="order-top"><span>#22 <span class="spot">GS 12</span></span><span class="wait">6 min</span></div>
+          <p>Carlos · 1 água de coco, 1 caipirinha</p>
+        </div>
+        <div class="order new">
+          <div class="order-top"><span>#23 <span class="spot">GS 3</span></span><span class="wait">agora</span></div>
+          <p>Bia · 3 águas sem gás</p>
+        </div>
+        <figcaption>Exemplo ilustrativo. GS = guarda-sol.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ===================== DOR ===================== -->
+  <section class="pain" aria-labelledby="titulo-dor">
+    <div class="wrap">
+      <h2 id="titulo-dor">Domingo de sol, areia lotada e todo mundo te chamando</h2>
+      <p class="section-lead">Quem trabalha na praia conhece a cena. Não é falta de cliente, é falta de mão para atender e anotar tudo.</p>
+      <ul class="pain-list">
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <span>O cliente levanta o braço, ninguém vê, e ele desiste do segundo pedido.</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <span>Pedido esquecido, ou entregue duas vezes para o guarda-sol errado.</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <span>No fim do dia, ninguém sabe direito quem já pagou, quanto e como.</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <span>O cliente desconfia da conta, e o caderninho não ajuda a provar nada.</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== COMO FUNCIONA ===================== -->
+  <section aria-labelledby="titulo-como">
+    <div class="wrap">
+      <h2 id="titulo-como">Como funciona</h2>
+      <p class="section-lead">Quatro passos, e o cliente não precisa chamar ninguém depois do primeiro.</p>
+      <ol class="steps">
+        <li>
+          <h3>Cadastro rápido no quiosque</h3>
+          <p>O cliente chega, você anota nome e guarda-sol em uns 20 segundos e mostra o QR dele.</p>
+        </li>
+        <li>
+          <h3>Ele lê o QR e pede</h3>
+          <p>Abre o cardápio na câmera do celular, sem baixar nada, escolhe e confirma.</p>
+        </li>
+        <li>
+          <h3>Você recebe na fila</h3>
+          <p>O pedido chega com aviso, na ordem de chegada, com o número do guarda-sol.</p>
+        </li>
+        <li>
+          <h3>Ele fecha a conta e você é avisado</h3>
+          <p>O cliente vê o extrato, paga no Pix ou avisa que está indo pagar. Você confirma e pronto.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===================== DIFERENCIAIS ===================== -->
+  <section class="features-section" aria-labelledby="titulo-diferenciais">
+    <div class="wrap">
+      <h2 id="titulo-diferenciais">Feito para a areia, não para o restaurante</h2>
+      <p class="section-lead">Pensado para sol forte, mão molhada, sinal fraco e correria.</p>
+      <div class="features">
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>
+          <h3>Sem app para baixar</h3>
+          <p>O cliente só aponta a câmera para o QR. Funciona em qualquer celular.</p>
+        </div>
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          <h3>Ordem de chegada</h3>
+          <p>Cada pedido entra na fila com o horário. Nada se perde, ninguém fura.</p>
+        </div>
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>
+          <h3>Dinheiro direto para você</h3>
+          <p>O Pix vai para a sua chave. O dinheiro não passa por nós.</p>
+        </div>
+        <div class="feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <h3>Aviso quando vão pagar</h3>
+          <p>Você sabe quem está vindo pagar, quanto e de que forma, antes de ele chegar.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PILOTO ===================== -->
+  <section class="pilot" id="piloto" aria-labelledby="titulo-piloto">
+    <div class="wrap">
+      <h2 id="titulo-piloto">Piloto gratuito na temporada 2026/27</h2>
+      <p class="section-lead">Estamos escolhendo as primeiras barracas do Guarujá para usar o MesaMar de graça neste verão.</p>
+
+      <div class="pilot-grid">
+        <div class="pilot-card">
+          <h3>O que você recebe</h3>
+          <ul>
+            <li>O sistema completo, sem pagar nada na temporada</li>
+            <li>Ajuda para montar o cardápio e treinar a equipe</li>
+            <li>Os QR Codes impressos para o balcão</li>
+            <li>Suporte direto pelo WhatsApp</li>
+          </ul>
+        </div>
+        <div class="pilot-card">
+          <h3>O que pedimos em troca</h3>
+          <ul>
+            <li>Usar de verdade nos fins de semana</li>
+            <li>Contar o que funcionou e o que atrapalhou</li>
+            <li>Sem contrato e sem compromisso de continuar</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- O formulário da lista de espera entra aqui (checkpoint 1.2) -->
+      <div id="lista-de-espera" class="cta-row" th:if="${site.hasWhatsapp}">
+        <a class="btn btn-whats" href="https://wa.me/" th:href="${whatsappLink}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.66 15l-1.3 4.76 4.88-1.28A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.18-1.14l-.3-.18-2.9.76.78-2.83-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.14c-.25-.12-1.46-.72-1.69-.8-.23-.09-.39-.13-.56.12-.16.24-.64.8-.78.96-.15.17-.29.19-.54.06a6.7 6.7 0 0 1-1.97-1.22 7.4 7.4 0 0 1-1.37-1.7c-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.16.04-.3-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.41-.56-.42h-.48a.92.92 0 0 0-.66.31 2.8 2.8 0 0 0-.87 2.07 4.85 4.85 0 0 0 1.02 2.58 11.1 11.1 0 0 0 4.25 3.76c.6.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.46-.6 1.67-1.18.2-.58.2-1.07.14-1.18-.06-.1-.22-.16-.47-.28Z"/></svg>
+          Quero participar do piloto
+        </a>
+      </div>
+      <p class="note">Vagas limitadas: o piloto começa com poucas barracas para darmos atenção de perto a cada uma.</p>
+    </div>
+  </section>
+
+  <!-- ===================== FAQ ===================== -->
+  <section class="faq" aria-labelledby="titulo-faq">
+    <div class="wrap">
+      <h2 id="titulo-faq">Perguntas frequentes</h2>
+
+      <details>
+        <summary>E se o cliente não tiver celular?</summary>
+        <p>Sem problema. A sua equipe lança o pedido por ele no app do quiosque, e o pedido entra na mesma fila dos outros.</p>
+      </details>
+
+      <details>
+        <summary>E se a internet cair?</summary>
+        <p>O cardápio fica salvo no celular do cliente e o pedido é reenviado sozinho quando o sinal volta, sem duplicar. Se o sinal sumir de vez, a equipe continua lançando pelo app do quiosque, que funciona sem internet e sincroniza depois.</p>
+      </details>
+
+      <details>
+        <summary>E se o cliente for embora sem pagar?</summary>
+        <p>A comanda só existe depois do cadastro feito por você, no quiosque. Você define um limite de consumo em aberto por cliente, vê quem está com saldo pendente e pode pedir o pagamento a cada pedido, se preferir.</p>
+      </details>
+
+      <details>
+        <summary>Preciso comprar maquininha ou celular novo?</summary>
+        <p>Não. O Pix cai direto na sua chave, o cartão continua na maquininha que você já usa, e o app do quiosque roda no navegador do seu celular.</p>
+      </details>
+
+      <details>
+        <summary>Quanto custa depois do piloto?</summary>
+        <p>Na temporada 2026/27 o piloto é gratuito. Depois, o preço será por temporada, combinado antes com você. Não há contrato nem compromisso de continuar.</p>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" th:fragment="siteFooter">
+  <div class="wrap">
+    <p>© 2026 MesaMar · Guarujá, SP</p>
+    <p><a href="/privacidade" th:href="@{/privacidade}">Política de privacidade</a></p>
+  </div>
+</footer>
+</body>
+</html>
