@@ -16,6 +16,6 @@ for xml in sorted(pathlib.Path(sys.argv[1]).rglob("TEST-*.xml")):
     name = root.get("name", xml.stem).rsplit(".", 1)[-1]
     lines.append(f"{name}: {t - f - e - s}/{t} ok ({float(root.get('time', 0)):.1f}s)")
 passed = total - failures - errors - skipped
-header = f"{passed} passaram, {failures + errors} falharam, {skipped} ignorados (total {total})"
+header = f"{passed} passaram · {failures + errors} falharam · {skipped} ignorados · total {total}"
 print(f"::notice title=Testes: {header}::" + "%0A".join(lines))
 PY
