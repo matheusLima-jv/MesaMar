@@ -74,50 +74,54 @@ val skipFrontendBuild = providers.gradleProperty("skipFrontendBuild").isPresent
 val npmCommand = if (Os.isFamily(Os.FAMILY_WINDOWS)) "npm.cmd" else "npm"
 val generatedStaticDir = layout.buildDirectory.dir("generated-frontend")
 
-val frontends = mapOf(
-    "web-staff" to "staff",
-    "web-customer" to "cliente",
-)
+val frontends =
+    mapOf(
+        "web-staff" to "staff",
+        "web-customer" to "cliente",
+    )
 
-val copyFrontendTasks = frontends.map { (dirName, route) ->
-    val frontDir = rootProject.layout.projectDirectory.dir(dirName)
-    val taskSuffix = dirName.split("-").joinToString("") { it.replaceFirstChar(Char::uppercase) }
+val copyFrontendTasks =
+    frontends.map { (dirName, route) ->
+        val frontDir = rootProject.layout.projectDirectory.dir(dirName)
+        val taskSuffix = dirName.split("-").joinToString("") { it.replaceFirstChar(Char::uppercase) }
 
-    val npmCi = tasks.register<Exec>("npmCi$taskSuffix") {
-        group = "frontend"
-        description = "Instala as dependências npm de $dirName"
-        onlyIf { !skipFrontendBuild }
-        workingDir = frontDir.asFile
-        commandLine(npmCommand, "ci", "--no-audit", "--no-fund")
-        inputs.file(frontDir.file("package-lock.json"))
-        outputs.dir(frontDir.dir("node_modules"))
+        val npmCi =
+            tasks.register<Exec>("npmCi$taskSuffix") {
+                group = "frontend"
+                description = "Instala as dependências npm de $dirName"
+                onlyIf { !skipFrontendBuild }
+                workingDir = frontDir.asFile
+                commandLine(npmCommand, "ci", "--no-audit", "--no-fund")
+                inputs.file(frontDir.file("package-lock.json"))
+                outputs.dir(frontDir.dir("node_modules"))
+            }
+
+        val npmBuild =
+            tasks.register<Exec>("npmBuild$taskSuffix") {
+                group = "frontend"
+                description = "Gera o bundle de produção de $dirName"
+                onlyIf { !skipFrontendBuild }
+                dependsOn(npmCi)
+                workingDir = frontDir.asFile
+                commandLine(npmCommand, "run", "build")
+                inputs.dir(frontDir.dir("src"))
+                inputs.files(
+                    frontDir.file("index.html"),
+                    frontDir.file("package.json"),
+                    frontDir.file("vite.config.ts"),
+                    frontDir.file("tsconfig.json"),
+                )
+                outputs.dir(frontDir.dir("dist"))
+            }
+
+        tasks.register<Sync>("copyFrontend$taskSuffix") {
+            group = "frontend"
+            description = "Copia o dist de $dirName para static/$route"
+            dependsOn(npmBuild)
+            from(frontDir.dir("dist"))
+            into(generatedStaticDir.map { it.dir("static/$route") })
+        }
     }
-
-    val npmBuild = tasks.register<Exec>("npmBuild$taskSuffix") {
-        group = "frontend"
-        description = "Gera o bundle de produção de $dirName"
-        onlyIf { !skipFrontendBuild }
-        dependsOn(npmCi)
-        workingDir = frontDir.asFile
-        commandLine(npmCommand, "run", "build")
-        inputs.dir(frontDir.dir("src"))
-        inputs.files(
-            frontDir.file("index.html"),
-            frontDir.file("package.json"),
-            frontDir.file("vite.config.ts"),
-            frontDir.file("tsconfig.json"),
-        )
-        outputs.dir(frontDir.dir("dist"))
-    }
-
-    tasks.register<Sync>("copyFrontend$taskSuffix") {
-        group = "frontend"
-        description = "Copia o dist de $dirName para static/$route"
-        dependsOn(npmBuild)
-        from(frontDir.dir("dist"))
-        into(generatedStaticDir.map { it.dir("static/$route") })
-    }
-}
 
 sourceSets {
     main {
