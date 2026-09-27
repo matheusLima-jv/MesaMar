@@ -54,6 +54,7 @@ class FrontendBundleTest(
         val response = http.get(route)
 
         assertEquals(302, response.statusCode())
-        assertTrue(response.headers().firstValue("Location").orElse("").endsWith("$route/"))
+        val location = response.headers().firstValue("Location").orElse("")
+        assertTrue(location.endsWith("$route/"), "Location inesperado: $location")
     }
 }
