@@ -11,7 +11,7 @@
 ## Checkpoint 1.1 — Landing estática
 
 - **Data:** 2026-09-27
-- **CI:** ✅ verde (ktlint, 39 testes, imagem Docker, smoke test do `docker compose` abrindo a landing e a privacidade)
+- **CI:** ✅ verde (ktlint, 40 testes, imagem Docker, smoke test do `docker compose` abrindo a landing e a privacidade)
 
 ### 1. O que foi feito
 
@@ -23,6 +23,24 @@
 - **Botão "Falar no WhatsApp"** com mensagem pré-preenchida. Ele só aparece quando o número está configurado.
 - **Cloudflare Web Analytics** (sem cookies), que só é carregado quando o token está configurado.
 - **Cache:** o CSS e as imagens saem com hash no nome e cache de 1 ano. As páginas HTML não são cacheadas, então um texto novo aparece na hora.
+
+
+### Revisão visual (v2) — pedido do Matheus: "estilo mais moderno, sem cara de página de IA"
+
+O que mudou e por quê:
+
+| Antes (v1) | Agora (v2) | Motivo |
+|---|---|---|
+| Fonte do sistema em tudo | **Bricolage Grotesque** nos títulos (self-hosted, 41 KB, licença OFL), fonte do sistema no texto | Título com personalidade é o que mais tira a cara de template; servir a fonte do próprio domínio evita chamar o Google (LGPD e velocidade) |
+| Selo em "pílula" no topo, grade de cartões com ícones em quadradinhos coloridos | Rótulos com traço (`— COMO FUNCIONA`), listas com linhas divisórias, números grandes vazados (01–04) | Pílulas decorativas e grids de 4 cartões iguais são o padrão mais reconhecível de página gerada |
+| Seção "Diferenciais" em 4 cartões | **Tabela "Caderninho × MesaMar"** (5 situações reais da praia) | Comparação concreta convence mais que adjetivos |
+| Cartão da fila isolado | **Ilustração do produto:** celular do cliente com o cardápio + aviso de "Pedido #23" chegando para o dono | Mostra o produto em uso, dos dois lados |
+| Dor em 4 cartões | Faixa corrida (pedido esquecido ✕ guarda-sol errado ✕ "eu já paguei!") + frase "Não falta cliente. Falta mão." | Linguagem de quem vive a praia |
+| Oferta do piloto em cartões | **"R$ 0"** gigante em amarelo | Uma informação só, impossível de não ver |
+| Rodapé simples | Marca "MesaMar" enorme cortada no rodapé | Assinatura visual |
+| Cabeçalho com efeito de vidro (blur) | Cabeçalho sólido | Blur sem necessidade é enfeite e pesa em celular fraco |
+
+Paleta reduzida a três papéis: papel claro (fundo), tinta/azul-oceano (texto e blocos escuros) e **um único acento amarelo-sol**. A faixa corrida respeita a configuração do celular de "reduzir movimento". A imagem de compartilhamento, o favicon e o ícone do iPhone foram refeitos no mesmo estilo.
 
 ### 2. Decisões tomadas
 
@@ -49,11 +67,11 @@ docker compose up --build
 
 ### 4. Testes automatizados
 
-**39 testes, 39 passando** (eram 11 na Fase 0):
+**40 testes, 40 passando** (eram 11 na Fase 0):
 
 | Classe | Testes | O que garante |
 |---|---|---|
-| `LandingPageTest` | 9 | HTML em pt-BR com um único `h1`; todas as seções e perguntas do FAQ presentes; meta description, canonical e Open Graph com URL absoluta; CSS com hash e cache de 1 ano; WhatsApp e analytics escondidos sem configuração; **nenhum depoimento ou número de cliente inventado**; privacidade com header e footer; imagens e ícones servidos |
+| `LandingPageTest` | 10 | HTML em pt-BR com um único `h1`; todas as seções e perguntas do FAQ presentes; meta description, canonical e Open Graph com URL absoluta; CSS e fonte com hash, cache de 1 ano e preload; WhatsApp e analytics escondidos sem configuração; **nenhum depoimento ou número de cliente inventado**; privacidade com header e footer; imagens e ícones servidos |
 | `LandingConfiguredTest` | 4 | Com a configuração de produção: 2 botões de WhatsApp com a mensagem pré-preenchida; canonical, Open Graph, sitemap e robots usando o domínio real; script do analytics com o token; canais de contato na privacidade |
 | `SeoControllerTest` | 2 | `robots.txt` libera a landing, bloqueia `/staff/`, `/cliente/` e `/actuator/` e aponta o sitemap; `sitemap.xml` é XML válido com as URLs absolutas |
 | `SitePropertiesTest` | 13 | Validação do WhatsApp (aceita `55` + DDD + número, rejeita `+55`, espaços, sem DDI); validação da URL pública; codificação do link do WhatsApp |
@@ -82,8 +100,7 @@ A prévia no WhatsApp (Open Graph) só dá para testar depois do deploy (checkpo
 ### 7. Limitações e riscos
 
 - **O formulário ainda não existe:** sem o WhatsApp configurado, a seção do piloto não tem botão de ação. Isso se resolve no checkpoint 1.2.
-- Não fiz a **medição de performance** num 4G real (a meta do plano é abaixo de 1,5s). A página é leve (HTML + ~9 KB de CSS, sem fonte externa e sem JavaScript próprio), e a medição entra no E2E do checkpoint 1.3.
-- A imagem de compartilhamento usa a fonte padrão do Linux em que foi gerada. Se quiser uma identidade visual própria (logo, cores), é fácil trocar depois.
+- Não fiz a **medição de performance** num 4G real (a meta do plano é abaixo de 1,5s). A página continua leve (HTML + ~14 KB de CSS + 41 KB de fonte, sem JavaScript próprio), e a medição entra no E2E do checkpoint 1.3.
 
 ### 8. Próximo checkpoint (1.2), sem implementar
 
