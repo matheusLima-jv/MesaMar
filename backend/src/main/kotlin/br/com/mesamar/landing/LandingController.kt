@@ -61,7 +61,7 @@ class LandingController(
         }
 
         // Robô preencheu o campo invisível: finge que deu certo e não salva nada.
-        if (form.isBot) return "redirect:/lista-de-espera/obrigado"
+        if (form.isBot) return THANKS_REDIRECT
 
         leadService.validate(form, bindingResult)
         if (!bindingResult.hasErrors() && !turnstileVerifier.verify(turnstileToken, ip)) {
@@ -73,7 +73,7 @@ class LandingController(
         }
 
         leadService.register(form, origem = "landing")
-        return "redirect:/lista-de-espera/obrigado"
+        return THANKS_REDIRECT
     }
 
     @GetMapping("/lista-de-espera/obrigado")
@@ -97,6 +97,12 @@ class LandingController(
         const val WHATSAPP_MESSAGE =
             "Olá! Vi o site do MesaMar e tenho interesse no piloto gratuito para a minha barraca."
         const val LEAD_LIMIT = 8
+
+        /**
+         * O fragmento explícito evita que o navegador herde o "#lista-de-espera" do formulário
+         * (o que faria a página de obrigado abrir rolada para baixo).
+         */
+        const val THANKS_REDIRECT = "redirect:/lista-de-espera/obrigado#conteudo"
         val LEAD_WINDOW: Duration = Duration.ofMinutes(10)
     }
 }

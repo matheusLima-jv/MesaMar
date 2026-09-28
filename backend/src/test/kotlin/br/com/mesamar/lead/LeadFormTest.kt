@@ -55,7 +55,7 @@ class LeadFormTest(
         val response = client().postForm("/lista-de-espera", validForm("(13) 99111-2201"))
 
         assertEquals(302, response.statusCode())
-        assertTrue(response.header("Location").endsWith("/lista-de-espera/obrigado"))
+        assertTrue(response.header("Location").endsWith("/lista-de-espera/obrigado#conteudo"))
 
         val row = jdbc.queryForMap("SELECT nome, nome_barraca, praia, origem FROM lead WHERE whatsapp = '+5513991112201'")
         assertEquals("Zé da Silva", row["nome"])
@@ -131,7 +131,7 @@ class LeadFormTest(
         val response = client().postForm("/lista-de-espera", form)
 
         assertEquals(302, response.statusCode())
-        assertTrue(response.header("Location").endsWith("/lista-de-espera/obrigado"))
+        assertTrue(response.header("Location").endsWith("/lista-de-espera/obrigado#conteudo"))
         assertEquals(0, countByWhatsapp("+5513991112204"))
     }
 

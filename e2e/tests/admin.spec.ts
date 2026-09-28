@@ -15,7 +15,7 @@ test('dono do projeto vê o lead no painel e baixa o CSV', async ({ page }) => {
   await page.getByLabel('WhatsApp com DDD').fill(randomWhatsapp())
   await page.getByLabel(/Aceito receber contato do MesaMar/).check()
   await page.getByRole('button', { name: 'Entrar na lista do piloto' }).click()
-  await expect(page).toHaveURL(/obrigado$/)
+  await expect(page).toHaveURL(/\/lista-de-espera\/obrigado(#conteudo)?$/)
 
   // login
   await page.goto('/admin')

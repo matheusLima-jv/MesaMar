@@ -27,7 +27,7 @@ test('barraqueiro entra na lista de espera pelo celular', async ({ page }) => {
   await page.getByLabel(/Aceito receber contato do MesaMar/).check()
   await page.getByRole('button', { name: 'Entrar na lista do piloto' }).click()
 
-  await expect(page).toHaveURL(/\/lista-de-espera\/obrigado$/)
+  await expect(page).toHaveURL(/\/lista-de-espera\/obrigado(#conteudo)?$/)
   await expect(page.getByRole('heading', { name: 'Pronto, você está na lista.' })).toBeVisible()
   assertNoErrors()
 })
