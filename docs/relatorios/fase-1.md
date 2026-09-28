@@ -2,8 +2,8 @@
 
 - **Branch / PR:** `fase-1-landing` → [PR #2](https://github.com/matheusLima-jv/MesaMar/pull/2) (rascunho até o último checkpoint)
 - A Fase 1 foi dividida em 3 checkpoints, validados um por vez:
-  - [x] **1.1 — Landing estática** ← este relatório
-  - [ ] 1.2 — Lista de espera (formulário, validação, anti-spam) + `/teste-sinal`
+  - [x] **1.1 — Landing estática** (aprovado)
+  - [x] **1.2 — Lista de espera + `/teste-sinal`** ← checkpoint atual (final deste arquivo)
   - [ ] 1.3 — Painel admin com CSV + arquivos de deploy + E2E Playwright
 
 ---
@@ -109,4 +109,94 @@ A prévia no WhatsApp (Open Graph) só dá para testar depois do deploy (checkpo
 - **`/teste-sinal`:** página mínima que mede o tempo de carregamento e de uma chamada à API e salva a medição com a praia escolhida.
 - Tabelas novas no Flyway: `lead` e `medicao_sinal`.
 
-⏸️ Aguardando validação. Responda "APROVADO 1.1" ou "AJUSTAR 1.1: ..."
+✅ Aprovado pelo Matheus em 27/09/2026.
+
+---
+
+## Checkpoint 1.2 — Lista de espera + teste de sinal
+
+- **Data:** 2026-09-27
+- **CI:** ✅ verde (ktlint, **78 testes**, imagem Docker, smoke test do `docker compose`)
+
+### 1. O que foi feito
+
+**Lista de espera (formulário na seção do piloto)**
+- Campos: nome, nome da barraca, praia (lista das praias do Guarujá + "Outra"), WhatsApp com DDD e consentimento LGPD com link para a política.
+- Envio sem JavaScript (formulário HTML comum), com a página rolando de volta para o formulário quando há erro.
+- **WhatsApp aceita o que as pessoas digitam** — `(13) 99999-8888`, `13999998888`, `+55 13 …`, `013…` — e salva normalizado (`+5513999998888`). DDD inexistente, celular sem o 9 e número curto/longo são recusados.
+- Mensagens de erro em português, uma por campo, abaixo do campo; o que a pessoa digitou **não é apagado**; campos com erro ficam marcados para leitores de tela (`aria-invalid`).
+- **Mesmo WhatsApp duas vezes = um lead só** (o segundo envio atualiza os dados).
+- Página "Pronto, você está na lista." com botão para adiantar a conversa no WhatsApp.
+- **Anti-spam:** campo-armadilha invisível (robô que preenche finge sucesso e nada é salvo), limite de 8 envios por aparelho a cada 10 minutos (página "Recebemos muitos envios deste aparelho"), e **Cloudflare Turnstile pronto, mas desligado** até você configurar as chaves.
+
+**Teste de sinal (`/teste-sinal`)**
+- Página mínima: você escolhe a praia e toca em "Medir sinal agora". Ela mostra quanto a página demorou para abrir, o tempo de resposta do servidor (mediana de 5 medições) e o tipo de conexão, e dá o veredito: ✅ até 5 s (meta do Portão A) ou ⚠️ lento.
+- Cada medição é salva **anônima** (praia, tempos e tipo de conexão; sem IP, sem dado pessoal). Fora do Google (`noindex` + `robots.txt`).
+- Se não houver sinal para enviar, a tela avisa que isso também é um resultado.
+
+**Banco:** migração `V2` com as tabelas `lead` (WhatsApp único) e `medicao_sinal`.
+
+### 2. Decisões tomadas
+
+| Decisão | Onde |
+|---|---|
+| Rate limit próprio em memória em vez de Bucket4j; honeypot que "finge sucesso"; Turnstile opcional com falha fechada; lead único por WhatsApp | [ADR 0003](../adr/0003-anti-spam-da-lista-de-espera.md) |
+| Sem as suas respostas às perguntas do checkpoint 1.1, mantive os textos (headline, FAQ offline, entregas do piloto) como estavam e deixei o Turnstile desligado por configuração | — |
+| Removi o mínimo de 2 letras do nome: com campo vazio apareciam duas mensagens ao mesmo tempo. Agora é uma mensagem clara por campo | — |
+| A política de privacidade ganhou a linha sobre o teste de sinal | `/privacidade` |
+
+### 3. Como rodar localmente
+
+```bash
+git pull
+docker compose up --build
+```
+
+- Formulário: http://localhost:8080/#lista-de-espera
+- Teste de sinal: http://localhost:8080/teste-sinal
+- Ver os leads salvos (até o painel do checkpoint 1.3):
+  ```bash
+  docker compose exec db psql -U mesamar -c "select nome, nome_barraca, praia, whatsapp, criado_em from lead order by criado_em desc;"
+  docker compose exec db psql -U mesamar -c "select praia, carregamento_ms, ping_ms, tipo_conexao, criada_em from medicao_sinal order by criada_em desc;"
+  ```
+
+### 4. Testes automatizados
+
+**78 testes, 78 passando** (eram 40):
+
+| Classe | Testes | O que garante |
+|---|---|---|
+| `LeadFormTest` | 9 | Formulário com labels, praias e honeypot; envio válido salva com WhatsApp normalizado e redireciona; obrigado com `noindex`; WhatsApp repetido vira 1 lead atualizado; campos vazios → 422 com as 5 mensagens e nada salvo; WhatsApp/praia inválidos recusados **mantendo o que foi digitado**; sem consentimento não salva; honeypot finge sucesso e não salva; 9º envio do mesmo IP → 429, outro IP continua conseguindo |
+| `LeadTurnstileTest` | 3 | Com as chaves configuradas: widget e script aparecem, **a chave secreta nunca vai para o HTML**, sem desafio resolvido o envio é recusado, com desafio resolvido salva |
+| `BrazilianPhoneTest` | 17 | 8 formatos aceitos e 8 recusados (DDD inexistente, celular sem 9, fixo inválido, outro país, curto, longo) + formatação para exibição |
+| `RateLimiterTest` | 4 | Limite, chaves separadas, liberação quando a janela passa, limpeza de chaves antigas |
+| `SinalControllerTest` | 5 | Página com `noindex` e script com hash; ping 204 sem cache; medição salva **sem nenhuma coluna de dado pessoal**; praia/tempos inválidos → 400; 31ª medição do mesmo IP → 429 |
+| Anteriores | 40 | Continuam passando |
+
+### 5. Roteiro de validação manual (Matheus)
+
+| # | Passo | Resultado esperado |
+|---|---|---|
+| 1 | Na landing, tocar em "Entrar na lista do piloto" **sem preencher nada** | A página volta no formulário, com uma mensagem em português embaixo de cada campo |
+| 2 | Preencher com WhatsApp `(13) 1234` | Só o WhatsApp fica com erro; o resto do que você digitou continua lá |
+| 3 | Preencher tudo certo, com o seu WhatsApp do jeito que você digita no dia a dia | Vai para "Pronto, você está na lista." |
+| 4 | Rodar o `select` do item 3 acima | O lead aparece com o WhatsApp no formato `+55…` |
+| 5 | Enviar de novo com o mesmo WhatsApp e outro nome de barraca | Continua **um** lead, com o nome novo |
+| 6 | No celular, abrir `/teste-sinal`, escolher uma praia e medir | Aparecem os 3 números e o veredito; a medição aparece no `select` |
+| 7 | Testar o formulário no celular, com o teclado aberto | O WhatsApp abre o teclado numérico; nada fica escondido atrás do teclado |
+
+### 6. Limitações e riscos
+
+- **Proteção de IP em produção:** o limite por aparelho confia no IP repassado pelo Nginx. O `docs/deploy.md` (checkpoint 1.3) vai configurar o Nginx para usar o IP real da Cloudflare; sem isso, dá para burlar o limite (ADR 0003).
+- **Ainda sem painel:** os leads só podem ser vistos pelo banco até o checkpoint 1.3.
+- **Sem aviso quando chega um lead.** Se quiser saber na hora (e-mail ou WhatsApp), dá para adicionar no 1.3.
+- O teste de sinal mede a abertura da página **do teste**, que é leve. É um bom indicador do sinal, mas a página do cliente (Fase 3) terá que ser igualmente leve para o resultado valer.
+
+### 7. Próximo checkpoint (1.3), sem implementar
+
+- **Painel admin** protegido por senha (Spring Security): listas de leads e medições, com exportação CSV, e resumo do sinal por praia (mediana e % abaixo de 5 s).
+- **Deploy:** `deploy/docker-compose.prod.yml`, snippet do Nginx (com o IP real da Cloudflare), `docs/deploy.md` passo a passo para a sua VPS.
+- **E2E Playwright** no CI: enviar o formulário no tamanho de celular e medir o sinal.
+- Preciso de você: **domínio** (`mesamar.r4d4r.online` ou outro), **WhatsApp** do botão, e-mail para privacidade (opcional) e se vai querer o **Turnstile** e o **Cloudflare Web Analytics**.
+
+⏸️ Aguardando validação. Responda "APROVADO 1.2" ou "AJUSTAR 1.2: ..."

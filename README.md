@@ -44,6 +44,8 @@ docker compose up --build
 ```
 
 - Landing page: http://localhost:8080/
+- Lista de espera: formulário na própria landing (seção do piloto)
+- Teste de sinal na praia: http://localhost:8080/teste-sinal
 - Política de privacidade: http://localhost:8080/privacidade
 - Health check: http://localhost:8080/actuator/health → `{"status":"UP", ...}`
 - App do quiosque (placeholder): http://localhost:8080/staff/
