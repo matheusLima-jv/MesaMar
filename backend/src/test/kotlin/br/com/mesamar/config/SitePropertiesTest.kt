@@ -34,7 +34,7 @@ class SitePropertiesTest {
     }
 
     @Test
-    fun `link do WhatsApp codifica a mensagem com espacos como %20`() {
+    fun `link do WhatsApp codifica espacos como porcento-20 e nao como mais`() {
         val link = SiteProperties(whatsappNumber = "5513999998888").whatsappLink("Olá, tudo bem?")
 
         assertEquals("https://wa.me/5513999998888?text=Ol%C3%A1%2C%20tudo%20bem%3F", link)

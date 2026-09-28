@@ -31,7 +31,12 @@ class LandingPageTest(
     fun `landing esta em portugues e tem um unico h1 com a promessa principal`() {
         assertContains(html, """<html lang="pt-BR"""")
         assertEquals(1, Regex("<h1[ >]").findAll(html).count(), "a página deve ter exatamente um h1")
-        assertContains(html, "Seu cliente pede pelo celular, você recebe na ordem certa e ninguém sai sem pagar.")
+        val h1Text =
+            Regex("""<h1[^>]*>(.*?)</h1>""", RegexOption.DOT_MATCHES_ALL)
+                .find(html)!!
+                .groupValues[1]
+                .replace(Regex("<[^>]+>"), "")
+        assertEquals("Seu cliente pede pelo celular, você recebe na ordem certa e ninguém sai sem pagar.", h1Text)
     }
 
     @Test
