@@ -71,6 +71,20 @@ class LandingPageTest(
     }
 
     @Test
+    fun `fonte propria e servida com hash, cache longo e preload`() {
+        val preload = Regex("""<link rel="preload" href="(/fonts/bricolage-grotesque-latin-wght-[0-9a-f]{32}\.woff2)"""").find(html)
+        assertNotNull(preload, "o preload da fonte deveria usar a URL com hash")
+
+        val cssPath = Regex("""href="(/css/landing-[0-9a-f]{32}\.css)"""").find(html)!!.groupValues[1]
+        assertContains(http.get(cssPath).body(), preload.groupValues[1].substringAfterLast('/'))
+
+        val font = http.getBytes(preload.groupValues[1])
+        assertEquals(200, font.statusCode())
+        assertContains(font.header("Cache-Control"), "max-age=31536000")
+        assertTrue(font.body().size > 10_000, "arquivo de fonte vazio ou truncado")
+    }
+
+    @Test
     fun `botao de WhatsApp e analytics ficam escondidos quando nao configurados`() {
         assertFalse(html.contains("wa.me"), "sem número configurado, não deve haver link de WhatsApp")
         assertFalse(html.contains("cloudflareinsights"), "sem token, não deve carregar o analytics")
