@@ -26,7 +26,7 @@ WORKDIR /src
 COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY gradle gradle
 COPY backend/build.gradle.kts backend/
-RUN ./gradlew --no-daemon :backend:dependencies > /dev/null
+RUN chmod +x gradlew && ./gradlew --no-daemon :backend:dependencies > /dev/null
 
 COPY backend backend
 COPY web-staff web-staff

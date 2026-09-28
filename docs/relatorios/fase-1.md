@@ -244,7 +244,7 @@ docker compose up --build
 |---|---|
 | Usuário único do painel via `.env`, painel trancado sem senha, CSRF só onde há sessão, CSP restrita, CSV à prova de fórmula | [ADR 0004](../adr/0004-seguranca-do-site-e-do-painel.md) |
 | App sem porta publicada; conversa com o Nginx por rede Docker externa | `deploy/docker-compose.prod.yml` |
-| Subdomínio usado nos arquivos: `mesamar.r4d4r.online` (você não respondeu; troque se quiser outro) | `deploy/`, `docs/deploy.md` |
+| Domínio de produção: **`mesamar.0mega.fun`** (definido pelo Matheus em 28/09) | `deploy/`, `docs/deploy.md` |
 | O E2E só falha acima de 3 s de carregamento (e não em 1,5 s), para não quebrar o CI por variação da máquina do GitHub. O valor medido aparece em toda execução | `e2e/tests/landing.spec.ts` |
 
 ### 3. Como rodar e testar localmente

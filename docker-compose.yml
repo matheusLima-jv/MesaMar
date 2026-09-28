@@ -9,7 +9,9 @@ services:
       POSTGRES_USER: ${DB_USER:-mesamar}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-mesamar}
     ports:
-      - "5432:5432"
+      # Só na sua máquina (não expõe o banco na rede Wi-Fi). Se já houver um Postgres
+      # usando a 5432, troque para "127.0.0.1:5433:5432".
+      - "127.0.0.1:5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -38,6 +40,7 @@ services:
       MESAMAR_ADMIN_USER: ${MESAMAR_ADMIN_USER:-admin}
       MESAMAR_ADMIN_PASSWORD: ${MESAMAR_ADMIN_PASSWORD:-}
     ports:
+      # Aberto na rede local de propósito: permite testar pelo celular no mesmo Wi-Fi
       - "8080:8080"
 
 volumes:
