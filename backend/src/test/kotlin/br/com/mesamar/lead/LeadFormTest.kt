@@ -111,7 +111,8 @@ class LeadFormTest(
         assertEquals(422, response.statusCode())
         assertHtmlContains(html, "Confira o número: DDD + celular")
         assertHtmlContains(html, "Escolha uma praia da lista.")
-        assertHtmlContains(html, """value="Barraca do Zé"""") // não apaga o que a pessoa já digitou
+        // não apaga o que a pessoa já digitou (o Thymeleaf escreve o "é" como entidade HTML)
+        assertHtmlContains(html, """value="Barraca do Z&eacute;"""")
     }
 
     @Test

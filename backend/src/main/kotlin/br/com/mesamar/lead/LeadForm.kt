@@ -11,10 +11,10 @@ import jakarta.validation.constraints.Size
  */
 data class LeadForm(
     @field:NotBlank(message = "Conta pra gente o seu nome.")
-    @field:Size(min = 2, max = 80, message = "O nome precisa ter entre 2 e 80 letras.")
+    @field:Size(max = 80, message = "O nome pode ter no máximo 80 letras.")
     var nome: String = "",
     @field:NotBlank(message = "Qual é o nome da sua barraca ou quiosque?")
-    @field:Size(min = 2, max = 80, message = "O nome da barraca precisa ter entre 2 e 80 letras.")
+    @field:Size(max = 80, message = "O nome da barraca pode ter no máximo 80 letras.")
     var nomeBarraca: String = "",
     @field:NotBlank(message = "Escolha a praia onde você trabalha.")
     var praia: String = "",
