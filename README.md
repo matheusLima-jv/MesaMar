@@ -30,6 +30,8 @@ mesamar/
 └── docs/           # Plano, ADRs e relatórios de cada fase
 ```
 
+> Roteiro completo para validar tudo na sua máquina antes do deploy: [`docs/testar-localmente.md`](docs/testar-localmente.md).
+
 ## Pré-requisitos
 
 - **Docker** (com Docker Compose) — suficiente para rodar tudo.

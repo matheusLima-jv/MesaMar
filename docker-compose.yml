@@ -26,8 +26,9 @@ services:
       db:
         condition: service_healthy
     environment:
-      # Usa o perfil local (logs legíveis, detalhes no health) mesmo dentro do Docker.
-      SPRING_PROFILES_ACTIVE: local
+      # Perfil local por padrão (logs legíveis, detalhes no health). Para simular produção,
+      # coloque SPRING_PROFILES_ACTIVE=prod no .env.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-mesamar}
       DB_USER: ${DB_USER:-mesamar}
       DB_PASSWORD: ${DB_PASSWORD:-mesamar}
