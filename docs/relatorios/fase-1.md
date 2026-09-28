@@ -3,8 +3,8 @@
 - **Branch / PR:** `fase-1-landing` → [PR #2](https://github.com/matheusLima-jv/MesaMar/pull/2) (rascunho até o último checkpoint)
 - A Fase 1 foi dividida em 3 checkpoints, validados um por vez:
   - [x] **1.1 — Landing estática** (aprovado)
-  - [x] **1.2 — Lista de espera + `/teste-sinal`** ← checkpoint atual (final deste arquivo)
-  - [ ] 1.3 — Painel admin com CSV + arquivos de deploy + E2E Playwright
+  - [x] **1.2 — Lista de espera + `/teste-sinal`** (aprovado)
+  - [x] **1.3 — Painel admin + deploy + E2E** ← checkpoint atual (final deste arquivo)
 
 ---
 
@@ -199,4 +199,115 @@ docker compose up --build
 - **E2E Playwright** no CI: enviar o formulário no tamanho de celular e medir o sinal.
 - Preciso de você: **domínio** (`mesamar.r4d4r.online` ou outro), **WhatsApp** do botão, e-mail para privacidade (opcional) e se vai querer o **Turnstile** e o **Cloudflare Web Analytics**.
 
-⏸️ Aguardando validação. Responda "APROVADO 1.2" ou "AJUSTAR 1.2: ..."
+✅ Aprovado pelo Matheus em 27/09/2026.
+
+---
+
+## Checkpoint 1.3 — Painel admin, deploy e E2E (fecha a Fase 1)
+
+- **Data:** 2026-09-28
+- **CI:** ✅ verde: ktlint, **98 testes** de backend, imagem Docker, smoke test do `docker compose` e **9 testes E2E** no tamanho de celular
+
+### 1. O que foi feito
+
+**Painel `/admin`** (protegido por senha)
+- Login próprio (usuário e senha vêm do `.env`). **Sem senha configurada, o painel fica trancado.**
+- **Lista de espera:** total de interessados e tabela com data, nome, barraca, praia e WhatsApp (clicável: abre a conversa).
+- **Sinal por praia:** número de medições, mediana de abertura da página, mediana de resposta do servidor e **% de medições abaixo de 5 s**, em verde ou vermelho. É o número que decide o Portão A.
+- **Baixar CSV** dos leads e das medições, pronto para abrir no Excel em português (acentos, `;`, datas no horário de Brasília). Nomes começando com `=`/`+`/`-`/`@` são neutralizados.
+- "Sair" encerra a sessão; 10 tentativas de senha erradas bloqueiam aquele IP por alguns minutos.
+
+**Segurança do site** ([ADR 0004](../adr/0004-seguranca-do-site-e-do-painel.md))
+- Cabeçalhos de segurança (CSP, anti-iframe, nosniff, referrer).
+- **As páginas públicas continuam sem nenhum cookie**, como promete a política de privacidade. Há um teste garantindo isso.
+
+**Deploy** (você executa: [`docs/deploy.md`](../deploy.md))
+- `deploy/docker-compose.prod.yml`: app + Postgres, **sem abrir porta no host**. O app entra na rede Docker do seu Nginx (`web`).
+- `deploy/nginx-mesamar.conf` + `nginx-mesamar-proxy.conf`: HTTPS, **IP real do visitante via Cloudflare** (`CF-Connecting-IP`) e `X-Forwarded-For` sobrescrito (fecha a brecha do ADR 0003), sem cache na Cloudflare para `/admin` e `/api`.
+- `deploy/prod.env.example`: todas as variáveis, com instrução para gerar as senhas.
+- Guia com DNS, certificado, rede Docker, subida, conferência (7 testes), atualização, **rollback por SHA** e backup manual.
+
+**E2E (Playwright, Pixel 7) rodando no CI contra o `docker compose`**
+- Landing num **4G congestionado simulado** (4 Mbps, 150 ms de latência): **361 ms** até o `load` no último CI (meta: 1,5 s).
+- Sem rolagem lateral no celular, **sem erro no console** (pega bloqueio de CSP), FAQ abre, botão principal leva ao formulário.
+- Formulário vazio mostra as 5 mensagens; envio completo cai no "Pronto, você está na lista.".
+- Teste de sinal mede e salva; pede a praia antes.
+- Admin: cria lead, faz login, vê o lead, baixa o CSV, sai; senha errada não entra.
+
+**Correções que os E2E encontraram** (e que os testes de backend não pegariam)
+- Depois do envio, a página de obrigado abria rolada para baixo (o navegador herdava o `#lista-de-espera` do formulário). Agora abre no topo.
+- No celular, "Quero o piloto grátis" levava ao começo da seção, e o formulário ficava fora da tela. Agora vai direto ao formulário.
+
+### 2. Decisões tomadas
+
+| Decisão | Onde |
+|---|---|
+| Usuário único do painel via `.env`, painel trancado sem senha, CSRF só onde há sessão, CSP restrita, CSV à prova de fórmula | [ADR 0004](../adr/0004-seguranca-do-site-e-do-painel.md) |
+| App sem porta publicada; conversa com o Nginx por rede Docker externa | `deploy/docker-compose.prod.yml` |
+| Subdomínio usado nos arquivos: `mesamar.r4d4r.online` (você não respondeu; troque se quiser outro) | `deploy/`, `docs/deploy.md` |
+| O E2E só falha acima de 3 s de carregamento (e não em 1,5 s), para não quebrar o CI por variação da máquina do GitHub. O valor medido aparece em toda execução | `e2e/tests/landing.spec.ts` |
+
+### 3. Como rodar e testar localmente
+
+```bash
+git pull
+# no .env: MESAMAR_ADMIN_PASSWORD=uma-senha-sua
+docker compose up --build
+```
+
+- Painel: http://localhost:8080/admin (usuário `admin` e a senha do `.env`)
+- E2E no seu computador: veja a seção "Testes de ponta a ponta" do README
+
+### 4. Testes automatizados
+
+**98 testes de backend** (eram 78) **+ 9 E2E**:
+
+| Classe | Testes | O que garante |
+|---|---|---|
+| `AdminPanelTest` | 8 | Painel e CSVs exigem login; login com CSRF e `noindex`; senha errada volta com mensagem; painel mostra lead, link do WhatsApp e resumo do sinal; CSV com BOM, `;`, aspas e **fórmula neutralizada**; CSV de medições; sair encerra a sessão; 11ª tentativa de login → 429 |
+| `AdminLockedTest` | 1 | Sem senha configurada, nenhuma senha entra |
+| `SecurityHeadersTest` | 3 | CSP e demais cabeçalhos; **nenhum cookie** em `/`, `/privacidade`, `/teste-sinal`, obrigado e no envio do formulário; cache longo dos estáticos continua valendo com o Spring Security |
+| `CsvTest` | 8 | Escape de cada caso (acentos, fórmulas, `;`, aspas) e formato do arquivo |
+| E2E Playwright | 9 | Os fluxos reais no navegador de celular (ver acima) |
+| Anteriores | 78 | Continuam passando |
+
+### 5. Roteiro de validação manual (Matheus)
+
+**No seu computador:**
+
+| # | Passo | Esperado |
+|---|---|---|
+| 1 | Pôr `MESAMAR_ADMIN_PASSWORD` no `.env`, subir e abrir `/admin` | Pede login; entra com `admin` + a sua senha |
+| 2 | Enviar 2 leads pela landing e 1 medição pelo `/teste-sinal` | Aparecem no painel |
+| 3 | Baixar os dois CSVs e abrir no Excel ou no Google Planilhas | Acentos certos, uma informação por coluna |
+| 4 | Sair e tentar abrir `/admin` de novo | Volta para o login |
+
+**Deploy na VPS** (seguindo o [`docs/deploy.md`](../deploy.md), depois do merge deste PR):
+
+| # | Passo | Esperado |
+|---|---|---|
+| 5 | Fazer o deploy e rodar os 7 testes da seção "Conferir" do guia | Todos ok, **inclusive o do IP real** (o bloqueio vale só para o seu celular) |
+| 6 | Mandar o link da landing no WhatsApp | Prévia com imagem e título |
+
+### 6. Limitações e riscos
+
+- **Sem aviso quando chega um lead:** você precisa abrir o painel. Se quiser um e-mail a cada lead, é pequeno de adicionar.
+- **O painel tem um único usuário.** O cadastro de donos e atendentes é a Fase 2.
+- **A medição de 361 ms é no CI**, com a rede simulada, não na praia. Os números que valem para o Portão A são os do `/teste-sinal`, feitos por você.
+- **Backup ainda é manual** (comando no guia). O backup automático é a Fase 7.
+- **A lista de IPs da Cloudflare no Nginx** precisa ser conferida em https://www.cloudflare.com/ips/ no dia do deploy.
+
+---
+
+## 🚦 Próximo passo: Portão A (em campo, não é código)
+
+Depois do deploy:
+
+1. **Divulgar:** landing nos grupos de anfitriões e comerciantes da região, e **visitas presenciais** a barracas (o checklist de conversa está no começo do nosso plano).
+2. **Medir o sinal:** abrir `/teste-sinal` em **pelo menos 3 praias**, num **domingo de sol, entre 12h e 15h**, com o Wi-Fi desligado. Umas 3 medições por praia.
+3. **Olhar o painel:**
+   - **Seguir para a Fase 2** se houver **≥ 5 leads qualificados** (barraqueiros de verdade) **ou ≥ 3 donos** que aceitaram o piloto numa conversa, **e** a maioria das praias com **"Até 5 s" ≥ 50%**.
+   - **Sinal ruim:** registramos em ADR e a Fase 6 (modo offline do atendente) vem **antes** do piloto.
+   - **Poucos leads:** pausar e rever o posicionamento antes de construir mais.
+
+⏸️ Aguardando validação do checkpoint 1.3. Responda **"APROVADO 1.3"** ou **"AJUSTAR 1.3: ..."**. Depois do deploy e das medições, me mande o resultado do Portão A.

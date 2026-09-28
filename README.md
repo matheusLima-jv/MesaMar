@@ -2,7 +2,7 @@
 
 Comanda digital para quiosques e carrinhos de praia. O cliente faz um cadastro rápido no quiosque, recebe um QR pessoal, pede pelo celular e fecha a conta sem chamar garçom. O dono recebe os pedidos numa fila por ordem de chegada.
 
-> **Status:** Fase 1 em andamento (landing page + lista de espera). O plano completo, com as fases e os portões de validação, está em [`docs/MESAMAR_PROMPT.md`](docs/MESAMAR_PROMPT.md).
+> **Status:** Fase 1 no último checkpoint (1.3: painel, deploy e E2E). Depois dela vem o Portão A (validação em campo). O plano completo, com as fases e os portões de validação, está em [`docs/MESAMAR_PROMPT.md`](docs/MESAMAR_PROMPT.md).
 
 ## Stack
 
@@ -47,6 +47,7 @@ docker compose up --build
 - Lista de espera: formulário na própria landing (seção do piloto)
 - Teste de sinal na praia: http://localhost:8080/teste-sinal
 - Política de privacidade: http://localhost:8080/privacidade
+- Painel (leads, sinal por praia, CSV): http://localhost:8080/admin — usuário e senha em `MESAMAR_ADMIN_USER` / `MESAMAR_ADMIN_PASSWORD` no `.env` (sem senha, o painel fica trancado)
 - Health check: http://localhost:8080/actuator/health → `{"status":"UP", ...}`
 - App do quiosque (placeholder): http://localhost:8080/staff/
 - Página do cliente (placeholder): http://localhost:8080/cliente/
@@ -83,6 +84,18 @@ npm run dev         # http://localhost:5173/staff/ (as chamadas /api vão para o
 
 Os testes de integração sobem um **PostgreSQL 16 real via Testcontainers**, então o Docker precisa estar rodando.
 
+### Testes de ponta a ponta (Playwright, tamanho de celular)
+
+Com a aplicação no ar (`docker compose up`):
+
+```bash
+cd e2e
+npm ci
+npx playwright install chromium
+E2E_ADMIN_PASSWORD=<a senha do seu .env> npx playwright test
+npx playwright show-report   # relatório com prints e vídeos das falhas
+```
+
 Relatório HTML dos testes: `backend/build/reports/tests/test/index.html`.
 
 Para corrigir o estilo automaticamente: `./gradlew ktlintFormat`.
@@ -101,10 +114,10 @@ Para ver o botão de WhatsApp da landing localmente, crie um `.env` com `MESAMAR
 
 ## CI
 
-A cada PR, o GitHub Actions roda: ktlint → build dos fronts → testes com PostgreSQL real → build da imagem Docker.
+A cada PR, o GitHub Actions roda: ktlint → build dos fronts → testes com PostgreSQL real → build da imagem Docker → `docker compose up` + E2E Playwright no tamanho de celular.
 No merge para `main`, a imagem também é publicada em `ghcr.io/matheuslima-jv/mesamar`.
 
-**O deploy é sempre manual** (o passo a passo chega na Fase 1, em `docs/deploy.md`).
+**O deploy é sempre manual:** passo a passo em [`docs/deploy.md`](docs/deploy.md) (arquivos em `deploy/`).
 
 ## Fluxo de trabalho
 

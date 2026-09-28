@@ -78,7 +78,7 @@
     </div>
 
     <details class="admin-details" th:unless="${medicoes.isEmpty()}">
-      <summary>Últimas <span th:text="${medicoes.size()}">50</span> medições</summary>
+      <summary th:text="|Últimas ${medicoes.size()} medições|">Últimas 50 medições</summary>
       <div class="table-wrap">
         <table>
           <thead>
