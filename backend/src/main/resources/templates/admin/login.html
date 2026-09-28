@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar — Painel MesaMar</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="../../static/img/favicon.svg" th:href="@{/img/favicon.svg}" type="image/svg+xml">
+  <link rel="stylesheet" href="../../static/css/landing.css" th:href="@{/css/landing.css}">
+</head>
+<body>
+<header th:replace="~{landing/index :: siteHeader}"></header>
+
+<main id="conteudo" class="message-page">
+  <div class="wrap">
+    <form class="lead-form admin-login" method="post" action="/admin/login" th:action="@{/admin/login}">
+      <h1 class="admin-title">Painel</h1>
+      <p class="form-hint">Área interna do MesaMar.</p>
+
+      <p class="form-alert" role="alert" th:if="${erro}">Usuário ou senha não conferem. Tente de novo.</p>
+      <p class="form-ok" role="status" th:if="${saiu}">Você saiu do painel.</p>
+
+      <div class="field">
+        <label for="username">Usuário</label>
+        <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Senha</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn-ink btn-block" type="submit">Entrar no painel</button>
+    </form>
+  </div>
+</main>
+</body>
+</html>

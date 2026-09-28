@@ -336,6 +336,33 @@ h2 { font-size: clamp(2rem, 6vw, 3.4rem); max-width: 16ch; }
 .signal-tip { margin: 1rem 0 0; font-size: 0.88rem; color: var(--ink-2); }
 .btn[disabled] { opacity: 0.6; cursor: progress; transform: none; }
 
+/* ---------- Painel admin ---------- */
+.admin-login { max-width: 26rem; }
+.admin-title { font-size: clamp(1.8rem, 5vw, 2.6rem); margin: 0; }
+.form-ok { margin: 0 0 1.25rem; padding: 0.75rem 1rem; border-radius: 10px; border: 2px solid var(--ok); color: var(--ok); background: #fff; font-weight: 600; }
+.field input[type='password'] {
+  width: 100%; min-height: 52px; padding: 0.7rem 0.9rem;
+  font: 500 1.05rem/1.3 var(--body); color: var(--ink);
+  background: #fff; border: 2px solid var(--rule); border-radius: 10px;
+}
+.field input[type='password']:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--sun); }
+.admin-tag { font-family: var(--body); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.link-button { background: none; border: 0; border-bottom: 2px solid var(--sun); font: inherit; font-weight: 700; cursor: pointer; color: var(--ink); }
+.admin-main { padding-top: 2rem; padding-bottom: 4rem; }
+.admin-section { padding: 1.5rem 0 2.5rem; border-bottom: 1px solid var(--rule); }
+.admin-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+.admin-head .kicker { margin-bottom: 0.75rem; }
+.admin-empty { color: var(--ink-2); }
+.table-wrap { overflow-x: auto; border-top: 2px solid var(--ink); }
+.table-wrap table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.table-wrap th, .table-wrap td { text-align: left; padding: 0.7rem 1rem 0.7rem 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.table-wrap th { font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.pill-status { font-weight: 800; }
+.pill-status.ok { color: var(--ok); }
+.pill-status.bad { color: var(--late); }
+.admin-details { margin-top: 1.5rem; }
+.admin-details summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+
 /* FAQ */
 .faq .wrap { display: grid; gap: 2rem; }
 .faq-list { border-top: 2px solid var(--ink); }
