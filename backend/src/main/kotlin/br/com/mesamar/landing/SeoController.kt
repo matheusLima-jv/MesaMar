@@ -21,6 +21,9 @@ class SeoController(
         |Disallow: /staff/
         |Disallow: /cliente/
         |Disallow: /actuator/
+        |Disallow: /api/
+        |Disallow: /teste-sinal
+        |Disallow: /lista-de-espera/
         |
         |Sitemap: ${site.absoluteUrl("/sitemap.xml")}
         |

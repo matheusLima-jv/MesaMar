@@ -27,6 +27,7 @@
   <link rel="stylesheet" href="../../static/css/landing.css" th:href="@{/css/landing.css}">
 
   <!-- Cloudflare Web Analytics: sem cookies, só entra se o token estiver configurado -->
+  <script th:if="${turnstile != null and turnstile.enabled}" src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <script th:fragment="analytics" th:if="${site != null and site.hasAnalytics}" defer
           src="https://static.cloudflareinsights.com/beacon.min.js"
           th:data-cf-beacon="|{&quot;token&quot;: &quot;${site.cloudflareAnalyticsToken}&quot;}|"></script>
@@ -200,35 +201,98 @@
       <h2 id="titulo-piloto">Piloto gratuito na temporada 2026/27</h2>
       <p class="section-lead">Estamos escolhendo as primeiras barracas do Guarujá para usar o MesaMar de graça neste verão.</p>
 
-      <p class="price" aria-hidden="true"><b>R$&nbsp;0</b><span>do primeiro ao último<br>fim de semana da temporada</span></p>
+      <div class="pilot-layout">
+        <div>
+          <p class="price" aria-hidden="true"><b>R$&nbsp;0</b><span>do primeiro ao último<br>fim de semana da temporada</span></p>
 
-      <div class="pilot-cols">
-        <div>
-          <h3>O que você recebe</h3>
-          <ul>
-            <li>O sistema completo, sem pagar nada na temporada</li>
-            <li>Ajuda para montar o cardápio e treinar a equipe</li>
-            <li>Os QR Codes impressos para o balcão</li>
-            <li>Suporte direto pelo WhatsApp</li>
-          </ul>
+          <div class="pilot-cols">
+            <div>
+              <h3>O que você recebe</h3>
+              <ul>
+                <li>O sistema completo, sem pagar nada na temporada</li>
+                <li>Ajuda para montar o cardápio e treinar a equipe</li>
+                <li>Os QR Codes impressos para o balcão</li>
+                <li>Suporte direto pelo WhatsApp</li>
+              </ul>
+            </div>
+            <div>
+              <h3>O que pedimos em troca</h3>
+              <ul>
+                <li>Usar de verdade nos fins de semana</li>
+                <li>Contar o que funcionou e o que atrapalhou</li>
+                <li>Sem contrato e sem compromisso de continuar</li>
+              </ul>
+            </div>
+          </div>
         </div>
-        <div>
-          <h3>O que pedimos em troca</h3>
-          <ul>
-            <li>Usar de verdade nos fins de semana</li>
-            <li>Contar o que funcionou e o que atrapalhou</li>
-            <li>Sem contrato e sem compromisso de continuar</li>
-          </ul>
-        </div>
+
+        <!-- ============ Formulário da lista de espera ============ -->
+        <form id="lista-de-espera" class="lead-form" method="post" action="/lista-de-espera#lista-de-espera"
+              th:action="@{/lista-de-espera#lista-de-espera}" th:object="${leadForm}" novalidate>
+          <h3>Entrar na lista do piloto</h3>
+          <p class="form-hint">Leva 30 segundos. A gente chama você no WhatsApp.</p>
+
+          <p class="form-alert" role="alert" th:if="${#fields.hasGlobalErrors()}" th:text="${#fields.globalErrors()[0]}">
+            Não conseguimos confirmar que você não é um robô.
+          </p>
+
+          <div class="field" th:classappend="${#fields.hasErrors('nome')} ? 'has-error'">
+            <label for="nome">Seu nome</label>
+            <input id="nome" type="text" th:field="*{nome}" autocomplete="name" maxlength="80" required
+                   th:attr="aria-invalid=${#fields.hasErrors('nome')},aria-describedby=${#fields.hasErrors('nome')} ? 'nome-erro'">
+            <p class="field-error" id="nome-erro" th:if="${#fields.hasErrors('nome')}" th:text="${#fields.errors('nome')[0]}">Erro</p>
+          </div>
+
+          <div class="field" th:classappend="${#fields.hasErrors('nomeBarraca')} ? 'has-error'">
+            <label for="nomeBarraca">Nome da barraca ou quiosque</label>
+            <input id="nomeBarraca" type="text" th:field="*{nomeBarraca}" autocomplete="organization" maxlength="80" required
+                   th:attr="aria-invalid=${#fields.hasErrors('nomeBarraca')},aria-describedby=${#fields.hasErrors('nomeBarraca')} ? 'barraca-erro'">
+            <p class="field-error" id="barraca-erro" th:if="${#fields.hasErrors('nomeBarraca')}" th:text="${#fields.errors('nomeBarraca')[0]}">Erro</p>
+          </div>
+
+          <div class="field" th:classappend="${#fields.hasErrors('praia')} ? 'has-error'">
+            <label for="praia">Praia</label>
+            <select id="praia" th:field="*{praia}" required
+                    th:attr="aria-invalid=${#fields.hasErrors('praia')},aria-describedby=${#fields.hasErrors('praia')} ? 'praia-erro'">
+              <option value="">Escolha a praia</option>
+              <option th:each="p : ${praias}" th:value="${p.name()}" th:text="${p.label}">Enseada</option>
+            </select>
+            <p class="field-error" id="praia-erro" th:if="${#fields.hasErrors('praia')}" th:text="${#fields.errors('praia')[0]}">Erro</p>
+          </div>
+
+          <div class="field" th:classappend="${#fields.hasErrors('whatsapp')} ? 'has-error'">
+            <label for="whatsapp">WhatsApp com DDD</label>
+            <input id="whatsapp" type="tel" th:field="*{whatsapp}" inputmode="tel" autocomplete="tel-national" maxlength="20"
+                   placeholder="(13) 99999-8888" required
+                   th:attr="aria-invalid=${#fields.hasErrors('whatsapp')},aria-describedby=${#fields.hasErrors('whatsapp')} ? 'whatsapp-erro'">
+            <p class="field-error" id="whatsapp-erro" th:if="${#fields.hasErrors('whatsapp')}" th:text="${#fields.errors('whatsapp')[0]}">Erro</p>
+          </div>
+
+          <!-- Honeypot: invisível para pessoas; robôs costumam preencher tudo -->
+          <div class="hp" aria-hidden="true">
+            <label for="website">Não preencha este campo</label>
+            <input id="website" type="text" th:field="*{website}" tabindex="-1" autocomplete="off">
+          </div>
+
+          <div class="field check" th:classappend="${#fields.hasErrors('consentimento')} ? 'has-error'">
+            <input id="consentimento" type="checkbox" th:field="*{consentimento}" required
+                   th:attr="aria-invalid=${#fields.hasErrors('consentimento')},aria-describedby=${#fields.hasErrors('consentimento')} ? 'consentimento-erro'">
+            <label for="consentimento">Aceito receber contato do MesaMar pelo WhatsApp sobre o piloto, conforme a
+              <a href="/privacidade" th:href="@{/privacidade}" target="_blank">política de privacidade</a>.</label>
+            <p class="field-error" id="consentimento-erro" th:if="${#fields.hasErrors('consentimento')}" th:text="${#fields.errors('consentimento')[0]}">Erro</p>
+          </div>
+
+          <div class="cf-turnstile" th:if="${turnstile.enabled}" th:attr="data-sitekey=${turnstile.siteKey}" data-language="pt-br"></div>
+
+          <button class="btn btn-sun btn-block" type="submit">Entrar na lista do piloto</button>
+
+          <p class="form-alt" th:if="${site.hasWhatsapp}">
+            Prefere conversar?
+            <a href="https://wa.me/" th:href="${whatsappLink}" target="_blank" rel="noopener">Chame no WhatsApp</a>
+          </p>
+        </form>
       </div>
 
-      <!-- O formulário da lista de espera entra aqui (checkpoint 1.2) -->
-      <div id="lista-de-espera" class="cta-row" th:if="${site.hasWhatsapp}">
-        <a class="btn btn-sun" href="https://wa.me/" th:href="${whatsappLink}" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.66 15l-1.3 4.76 4.88-1.28A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.18-1.14l-.3-.18-2.9.76.78-2.83-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.14c-.25-.12-1.46-.72-1.69-.8-.23-.09-.39-.13-.56.12-.16.24-.64.8-.78.96-.15.17-.29.19-.54.06a6.7 6.7 0 0 1-1.97-1.22 7.4 7.4 0 0 1-1.37-1.7c-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.16.04-.3-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.41-.56-.42h-.48a.92.92 0 0 0-.66.31 2.8 2.8 0 0 0-.87 2.07 4.85 4.85 0 0 0 1.02 2.58 11.1 11.1 0 0 0 4.25 3.76c.6.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.46-.6 1.67-1.18.2-.58.2-1.07.14-1.18-.06-.1-.22-.16-.47-.28Z"/></svg>
-          Quero participar do piloto
-        </a>
-      </div>
       <p class="note">O piloto começa com poucas barracas para acompanharmos cada uma de perto.</p>
     </div>
   </section>
