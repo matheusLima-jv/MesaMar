@@ -20,8 +20,7 @@ object BrazilianPhone {
         71 73 74 75 77 79
         81 82 83 84 85 86 87 88 89
         91 92 93 94 95 96 97 98 99
-        """
-            .trim()
+        """.trim()
             .split(Regex("\\s+"))
             .map(String::toInt)
             .toSet()
