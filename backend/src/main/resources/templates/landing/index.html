@@ -227,8 +227,9 @@
         </div>
 
         <!-- ============ Formulário da lista de espera ============ -->
+        <!-- action sem th:action de propósito: evita o token CSRF (e o cookie de sessão) na landing pública -->
         <form id="lista-de-espera" class="lead-form" method="post" action="/lista-de-espera#lista-de-espera"
-              th:action="@{/lista-de-espera#lista-de-espera}" th:object="${leadForm}" novalidate>
+              th:object="${leadForm}" novalidate>
           <h3>Entrar na lista do piloto</h3>
           <p class="form-hint">Leva 30 segundos. A gente chama você no WhatsApp.</p>
 
