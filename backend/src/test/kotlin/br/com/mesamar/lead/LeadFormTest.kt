@@ -3,6 +3,7 @@ package br.com.mesamar.lead
 import br.com.mesamar.support.HttpTestClient
 import br.com.mesamar.support.IntegrationTest
 import br.com.mesamar.support.TestIps
+import br.com.mesamar.support.assertHtmlContains
 import br.com.mesamar.support.header
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Value
@@ -96,8 +97,8 @@ class LeadFormTest(
             "Escolha a praia onde você trabalha.",
             "Deixe um WhatsApp para a gente falar com você.",
             "Para entrar na lista, é preciso concordar com o contato pelo WhatsApp.",
-        ).forEach { assertContains(html, it) }
-        assertContains(html, """aria-invalid="true"""")
+        ).forEach { assertHtmlContains(html, it) }
+        assertHtmlContains(html, """aria-invalid="true"""")
         assertEquals(before, jdbc.queryForObject("SELECT count(*) FROM lead", Int::class.java))
     }
 
@@ -108,9 +109,9 @@ class LeadFormTest(
         val html = response.body()
 
         assertEquals(422, response.statusCode())
-        assertContains(html, "Confira o número: DDD + celular")
-        assertContains(html, "Escolha uma praia da lista.")
-        assertContains(html, """value="Barraca do Zé"""") // não apaga o que a pessoa já digitou
+        assertHtmlContains(html, "Confira o número: DDD + celular")
+        assertHtmlContains(html, "Escolha uma praia da lista.")
+        assertHtmlContains(html, """value="Barraca do Zé"""") // não apaga o que a pessoa já digitou
     }
 
     @Test

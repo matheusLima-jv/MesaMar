@@ -76,3 +76,18 @@ object TestIps {
         return "198.51.${100 + counter / 250}.${counter % 250 + 1}"
     }
 }
+
+/**
+ * Como assertContains, mas quando falha mostra só o trecho relevante do HTML
+ * (a partir de `anchor`), em vez da página inteira.
+ */
+fun assertHtmlContains(
+    html: String,
+    expected: String,
+    anchor: String = "<form",
+) {
+    if (!html.contains(expected)) {
+        val excerpt = html.substringAfter(anchor, html).take(4000)
+        kotlin.test.fail("Não encontrado no HTML: «$expected»\n--- trecho a partir de $anchor ---\n$excerpt")
+    }
+}
