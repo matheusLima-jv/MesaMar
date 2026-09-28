@@ -1,5 +1,7 @@
 package br.com.mesamar.support
 
+import java.net.CookieManager
+import java.net.CookiePolicy
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -13,16 +15,19 @@ import java.time.Duration
  * `ip` vira o cabeçalho X-Forwarded-For, que o Spring usa como IP do cliente
  * (server.forward-headers-strategy=framework). Assim cada teste tem o seu "aparelho"
  * e os limites por IP de um teste não atrapalham os outros.
+ * `cookies = true` guarda os cookies entre as chamadas (necessário para o login do painel).
  */
 class HttpTestClient(
     private val port: Int,
     private val ip: String? = null,
+    cookies: Boolean = false,
 ) {
     private val client: HttpClient =
         HttpClient
             .newBuilder()
             .followRedirects(HttpClient.Redirect.NEVER)
             .connectTimeout(Duration.ofSeconds(5))
+            .apply { if (cookies) cookieHandler(CookieManager(null, CookiePolicy.ACCEPT_ALL)) }
             .build()
 
     fun get(path: String): HttpResponse<String> = client.send(request(path).GET().build(), HttpResponse.BodyHandlers.ofString())

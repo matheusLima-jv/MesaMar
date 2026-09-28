@@ -3,3 +3,8 @@ logging:
   level:
     root: WARN
     br.com.mesamar: INFO
+
+mesamar:
+  admin:
+    username: admin
+    password: senha-de-teste
