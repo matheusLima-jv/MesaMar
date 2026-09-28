@@ -303,7 +303,7 @@ docker compose up --build
 
 Depois do deploy:
 
-1. **Divulgar:** landing nos grupos de anfitriões e comerciantes da região, e **visitas presenciais** a barracas (o checklist de conversa está no começo do nosso plano).
+1. **Divulgar:** landing nos grupos de anfitriões e comerciantes da região, e **visitas presenciais** a barracas (com o roteiro de perguntas que combinamos: como coletam pedidos hoje, o que já deu errado, quanto tempo perdem).
 2. **Medir o sinal:** abrir `/teste-sinal` em **pelo menos 3 praias**, num **domingo de sol, entre 12h e 15h**, com o Wi-Fi desligado. Umas 3 medições por praia.
 3. **Olhar o painel:**
    - **Seguir para a Fase 2** se houver **≥ 5 leads qualificados** (barraqueiros de verdade) **ou ≥ 3 donos** que aceitaram o piloto numa conversa, **e** a maioria das praias com **"Até 5 s" ≥ 50%**.
