@@ -45,6 +45,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   /* granulado leve de papel: dá textura sem virar enfeite */
@@ -264,6 +266,76 @@ h2 { font-size: clamp(2rem, 6vw, 3.4rem); max-width: 16ch; }
 .pilot-cols li { padding: 0.7rem 0; border-top: 1px solid var(--rule-dark); }
 .pilot .note { margin: 1.25rem 0 0; font-size: 0.92rem; color: #bcd3da; }
 
+/* Layout do piloto: oferta à esquerda, formulário à direita */
+.pilot-layout { display: grid; gap: 2.5rem; align-items: start; }
+.pilot-layout .pilot-cols { margin-bottom: 0; }
+
+/* ---------- Formulário da lista de espera ---------- */
+.lead-form {
+  scroll-margin-top: 1.5rem;
+  background: var(--paper); color: var(--ink);
+  border-radius: 16px; padding: clamp(1.25rem, 4vw, 2rem);
+  box-shadow: 8px 8px 0 var(--sun);
+}
+.lead-form h3 { font-size: 1.6rem; letter-spacing: -0.03em; color: var(--ink); margin: 0; }
+.form-hint { margin: 0.4rem 0 1.5rem; color: var(--ink-2); font-size: 0.95rem; }
+.form-alert {
+  margin: 0 0 1.25rem; padding: 0.75rem 1rem; border-radius: 10px;
+  border: 2px solid var(--late); color: var(--late); background: #fff; font-weight: 600;
+}
+
+.field { margin-bottom: 1.1rem; }
+.field label { display: block; margin-bottom: 0.35rem; font-weight: 700; font-size: 0.95rem; }
+.field input[type='text'], .field input[type='tel'], .field select {
+  width: 100%; min-height: 52px; padding: 0.7rem 0.9rem;
+  font: 500 1.05rem/1.3 var(--body); color: var(--ink);
+  background: #fff; border: 2px solid var(--rule); border-radius: 10px;
+  transition: border-color 140ms var(--ease);
+  -webkit-appearance: none; appearance: none;
+}
+.field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%23101b1e' stroke-width='2.2'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 1rem center; padding-right: 2.5rem;
+}
+.field input:hover, .field select:hover { border-color: #b9ab8e; }
+.field input:focus, .field select:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--sun); }
+.field input::placeholder { color: #8a8f8e; }
+.has-error input, .has-error select { border-color: var(--late); }
+.field-error { margin: 0.35rem 0 0; color: var(--late); font-size: 0.9rem; font-weight: 600; }
+
+.field.check { display: grid; grid-template-columns: 1.5rem 1fr; gap: 0.75rem; align-items: start; }
+.field.check input { width: 1.4rem; height: 1.4rem; margin: 0.15rem 0 0; accent-color: var(--ink); }
+.field.check label { font-weight: 500; font-size: 0.92rem; color: var(--ink-2); margin: 0; }
+.field.check label a { color: var(--ink); }
+.field.check .field-error { grid-column: 1 / -1; }
+
+/* honeypot fora da tela (não usar display:none: alguns robôs ignoram campos ocultos assim) */
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.cf-turnstile { margin-bottom: 1rem; }
+.btn-block { width: 100%; }
+.form-alt { margin: 1rem 0 0; text-align: center; font-size: 0.92rem; color: var(--ink-2); }
+.form-alt a { color: var(--ink); font-weight: 700; }
+
+/* Páginas de mensagem (obrigado, limite) */
+.message-page { padding: clamp(3.5rem, 12vw, 7rem) 0; }
+.message-page h1 { font-size: clamp(2.4rem, 8vw, 4.2rem); max-width: 14ch; }
+.message-page .lead { margin: 1.5rem 0 2rem; max-width: 34rem; font-size: 1.12rem; color: var(--ink-2); }
+
+/* Teste de sinal */
+.signal-card {
+  max-width: 30rem; padding: clamp(1.25rem, 4vw, 2rem);
+  background: #fff; border: 2px solid var(--ink); border-radius: 16px; box-shadow: 8px 8px 0 var(--sun);
+}
+.signal-results { display: grid; gap: 0; margin: 1.5rem 0 0; border-top: 2px solid var(--ink); }
+.signal-results div { display: flex; justify-content: space-between; gap: 1rem; padding: 0.8rem 0; border-bottom: 1px solid var(--rule); }
+.signal-results dt { color: var(--ink-2); }
+.signal-results dd { margin: 0; font-family: var(--display); font-weight: 750; font-size: 1.25rem; letter-spacing: -0.02em; }
+.signal-verdict { margin: 1rem 0 0; font-weight: 700; min-height: 1.5em; }
+.signal-verdict[data-ok='false'] { color: var(--late); }
+.signal-tip { margin: 1rem 0 0; font-size: 0.88rem; color: var(--ink-2); }
+.btn[disabled] { opacity: 0.6; cursor: progress; transform: none; }
+
 /* FAQ */
 .faq .wrap { display: grid; gap: 2rem; }
 .faq-list { border-top: 2px solid var(--ink); }
@@ -321,6 +393,8 @@ h2 { font-size: clamp(2rem, 6vw, 3.4rem); max-width: 16ch; }
 
 @media (min-width: 64rem) {
   .hero .wrap { grid-template-columns: 1.25fr 1fr; gap: 4rem; }
+  .pilot-layout { grid-template-columns: 1fr 1fr; gap: 4rem; }
+  .pilot-layout .pilot-cols { grid-template-columns: 1fr; gap: 2rem; }
   .steps { grid-template-columns: repeat(4, 1fr); }
 }
 

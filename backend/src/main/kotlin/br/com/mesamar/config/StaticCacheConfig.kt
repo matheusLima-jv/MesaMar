@@ -11,7 +11,7 @@ import java.time.Duration
 /**
  * Cache longo só para arquivos com hash no nome.
  *
- * - CSS, imagens e fontes da landing (pastas css, img e fonts): o hash é gerado aqui
+ * - CSS, imagens e fontes da landing (pastas css, img, fonts e js): o hash é gerado aqui
  *   (VersionResourceResolver) e o Thymeleaf escreve a URL já versionada
  *   (ex.: /css/landing-3f2a….css).
  * - Pastas assets dos fronts (staff e cliente): o Vite já gera nomes com hash.
@@ -27,7 +27,7 @@ class StaticCacheConfig : WebMvcConfigurer {
     override fun addResourceHandlers(registry: ResourceHandlerRegistry) {
         val oneYear = CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable()
 
-        listOf("css", "img", "fonts").forEach { dir ->
+        listOf("css", "img", "fonts", "js").forEach { dir ->
             registry
                 .addResourceHandler("/$dir/**")
                 .addResourceLocations("classpath:/static/$dir/")
