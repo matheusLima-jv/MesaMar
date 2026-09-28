@@ -38,6 +38,10 @@ mesamar:
     whatsapp-number: ${MESAMAR_WHATSAPP:}
     contact-email: ${MESAMAR_CONTACT_EMAIL:}
     cloudflare-analytics-token: ${MESAMAR_CF_ANALYTICS_TOKEN:}
+  # Cloudflare Turnstile (anti-robô do formulário). Sem as duas chaves, fica desligado.
+  turnstile:
+    site-key: ${MESAMAR_TURNSTILE_SITE_KEY:}
+    secret-key: ${MESAMAR_TURNSTILE_SECRET_KEY:}
 
 management:
   endpoints:
