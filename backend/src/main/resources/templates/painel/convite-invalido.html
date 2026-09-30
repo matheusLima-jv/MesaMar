@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Convite inválido')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: publicHeader}"></header>
+
+<main id="conteudo" class="message-page">
+  <div class="wrap">
+    <p class="kicker">Convite</p>
+    <h1>Esse convite não vale mais.</h1>
+    <p class="lead">O link pode ter expirado (vale 14 dias), já ter sido usado para criar uma conta, ou ter sido copiado pela metade.
+      Peça um convite novo para quem mandou o link.</p>
+    <a class="btn btn-ink" href="/painel/entrar" th:href="@{/painel/entrar}">Já tenho conta</a>
+  </div>
+</main>
+</body>
+</html>

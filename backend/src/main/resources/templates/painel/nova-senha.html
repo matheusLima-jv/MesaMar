@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Nova senha')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: publicHeader}"></header>
+
+<main id="conteudo" class="auth-page">
+  <div class="wrap auth-layout">
+    <div class="auth-intro">
+      <p class="kicker">Painel da barraca</p>
+      <h1>Senha nova</h1>
+      <p class="lead">Escolha a senha que você vai usar a partir de agora.</p>
+    </div>
+
+    <form class="lead-form auth-card" method="post" action="/painel/nova-senha" th:action="@{/painel/nova-senha}"
+          th:object="${novaSenhaForm}" novalidate>
+      <input type="hidden" th:field="*{token}">
+      <div class="field" th:classappend="${#fields.hasErrors('senha')} ? 'has-error'">
+        <label for="senha">Senha nova</label>
+        <input id="senha" name="senha" type="password" autocomplete="new-password" minlength="10" maxlength="72" required autofocus
+               th:attr="aria-invalid=${#fields.hasErrors('senha')},aria-describedby=${#fields.hasErrors('senha')} ? 'senha-erro senha-dica' : 'senha-dica'">
+        <p class="field-error" id="senha-erro" th:if="${#fields.hasErrors('senha')}" th:text="${#fields.errors('senha')[0]}">Erro</p>
+        <p th:replace="~{painel/fragments :: senhaHint}"></p>
+      </div>
+      <button class="btn btn-ink btn-block" type="submit">Salvar senha nova</button>
+    </form>
+  </div>
+</main>
+</body>
+</html>

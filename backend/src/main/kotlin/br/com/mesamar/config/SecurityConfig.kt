@@ -1,6 +1,8 @@
 package br.com.mesamar.config
 
 import br.com.mesamar.common.RateLimiter
+import br.com.mesamar.conta.OwnerLoginSuccessHandler
+import br.com.mesamar.conta.OwnerUserDetailsService
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -8,7 +10,11 @@ import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.annotation.Order
 import org.springframework.http.HttpStatus
+import org.springframework.security.authentication.AuthenticationManager
+import org.springframework.security.authentication.ProviderManager
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetailsService
@@ -17,35 +23,50 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy
 import org.springframework.web.filter.OncePerRequestFilter
 import java.time.Duration
 
-/** Acesso ao painel /admin. Sem senha configurada, ninguém entra (o painel fica trancado). */
+/** Acesso ao painel /admin (dono da plataforma). Sem senha configurada, ninguém entra. */
 @ConfigurationProperties(prefix = "mesamar.admin")
 data class AdminProperties(
     val username: String = "admin",
     val password: String = "",
 )
 
+/**
+ * Três áreas com regras próprias:
+ *  1. /admin  — dono da plataforma (usuário único do .env)
+ *  2. /painel — donos de barraca (contas no banco)
+ *  3. resto   — site público, sem login e sem cookies
+ * Cada área tem o seu próprio login: a senha do admin não entra no painel e vice-versa.
+ */
 @Configuration
 class SecurityConfig {
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Bean
-    fun securityFilterChain(
+    fun passwordEncoder(): PasswordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder()
+
+    @Bean
+    @Order(1)
+    fun adminChain(
         http: HttpSecurity,
+        admin: AdminProperties,
+        encoder: PasswordEncoder,
         rateLimiter: RateLimiter,
     ): SecurityFilterChain {
         http
+            .securityMatcher("/admin/**")
+            .securityContext { it.securityContextRepository(contextRepository("MESAMAR_ADMIN")) }
+            .authenticationManager(authenticationManager(adminUsers(admin, encoder), encoder))
             .authorizeHttpRequests {
                 it
                     .requestMatchers("/admin/login")
                     .permitAll()
-                    .requestMatchers("/admin", "/admin/**")
-                    .authenticated()
                     .anyRequest()
-                    .permitAll()
+                    .hasRole("ADMIN")
             }.formLogin {
                 it
                     .loginPage("/admin/login")
@@ -57,23 +78,85 @@ class SecurityConfig {
                 it
                     .logoutUrl("/admin/logout")
                     .logoutSuccessUrl("/admin/login?saiu")
-            }.csrf {
-                // Formulários públicos e anônimos: sem sessão para proteger, e manter a landing
-                // sem cookies (promessa da política de privacidade). O admin continua com CSRF.
-                it.ignoringRequestMatchers("/lista-de-espera", "/api/teste-sinal/**")
-            }.headers { headers ->
-                headers
-                    .contentSecurityPolicy { it.policyDirectives(CONTENT_SECURITY_POLICY) }
-                    .referrerPolicy { it.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
-            }.addFilterBefore(LoginRateLimitFilter(rateLimiter), UsernamePasswordAuthenticationFilter::class.java)
+            }.addFilterBefore(LoginRateLimitFilter(rateLimiter, "/admin/login"), UsernamePasswordAuthenticationFilter::class.java)
+        applyHeaders(http)
         return http.build()
     }
 
     @Bean
-    fun passwordEncoder(): PasswordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder()
+    @Order(2)
+    fun painelChain(
+        http: HttpSecurity,
+        owners: OwnerUserDetailsService,
+        loginSuccess: OwnerLoginSuccessHandler,
+        encoder: PasswordEncoder,
+        rateLimiter: RateLimiter,
+    ): SecurityFilterChain {
+        http
+            .securityMatcher("/painel/**")
+            .securityContext { it.securityContextRepository(contextRepository("MESAMAR_PAINEL")) }
+            .authenticationManager(authenticationManager(owners, encoder))
+            .authorizeHttpRequests {
+                it
+                    .requestMatchers(*PAINEL_PUBLICO)
+                    .permitAll()
+                    .anyRequest()
+                    .hasRole("OWNER")
+            }.formLogin {
+                it
+                    .loginPage("/painel/entrar")
+                    .loginProcessingUrl("/painel/entrar")
+                    .usernameParameter("email")
+                    .passwordParameter("senha")
+                    .successHandler(loginSuccess)
+                    .failureUrl("/painel/entrar?erro")
+                    .permitAll()
+            }.logout {
+                it
+                    .logoutUrl("/painel/sair")
+                    .logoutSuccessUrl("/painel/entrar?saiu")
+            }.addFilterBefore(LoginRateLimitFilter(rateLimiter, "/painel/entrar"), UsernamePasswordAuthenticationFilter::class.java)
+        applyHeaders(http)
+        return http.build()
+    }
 
     @Bean
-    fun userDetailsService(
+    @Order(3)
+    fun publicChain(http: HttpSecurity): SecurityFilterChain {
+        http
+            .authorizeHttpRequests { it.anyRequest().permitAll() }
+            .csrf {
+                // Formulários públicos e anônimos: sem sessão para proteger, e a landing fica sem
+                // cookies (promessa da política de privacidade). Admin e painel continuam com CSRF.
+                it.ignoringRequestMatchers("/lista-de-espera", "/api/teste-sinal/**")
+            }
+        applyHeaders(http)
+        return http.build()
+    }
+
+    private fun applyHeaders(http: HttpSecurity) {
+        http.headers { headers ->
+            headers
+                .contentSecurityPolicy { it.policyDirectives(CONTENT_SECURITY_POLICY) }
+                .referrerPolicy { it.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
+        }
+    }
+
+    /**
+     * Cada área guarda o login numa chave própria da sessão: entrar no painel não derruba
+     * o login do admin (e vice-versa), e um login nunca vale na área do outro.
+     */
+    private fun contextRepository(key: String) = HttpSessionSecurityContextRepository().apply { setSpringSecurityContextKey(key) }
+
+    private fun authenticationManager(
+        users: UserDetailsService,
+        encoder: PasswordEncoder,
+    ): AuthenticationManager {
+        val provider = DaoAuthenticationProvider(users).apply { setPasswordEncoder(encoder) }
+        return ProviderManager(provider)
+    }
+
+    private fun adminUsers(
         admin: AdminProperties,
         encoder: PasswordEncoder,
     ): UserDetailsService {
@@ -91,6 +174,9 @@ class SecurityConfig {
     }
 
     companion object {
+        val PAINEL_PUBLICO =
+            arrayOf("/painel/entrar", "/painel/cadastro", "/painel/esqueci-senha", "/painel/nova-senha")
+
         /**
          * Só recursos do próprio domínio, mais os dois serviços opcionais da Cloudflare
          * (Web Analytics e Turnstile). Sem scripts inline.
@@ -110,19 +196,19 @@ class SecurityConfig {
     }
 }
 
-/** Freia tentativas de adivinhar a senha: 10 tentativas de login por IP a cada 10 minutos. */
+/** Freia tentativas de adivinhar senha: 10 tentativas de login por IP a cada 10 minutos. */
 class LoginRateLimitFilter(
     private val rateLimiter: RateLimiter,
+    private val loginPath: String,
 ) : OncePerRequestFilter() {
-    override fun shouldNotFilter(request: HttpServletRequest): Boolean =
-        !(request.method == "POST" && request.servletPath == "/admin/login")
+    override fun shouldNotFilter(request: HttpServletRequest): Boolean = !(request.method == "POST" && request.servletPath == loginPath)
 
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        if (!rateLimiter.tryAcquire("login:${request.remoteAddr}", LIMIT, WINDOW)) {
+        if (!rateLimiter.tryAcquire("login:$loginPath:${request.remoteAddr}", LIMIT, WINDOW)) {
             response.status = HttpStatus.TOO_MANY_REQUESTS.value()
             response.contentType = "text/plain;charset=UTF-8"
             response.writer.write("Muitas tentativas de login. Espere alguns minutos.")
