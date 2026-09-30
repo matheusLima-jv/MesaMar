@@ -9,6 +9,8 @@ import br.com.mesamar.support.assertHtmlContains
 import br.com.mesamar.support.header
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Value
+import java.net.URI
+import java.net.http.HttpResponse
 import java.util.UUID
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -28,12 +30,27 @@ class CardapioTest(
 
     private fun barracaId(email: String): UUID = assertNotNull(usuarios.findByEmailIgnoreCase(email)?.barracaId)
 
+    /**
+     * Faz o que o navegador faz depois de um POST: abre a página do redirect (o que consome a
+     * mensagem "flash"). Sem isso, a mensagem de um passo de preparação sobraria na sessão
+     * e apareceria no lugar da mensagem do passo testado.
+     */
+    private fun seguir(
+        http: HttpTestClient,
+        response: HttpResponse<String>,
+    ): HttpResponse<String> {
+        if (response.statusCode() == 302) {
+            http.get(URI.create(response.header("Location")).rawPath)
+        }
+        return response
+    }
+
     private fun categoria(
         http: HttpTestClient,
         email: String,
         nome: String,
     ): Categoria {
-        painel.post(http, "/painel/cardapio", "/painel/cardapio/categorias", mapOf("nome" to nome))
+        seguir(http, painel.post(http, "/painel/cardapio", "/painel/cardapio/categorias", mapOf("nome" to nome)))
         return categorias.findAllByBarracaIdOrderByOrdem(barracaId(email)).first { it.nome == nome }
     }
 
@@ -43,12 +60,17 @@ class CardapioTest(
         nome: String,
         preco: String = "12,00",
         descricao: String = "",
-    ) = painel.post(
-        http,
-        "/painel/cardapio/produtos/novo?categoria=${categoria.id}",
-        "/painel/cardapio/produtos",
-        mapOf("categoriaId" to categoria.id.toString(), "nome" to nome, "preco" to preco, "descricao" to descricao),
-    )
+        seguirRedirect: Boolean = true,
+    ): HttpResponse<String> {
+        val response =
+            painel.post(
+                http,
+                "/painel/cardapio/produtos/novo?categoria=${categoria.id}",
+                "/painel/cardapio/produtos",
+                mapOf("categoriaId" to categoria.id.toString(), "nome" to nome, "preco" to preco, "descricao" to descricao),
+            )
+        return if (seguirRedirect) seguir(http, response) else response
+    }
 
     private fun produto(
         email: String,
@@ -66,7 +88,8 @@ class CardapioTest(
         val http = painel.donoComBarraca(email = email)
         val bebidas = categoria(http, email, "Bebidas")
 
-        val response = novoProduto(http, bebidas, "  Água   de coco ", preco = "1.012,5", descricao = "Gelada, no coco")
+        val response =
+            novoProduto(http, bebidas, "  Água   de coco ", preco = "1.012,5", descricao = "Gelada, no coco", seguirRedirect = false)
 
         assertEquals(302, response.statusCode(), response.body())
         val agua = produto(email, "Água de coco")
