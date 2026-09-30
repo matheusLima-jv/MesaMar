@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.thymeleaf)
     implementation(libs.spring.boot.starter.security)
+    implementation(libs.spring.boot.starter.mail)
     implementation(libs.flyway.database.postgresql)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.kotlin.reflect)
