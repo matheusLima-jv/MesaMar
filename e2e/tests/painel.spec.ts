@@ -77,7 +77,36 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(dono.getByRole('button', { name: 'Voltar a vender Água de coco' })).toHaveAttribute('aria-pressed', 'true')
   await expectNoHorizontalScroll(dono)
 
-  // 8) O mesmo link não serve de novo
+  // 8) Equipe + app do quiosque em outro celular: atendente entra com código, nome e PIN
+  await dono.getByRole('link', { name: 'Equipe', exact: true }).click()
+  await dono.getByLabel('Nome ou apelido').fill('Carla')
+  await dono.getByLabel('PIN (4 a 6 números)').fill('2580')
+  await dono.getByRole('button', { name: 'Adicionar à equipe' }).click()
+  await expect(dono.getByText('Carla foi adicionado.')).toBeVisible()
+  const codigo = (await dono.locator('.app-lead .mono').first().textContent())?.trim() ?? ''
+  expect(codigo).not.toBe('')
+
+  const app = await novoAparelho()
+  const checkApp = failOnConsoleErrors(app)
+  await app.goto('/staff/')
+  await app.getByRole('tab', { name: 'Sou da equipe' }).click()
+  await app.getByLabel('Código da barraca').fill(codigo)
+  await app.getByRole('button', { name: 'Continuar' }).click()
+  await app.getByRole('button', { name: 'Carla' }).click()
+  await app.getByLabel('Seu PIN').fill('2580')
+  await app.getByRole('button', { name: 'Entrar' }).click()
+  await expect(app.getByRole('heading', { name: 'Cardápio' })).toBeVisible()
+  await expectNoHorizontalScroll(app)
+  // A água de coco ficou esgotada no passo 7: a atendente devolve ao cardápio com um toque.
+  await app.getByRole('button', { name: 'Voltar a vender Água de coco' }).click()
+  await expect(app.getByText('Água de coco voltou.')).toBeVisible()
+  await dono.reload()
+  await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
+  await dono.goto('/painel/cardapio')
+  await expect(dono.getByRole('button', { name: 'Marcar Água de coco como esgotado' })).toBeVisible()
+  checkApp()
+
+  // 9) O mesmo link não serve de novo
   const outro = await novoAparelho()
   const resposta = await outro.goto(caminho(link))
   expect(resposta?.status()).toBe(404)
