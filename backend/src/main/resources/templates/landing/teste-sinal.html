@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teste de sinal — MesaMar</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#f6f1e7">
+  <link rel="icon" href="../../static/img/favicon.svg" th:href="@{/img/favicon.svg}" type="image/svg+xml">
+  <link rel="stylesheet" href="../../static/css/landing.css" th:href="@{/css/landing.css}">
+  <script src="../../static/js/teste-sinal.js" th:src="@{/js/teste-sinal.js}" defer></script>
+</head>
+<body>
+<header th:replace="~{landing/index :: siteHeader}"></header>
+
+<main id="conteudo" class="message-page signal">
+  <div class="wrap">
+    <p class="kicker">Ferramenta interna</p>
+    <h1>Teste de sinal na praia</h1>
+    <p class="lead">Mede quanto esta página demorou para abrir e quanto o servidor demora para responder daqui. Use no horário de pico, com o celular no 4G/5G (Wi-Fi desligado).</p>
+
+    <div class="signal-card">
+      <div class="field">
+        <label for="praia">Em qual praia você está?</label>
+        <select id="praia" name="praia" required>
+          <option value="">Escolha a praia</option>
+          <option th:each="p : ${praias}" th:value="${p.name()}" th:text="${p.label}">Enseada</option>
+        </select>
+      </div>
+
+      <button id="medir" class="btn btn-ink btn-block" type="button">Medir sinal agora</button>
+
+      <dl class="signal-results" id="resultado" hidden>
+        <div><dt>Página abriu em</dt><dd id="r-carregamento">–</dd></div>
+        <div><dt>Resposta do servidor</dt><dd id="r-ping">–</dd></div>
+        <div><dt>Conexão</dt><dd id="r-conexao">–</dd></div>
+      </dl>
+      <p class="signal-verdict" id="veredito" role="status" aria-live="polite"></p>
+      <p class="signal-tip">Para medir de novo a abertura da página, recarregue (puxe a tela para baixo) e toque em medir outra vez.</p>
+    </div>
+  </div>
+</main>
+
+<footer th:replace="~{landing/index :: siteFooter}"></footer>
+</body>
+</html>

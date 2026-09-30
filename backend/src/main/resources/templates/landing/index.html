@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MesaMar — comanda digital para barracas de praia no Guarujá</title>
+  <meta name="description" content="O cliente pede pelo celular, você recebe os pedidos na ordem de chegada e sabe quem vai pagar. Sem app para baixar e com o Pix direto na sua chave. Piloto gratuito na temporada 2026/27.">
+  <link rel="canonical" href="http://localhost:8080/" th:href="${canonicalUrl}">
+  <meta name="theme-color" content="#f6f1e7">
+
+  <!-- Open Graph: prévia do link no WhatsApp, Instagram e Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:site_name" content="MesaMar">
+  <meta property="og:title" content="MesaMar — seu cliente pede pelo celular, você recebe na ordem certa">
+  <meta property="og:description" content="Comanda digital para barracas de praia do Guarujá. Piloto gratuito na temporada 2026/27.">
+  <meta property="og:url" content="http://localhost:8080/" th:content="${canonicalUrl}">
+  <meta property="og:image" content="http://localhost:8080/img/og-mesamar.png" th:content="${site.absoluteUrl('/img/og-mesamar.png')}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="MesaMar: comanda digital para barracas de praia">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" href="../../static/img/favicon.svg" th:href="@{/img/favicon.svg}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../../static/img/apple-touch-icon.png" th:href="@{/img/apple-touch-icon.png}">
+  <link rel="preload" href="../../static/fonts/bricolage-grotesque-latin-wght.woff2" th:href="@{/fonts/bricolage-grotesque-latin-wght.woff2}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../../static/css/landing.css" th:href="@{/css/landing.css}">
+
+  <!-- Cloudflare Web Analytics: sem cookies, só entra se o token estiver configurado -->
+  <script th:if="${turnstile != null and turnstile.enabled}" src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script th:fragment="analytics" th:if="${site != null and site.hasAnalytics}" defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          th:data-cf-beacon="|{&quot;token&quot;: &quot;${site.cloudflareAnalyticsToken}&quot;}|"></script>
+</head>
+<body>
+<a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="site-header" th:fragment="siteHeader">
+  <div class="wrap">
+    <a class="brand" href="/" th:href="@{/}" aria-label="MesaMar, página inicial">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="#101b1e"/>
+        <circle cx="22" cy="10.5" r="4" fill="#ffc233"/>
+        <path d="M5 20c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2 2-1 2-1" fill="none" stroke="#f6f1e7" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M5 25c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2" fill="none" stroke="#6fb3c4" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      MesaMar
+    </a>
+    <a class="header-link" href="/#piloto">Piloto grátis →</a>
+  </div>
+</header>
+
+<main id="conteudo">
+
+  <!-- ===================== HERO ===================== -->
+  <section class="hero" aria-labelledby="titulo">
+    <div class="wrap">
+      <div>
+        <p class="kicker">Barracas de praia · Guarujá</p>
+        <h1 id="titulo">Seu cliente pede pelo celular, você recebe <span class="mark">na ordem certa</span> e sabe quem já pagou.</h1>
+        <p class="lead">Chega de caderninho na areia. O cliente faz um cadastro rápido no seu quiosque, lê o QR dele e pede sozinho. Você vê cada pedido numa fila, sabe o que falta entregar e é avisado quando ele vai pagar.</p>
+
+        <div class="cta-row">
+          <a class="btn btn-ink" href="#lista-de-espera">
+            Quero o piloto grátis
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="btn btn-line" href="https://wa.me/" th:if="${site.hasWhatsapp}" th:href="${whatsappLink}"
+             target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.66 15l-1.3 4.76 4.88-1.28A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.18-1.14l-.3-.18-2.9.76.78-2.83-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.14c-.25-.12-1.46-.72-1.69-.8-.23-.09-.39-.13-.56.12-.16.24-.64.8-.78.96-.15.17-.29.19-.54.06a6.7 6.7 0 0 1-1.97-1.22 7.4 7.4 0 0 1-1.37-1.7c-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.16.04-.3-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.41-.56-.42h-.48a.92.92 0 0 0-.66.31 2.8 2.8 0 0 0-.87 2.07 4.85 4.85 0 0 0 1.02 2.58 11.1 11.1 0 0 0 4.25 3.76c.6.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.46-.6 1.67-1.18.2-.58.2-1.07.14-1.18-.06-.1-.22-.16-.47-.28Z"/></svg>
+            Falar no WhatsApp
+          </a>
+        </div>
+
+        <ul class="facts">
+          <li><strong>Sem app</strong> para o cliente baixar</li>
+          <li>Pix <strong>direto na sua chave</strong></li>
+          <li>Piloto <strong>gratuito</strong> em 2026/27</li>
+        </ul>
+      </div>
+
+      <figure class="product" aria-label="Ilustração do MesaMar: cardápio no celular do cliente e aviso de novo pedido para o dono">
+        <div class="phone" aria-hidden="true">
+          <div class="screen">
+            <div class="screen-top">
+              <small>Olá, Ana · Guarda-sol 12</small>
+              <strong>Barraca do Zé</strong>
+            </div>
+            <ul class="menu">
+              <li><div><b>Cerveja lata</b><span>R$ 12,00</span></div><i class="qty on">2</i></li>
+              <li><div><b>Água de coco</b><span>R$ 10,00</span></div><i class="qty">+</i></li>
+              <li><div><b>Porção de batata</b><span>R$ 38,00</span></div><i class="qty">+</i></li>
+              <li><div><b>Caipirinha</b><span>R$ 22,00</span></div><i class="qty">+</i></li>
+            </ul>
+            <div class="cart"><span>2 itens · R$ 24,00</span><span>Pedir →</span></div>
+          </div>
+        </div>
+        <div class="notice" aria-hidden="true">
+          <div class="notice-top">Pedido #23 · GS 12 <span>agora</span></div>
+          <p>Ana · 2× cerveja lata</p>
+        </div>
+        <figcaption>Ilustração do produto</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ===================== FAIXA ===================== -->
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track">
+      <span>Pedido esquecido</span><span>Guarda-sol errado</span><span>“Eu já paguei!”</span><span>Caderninho molhado</span><span>Cliente que desistiu da segunda cerveja</span>
+      <span>Pedido esquecido</span><span>Guarda-sol errado</span><span>“Eu já paguei!”</span><span>Caderninho molhado</span><span>Cliente que desistiu da segunda cerveja</span>
+    </div>
+  </div>
+
+  <!-- ===================== DOR ===================== -->
+  <section class="pain" aria-labelledby="titulo-dor">
+    <div class="wrap">
+      <div>
+        <p class="kicker">Domingo, 14h</p>
+        <h2 id="titulo-dor">Não falta cliente. Falta mão para atender e anotar tudo.</h2>
+      </div>
+      <ol class="pain-list">
+        <li>O cliente levanta o braço, ninguém vê, e ele desiste do segundo pedido.</li>
+        <li>Pedido esquecido, ou entregue duas vezes no guarda-sol errado.</li>
+        <li>No fim do dia, ninguém sabe direito quem já pagou, quanto e como.</li>
+        <li>O cliente desconfia da conta, e o caderninho não prova nada.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===================== COMO FUNCIONA ===================== -->
+  <section class="how" aria-labelledby="titulo-como">
+    <div class="wrap">
+      <p class="kicker">Como funciona</p>
+      <h2 id="titulo-como">Do cadastro ao Pix, sem ninguém gritar “ô, moço!”</h2>
+      <ol class="steps">
+        <li>
+          <h3>Cadastro no quiosque</h3>
+          <p>O cliente chega, você anota nome e guarda-sol em uns 20 segundos e mostra o QR dele.</p>
+        </li>
+        <li>
+          <h3>Ele lê o QR e pede</h3>
+          <p>O cardápio abre na câmera do celular, sem baixar nada. Ele escolhe e confirma.</p>
+        </li>
+        <li>
+          <h3>Você recebe na fila</h3>
+          <p>O pedido chega com aviso, na ordem de chegada e com o número do guarda-sol.</p>
+        </li>
+        <li>
+          <h3>Ele fecha a conta</h3>
+          <p>Vê o extrato, paga no Pix ou avisa que está indo pagar. Você confirma e pronto.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===================== COMPARAÇÃO ===================== -->
+  <section aria-labelledby="titulo-diferenciais">
+    <div class="wrap">
+      <p class="kicker">Caderninho × MesaMar</p>
+      <h2 id="titulo-diferenciais">Feito para a areia, não para o restaurante.</h2>
+      <p class="section-lead">Sol forte, mão molhada, sinal fraco e correria. Foi pensando nisso que cada parte foi desenhada.</p>
+
+      <div class="compare" role="table" aria-label="Comparação entre o caderninho e o MesaMar">
+        <div class="compare-head" role="row">
+          <span role="columnheader">Na praia</span><span role="columnheader">No caderninho</span><span role="columnheader">Com o MesaMar</span>
+        </div>
+        <div class="compare-row" role="row">
+          <span class="topic" role="cell">Fazer o pedido</span>
+          <span class="before" role="cell">Esperar alguém passar</span>
+          <span class="after" role="cell">Pelo celular, sem baixar app</span>
+        </div>
+        <div class="compare-row" role="row">
+          <span class="topic" role="cell">Ordem de atendimento</span>
+          <span class="before" role="cell">Quem gritar mais alto</span>
+          <span class="after" role="cell">Fila por ordem de chegada</span>
+        </div>
+        <div class="compare-row" role="row">
+          <span class="topic" role="cell">Saber o que falta entregar</span>
+          <span class="before" role="cell">De cabeça</span>
+          <span class="after" role="cell">Pendentes com tempo de espera</span>
+        </div>
+        <div class="compare-row" role="row">
+          <span class="topic" role="cell">Receber</span>
+          <span class="before" role="cell">Conta feita na hora, no papel</span>
+          <span class="after" role="cell">Extrato pronto e Pix na sua chave</span>
+        </div>
+        <div class="compare-row" role="row">
+          <span class="topic" role="cell">Quem vai pagar</span>
+          <span class="before" role="cell">Você descobre quando ele sumiu</span>
+          <span class="after" role="cell">Aviso quando ele está indo pagar</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PILOTO ===================== -->
+  <section class="pilot" id="piloto" aria-labelledby="titulo-piloto">
+    <div class="wrap">
+      <p class="kicker">Vagas limitadas</p>
+      <h2 id="titulo-piloto">Piloto gratuito na temporada 2026/27</h2>
+      <p class="section-lead">Estamos escolhendo as primeiras barracas do Guarujá para usar o MesaMar de graça neste verão.</p>
+
+      <div class="pilot-layout">
+        <div>
+          <p class="price" aria-hidden="true"><b>R$&nbsp;0</b><span>do primeiro ao último<br>fim de semana da temporada</span></p>
+
+          <div class="pilot-cols">
+            <div>
+              <h3>O que você recebe</h3>
+              <ul>
+                <li>O sistema completo, sem pagar nada na temporada</li>
+                <li>Ajuda para montar o cardápio e treinar a equipe</li>
+                <li>Suporte direto pelo WhatsApp</li>
+              </ul>
+            </div>
+            <div>
+              <h3>O que pedimos em troca</h3>
+              <ul>
+                <li>Usar de verdade nos fins de semana</li>
+                <li>Contar o que funcionou e o que atrapalhou</li>
+                <li>Sem contrato e sem compromisso de continuar</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ Formulário da lista de espera ============ -->
+        <!-- action sem th:action de propósito: evita o token CSRF (e o cookie de sessão) na landing pública -->
+        <form id="lista-de-espera" class="lead-form" method="post" action="/lista-de-espera#lista-de-espera"
+              th:object="${leadForm}" novalidate>
+          <h3>Entrar na lista do piloto</h3>
+          <p class="form-hint">Leva 30 segundos. A gente chama você no WhatsApp.</p>
+
+          <p class="form-alert" role="alert" th:if="${#fields.hasGlobalErrors()}" th:text="${#fields.globalErrors()[0]}">
+            Não conseguimos confirmar que você não é um robô.
+          </p>
+
+          <div class="field" th:classappend="${#fields.hasErrors('nome')} ? 'has-error'">
+            <label for="nome">Seu nome</label>
+            <input id="nome" type="text" th:field="*{nome}" autocomplete="name" maxlength="80" required
+                   th:attr="aria-invalid=${#fields.hasErrors('nome')},aria-describedby=${#fields.hasErrors('nome')} ? 'nome-erro'">
+            <p class="field-error" id="nome-erro" th:if="${#fields.hasErrors('nome')}" th:text="${#fields.errors('nome')[0]}">Erro</p>
+          </div>
+
+          <div class="field" th:classappend="${#fields.hasErrors('nomeBarraca')} ? 'has-error'">
+            <label for="nomeBarraca">Nome da barraca ou quiosque</label>
+            <input id="nomeBarraca" type="text" th:field="*{nomeBarraca}" autocomplete="organization" maxlength="80" required
+                   th:attr="aria-invalid=${#fields.hasErrors('nomeBarraca')},aria-describedby=${#fields.hasErrors('nomeBarraca')} ? 'barraca-erro'">
+            <p class="field-error" id="barraca-erro" th:if="${#fields.hasErrors('nomeBarraca')}" th:text="${#fields.errors('nomeBarraca')[0]}">Erro</p>
+          </div>
+
+          <div class="field" th:classappend="${#fields.hasErrors('praia')} ? 'has-error'">
+            <label for="praia">Praia</label>
+            <select id="praia" th:field="*{praia}" required
+                    th:attr="aria-invalid=${#fields.hasErrors('praia')},aria-describedby=${#fields.hasErrors('praia')} ? 'praia-erro'">
+              <option value="">Escolha a praia</option>
+              <option th:each="p : ${praias}" th:value="${p.name()}" th:text="${p.label}">Enseada</option>
+            </select>
+            <p class="field-error" id="praia-erro" th:if="${#fields.hasErrors('praia')}" th:text="${#fields.errors('praia')[0]}">Erro</p>
+          </div>
+
+          <div class="field" th:classappend="${#fields.hasErrors('whatsapp')} ? 'has-error'">
+            <label for="whatsapp">WhatsApp com DDD</label>
+            <input id="whatsapp" type="tel" th:field="*{whatsapp}" inputmode="tel" autocomplete="tel-national" maxlength="20"
+                   placeholder="(13) 99999-8888" required
+                   th:attr="aria-invalid=${#fields.hasErrors('whatsapp')},aria-describedby=${#fields.hasErrors('whatsapp')} ? 'whatsapp-erro'">
+            <p class="field-error" id="whatsapp-erro" th:if="${#fields.hasErrors('whatsapp')}" th:text="${#fields.errors('whatsapp')[0]}">Erro</p>
+          </div>
+
+          <!-- Honeypot: invisível para pessoas; robôs costumam preencher tudo -->
+          <div class="hp" aria-hidden="true">
+            <label for="website">Não preencha este campo</label>
+            <input id="website" type="text" th:field="*{website}" tabindex="-1" autocomplete="off">
+          </div>
+
+          <div class="field check" th:classappend="${#fields.hasErrors('consentimento')} ? 'has-error'">
+            <input id="consentimento" type="checkbox" th:field="*{consentimento}" required
+                   th:attr="aria-invalid=${#fields.hasErrors('consentimento')},aria-describedby=${#fields.hasErrors('consentimento')} ? 'consentimento-erro'">
+            <label for="consentimento">Aceito receber contato do MesaMar pelo WhatsApp sobre o piloto, conforme a
+              <a href="/privacidade" th:href="@{/privacidade}" target="_blank">política de privacidade</a>.</label>
+            <p class="field-error" id="consentimento-erro" th:if="${#fields.hasErrors('consentimento')}" th:text="${#fields.errors('consentimento')[0]}">Erro</p>
+          </div>
+
+          <div class="cf-turnstile" th:if="${turnstile.enabled}" th:attr="data-sitekey=${turnstile.siteKey}" data-language="pt-br"></div>
+
+          <button class="btn btn-sun btn-block" type="submit">Entrar na lista do piloto</button>
+
+          <p class="form-alt" th:if="${site.hasWhatsapp}">
+            Prefere conversar?
+            <a href="https://wa.me/" th:href="${whatsappLink}" target="_blank" rel="noopener">Chame no WhatsApp</a>
+          </p>
+        </form>
+      </div>
+
+      <p class="note">O piloto começa com poucas barracas para acompanharmos cada uma de perto.</p>
+    </div>
+  </section>
+
+  <!-- ===================== FAQ ===================== -->
+  <section class="faq" aria-labelledby="titulo-faq">
+    <div class="wrap">
+      <div>
+        <p class="kicker">Dúvidas</p>
+        <h2 id="titulo-faq">Perguntas frequentes</h2>
+      </div>
+
+      <div class="faq-list">
+        <details>
+          <summary>E se o cliente não tiver celular?</summary>
+          <p>Sem problema. Quem não quiser ou não puder usar o celular continua pedindo no quiosque, do jeito de sempre. O MesaMar soma um canal, não tira nenhum.</p>
+        </details>
+        <details>
+          <summary>E se a internet cair?</summary>
+          <p>O cardápio fica salvo no celular do cliente e, se o sinal oscilar, o pedido é reenviado sozinho quando ele volta, sem duplicar. Se a internet cair de vez, o atendimento no quiosque continua normal e nenhum pedido já feito se perde. Antes do piloto, medimos o sinal na sua praia para saber o que esperar.</p>
+        </details>
+        <details>
+          <summary>E se o cliente for embora sem pagar?</summary>
+          <p>A comanda só existe depois do cadastro feito por você, no quiosque. Você define um limite de consumo em aberto por cliente, vê quem está com saldo pendente e pode pedir o pagamento a cada pedido, se preferir.</p>
+        </details>
+        <details>
+          <summary>Preciso comprar maquininha ou celular novo?</summary>
+          <p>Não. O Pix cai direto na sua chave, o cartão continua na maquininha que você já usa, e o app do quiosque roda no navegador do seu celular.</p>
+        </details>
+        <details>
+          <summary>Quanto custa depois do piloto?</summary>
+          <p>Na temporada 2026/27 o piloto é gratuito. Depois, o preço será por temporada, combinado antes com você. Não há contrato nem compromisso de continuar.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" th:fragment="siteFooter">
+  <div class="wrap">
+    <div class="footer-row">
+      <p>© 2026 MesaMar · Guarujá, SP</p>
+      <p><a href="/privacidade" th:href="@{/privacidade}">Política de privacidade</a></p>
+    </div>
+    <p class="wordmark" aria-hidden="true">MesaMar</p>
+  </div>
+</footer>
+</body>
+</html>

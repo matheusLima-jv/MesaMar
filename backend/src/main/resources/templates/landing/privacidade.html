@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Política de privacidade — MesaMar</title>
+  <meta name="description" content="Como o MesaMar coleta, usa e protege os seus dados, de acordo com a LGPD.">
+  <link rel="canonical" href="http://localhost:8080/privacidade" th:href="${canonicalUrl}">
+  <meta name="theme-color" content="#f6f1e7">
+  <link rel="icon" href="../../static/img/favicon.svg" th:href="@{/img/favicon.svg}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../../static/img/apple-touch-icon.png" th:href="@{/img/apple-touch-icon.png}">
+  <link rel="preload" href="../../static/fonts/bricolage-grotesque-latin-wght.woff2" th:href="@{/fonts/bricolage-grotesque-latin-wght.woff2}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="../../static/css/landing.css" th:href="@{/css/landing.css}">
+  <script th:replace="~{landing/index :: analytics}"></script>
+</head>
+<body>
+<a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+<header th:replace="~{landing/index :: siteHeader}"></header>
+
+<main id="conteudo" class="prose">
+  <h1>Política de privacidade</h1>
+  <p class="updated">Última atualização: 27 de setembro de 2026.</p>
+
+  <p>O MesaMar é uma comanda digital para barracas e quiosques de praia, hoje em fase de piloto no Guarujá (SP). Esta página explica, em linguagem simples, quais dados coletamos, para quê e quais são os seus direitos pela Lei Geral de Proteção de Dados (LGPD, Lei nº 13.709/2018).</p>
+
+  <h2>1. Quais dados coletamos neste site</h2>
+  <ul>
+    <li><strong>Lista de espera do piloto:</strong> se você preencher o formulário, guardamos o seu nome, o nome da barraca, a praia, o seu WhatsApp e a data em que você deu o consentimento.</li>
+    <li><strong>Estatísticas de visita:</strong> usamos o Cloudflare Web Analytics, que conta visitas de forma agregada, <strong>sem cookies</strong> e sem identificar você.</li>
+    <li><strong>Teste de sinal:</strong> a página interna de teste de sinal guarda só a praia escolhida, os tempos medidos e o tipo de conexão informado pelo navegador (ex.: 4G). Nenhum dado pessoal nem IP.</li>
+    <li><strong>Registros técnicos:</strong> o servidor registra dados técnicos de acesso (como endereço IP e horário) por segurança, para bloquear abusos e spam.</li>
+  </ul>
+  <p>Não usamos cookies de rastreamento nem de publicidade.</p>
+
+  <h2>2. Para que usamos</h2>
+  <ul>
+    <li>Entrar em contato com você sobre o piloto do MesaMar, pelo WhatsApp informado.</li>
+    <li>Entender quantas pessoas visitam o site, sem identificar ninguém.</li>
+    <li>Manter o site seguro e funcionando.</li>
+  </ul>
+  <p>A base legal para os dados da lista de espera é o seu <strong>consentimento</strong> (art. 7º, I, da LGPD). Para os registros técnicos, é o <strong>legítimo interesse</strong> de manter o serviço seguro (art. 7º, IX).</p>
+
+  <h2>3. Com quem compartilhamos</h2>
+  <p>Não vendemos nem alugamos os seus dados. Eles ficam em servidor próprio e passam apenas pelos fornecedores necessários para o site funcionar: a hospedagem do servidor e a Cloudflare, que protege e acelera o site.</p>
+
+  <h2>4. Por quanto tempo guardamos</h2>
+  <ul>
+    <li><strong>Lista de espera:</strong> até o fim do piloto (temporada 2026/27) ou até você pedir a exclusão, o que vier primeiro.</li>
+    <li><strong>Registros técnicos:</strong> pelo tempo necessário para segurança, em geral poucas semanas.</li>
+  </ul>
+
+  <h2>5. Dados dos clientes das barracas</h2>
+  <p>Quando o MesaMar estiver em uso nas barracas, os clientes informarão, no momento do cadastro no quiosque, um nome e, se quiserem, o WhatsApp. Esses dados servem apenas para identificar a comanda e enviar o link dela. O WhatsApp é opcional, e os dados pessoais são anonimizados automaticamente depois de 90 dias. Esta política será atualizada com mais detalhes antes do início do uso nas barracas.</p>
+
+  <h2>6. Seus direitos</h2>
+  <p>Você pode, a qualquer momento e sem custo, pedir para:</p>
+  <ul>
+    <li>confirmar se temos dados seus e ter acesso a eles;</li>
+    <li>corrigir dados incompletos ou errados;</li>
+    <li>excluir os seus dados e retirar o consentimento;</li>
+    <li>saber com quem os seus dados foram compartilhados.</li>
+  </ul>
+
+  <h2>7. Como falar com a gente</h2>
+  <p th:if="${site.hasContactEmail}">
+    Por e-mail: <a href="mailto:contato@exemplo.com" th:href="|mailto:${site.contactEmail}|" th:text="${site.contactEmail}">contato@exemplo.com</a>.
+  </p>
+  <p th:if="${site.hasWhatsapp}">
+    Pelo WhatsApp: <a href="https://wa.me/" th:href="${whatsappLink}" target="_blank" rel="noopener">clique aqui para conversar</a>.
+  </p>
+  <p th:unless="${site.hasContactEmail or site.hasWhatsapp}">
+    Pelos canais informados no próprio piloto, diretamente com a equipe do MesaMar.
+  </p>
+  <p>Respondemos em até 15 dias. Se não ficar satisfeito, você também pode procurar a Autoridade Nacional de Proteção de Dados (ANPD).</p>
+</main>
+
+<footer th:replace="~{landing/index :: siteFooter}"></footer>
+</body>
+</html>

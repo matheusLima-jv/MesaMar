@@ -9,7 +9,9 @@ services:
       POSTGRES_USER: ${DB_USER:-mesamar}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-mesamar}
     ports:
-      - "5432:5432"
+      # Só na sua máquina (não expõe o banco na rede Wi-Fi). Se já houver um Postgres
+      # usando a 5432, troque para "127.0.0.1:5433:5432".
+      - "127.0.0.1:5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -24,12 +26,22 @@ services:
       db:
         condition: service_healthy
     environment:
-      # Usa o perfil local (logs legíveis, detalhes no health) mesmo dentro do Docker.
-      SPRING_PROFILES_ACTIVE: local
+      # Perfil local por padrão (logs legíveis, detalhes no health). Para simular produção,
+      # coloque SPRING_PROFILES_ACTIVE=prod no .env.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-mesamar}
       DB_USER: ${DB_USER:-mesamar}
       DB_PASSWORD: ${DB_PASSWORD:-mesamar}
+      MESAMAR_PUBLIC_URL: ${MESAMAR_PUBLIC_URL:-http://localhost:8080}
+      MESAMAR_WHATSAPP: ${MESAMAR_WHATSAPP:-}
+      MESAMAR_CONTACT_EMAIL: ${MESAMAR_CONTACT_EMAIL:-}
+      MESAMAR_CF_ANALYTICS_TOKEN: ${MESAMAR_CF_ANALYTICS_TOKEN:-}
+      MESAMAR_TURNSTILE_SITE_KEY: ${MESAMAR_TURNSTILE_SITE_KEY:-}
+      MESAMAR_TURNSTILE_SECRET_KEY: ${MESAMAR_TURNSTILE_SECRET_KEY:-}
+      MESAMAR_ADMIN_USER: ${MESAMAR_ADMIN_USER:-admin}
+      MESAMAR_ADMIN_PASSWORD: ${MESAMAR_ADMIN_PASSWORD:-}
     ports:
+      # Aberto na rede local de propósito: permite testar pelo celular no mesmo Wi-Fi
       - "8080:8080"
 
 volumes:
