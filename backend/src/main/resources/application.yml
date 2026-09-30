@@ -67,6 +67,10 @@ mesamar:
     secret-key: ${MESAMAR_TURNSTILE_SECRET_KEY:}
 
 management:
+  health:
+    # SMTP fora do ar não pode tirar a aplicação do ar (o healthcheck derrubaria o container).
+    mail:
+      enabled: false
   endpoints:
     web:
       exposure:
