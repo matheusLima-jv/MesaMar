@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<!-- Pedaços comuns das páginas do painel do dono (/painel). -->
+<head th:fragment="head(title)">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="|${title} · MesaMar|">Painel · MesaMar</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#101b1e">
+  <link rel="icon" href="../../static/img/favicon.svg" th:href="@{/img/favicon.svg}" type="image/svg+xml">
+  <link rel="stylesheet" href="../../static/css/landing.css" th:href="@{/css/landing.css}">
+  <link rel="stylesheet" href="../../static/css/painel.css" th:href="@{/css/painel.css}">
+</head>
+<body>
+
+<!-- Cabeçalho das páginas abertas (entrar, cadastro, senha) -->
+<header class="site-header" th:fragment="publicHeader">
+  <div class="wrap">
+    <a class="brand" href="/" th:href="@{/}">MesaMar <span class="admin-tag">para barracas</span></a>
+  </div>
+</header>
+
+<!-- Cabeçalho de quem está logado -->
+<header class="app-header" th:fragment="appHeader(ativo)">
+  <div class="wrap app-header-row">
+    <a class="brand" href="/painel" th:href="@{/painel}">MesaMar</a>
+    <p class="app-barraca" th:if="${barraca}" th:text="${barraca.nome}">Barraca do Zé</p>
+    <form method="post" action="/painel/sair" th:action="@{/painel/sair}">
+      <button class="header-link link-button" type="submit">Sair</button>
+    </form>
+  </div>
+  <nav class="wrap app-nav" aria-label="Painel" th:if="${barraca}">
+    <a href="/painel" th:href="@{/painel}" th:attr="aria-current=${ativo == 'home'} ? 'page'">Início</a>
+    <a href="/painel/cardapio" th:href="@{/painel/cardapio}" th:attr="aria-current=${ativo == 'cardapio'} ? 'page'">Cardápio</a>
+    <a href="/painel/guarda-sois" th:href="@{/painel/guarda-sois}" th:attr="aria-current=${ativo == 'guarda-sois'} ? 'page'">Guarda-sóis</a>
+    <a href="/painel/equipe" th:href="@{/painel/equipe}" th:attr="aria-current=${ativo == 'equipe'} ? 'page'">Equipe</a>
+    <a href="/painel/pix" th:href="@{/painel/pix}" th:attr="aria-current=${ativo == 'pix'} ? 'page'">Pix</a>
+    <a href="/painel/regras" th:href="@{/painel/regras}" th:attr="aria-current=${ativo == 'regras'} ? 'page'">Regras</a>
+    <a href="/painel/barraca" th:href="@{/painel/barraca}" th:attr="aria-current=${ativo == 'barraca'} ? 'page'">Barraca</a>
+  </nav>
+</header>
+
+<!-- Avisos depois de uma ação (flash) -->
+<div th:fragment="avisos">
+  <p class="form-ok" role="status" th:if="${ok}" th:text="${ok}">Salvo.</p>
+  <p class="form-alert" role="alert" th:if="${erro}" th:text="${erro}">Erro.</p>
+</div>
+
+<!-- Regra de senha exibida nos formulários -->
+<p class="form-hint" th:fragment="senhaHint" id="senha-dica">Pelo menos 10 caracteres. Uma frase curta é mais fácil de lembrar e mais segura, ex.: <i>guarda-sol azul na enseada</i>.</p>
+
+</body>
+</html>

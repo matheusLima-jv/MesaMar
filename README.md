@@ -2,7 +2,7 @@
 
 Comanda digital para quiosques e carrinhos de praia. O cliente faz um cadastro rápido no quiosque, recebe um QR pessoal, pede pelo celular e fecha a conta sem chamar garçom. O dono recebe os pedidos numa fila por ordem de chegada.
 
-> **Status:** Fase 1 no último checkpoint (1.3: painel, deploy e E2E). Depois dela vem o Portão A (validação em campo). O plano completo, com as fases e os portões de validação, está em [`docs/MESAMAR_PROMPT.md`](docs/MESAMAR_PROMPT.md).
+> **Status:** Fases 0, 1 e 2 concluídas (landing, lista de espera, painel do dono, equipe, guarda-sóis, cardápio e app do quiosque). Próxima: Fase 3 (check-in e pedido pelo cliente). Onde paramos e o que falta: [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md). Plano completo: [`docs/MESAMAR_PROMPT.md`](docs/MESAMAR_PROMPT.md).
 
 ## Stack
 
@@ -23,7 +23,7 @@ As decisões e os motivos estão em [`docs/adr/`](docs/adr/).
 ```
 mesamar/
 ├── backend/        # Spring Boot (Kotlin)
-├── web-staff/      # App do dono/atendente (placeholder na Fase 0)
+├── web-staff/      # App do quiosque (PWA) em /staff/: login do dono e da equipe, cardápio
 ├── web-customer/   # Página do cliente (placeholder na Fase 0)
 ├── e2e/            # Testes Playwright (a partir da Fase 1)
 ├── deploy/         # Arquivos de produção (a partir da Fase 1)
@@ -51,7 +51,8 @@ docker compose up --build
 - Política de privacidade: http://localhost:8080/privacidade
 - Painel (leads, sinal por praia, CSV): http://localhost:8080/admin — usuário e senha em `MESAMAR_ADMIN_USER` / `MESAMAR_ADMIN_PASSWORD` no `.env` (sem senha, o painel fica trancado)
 - Health check: http://localhost:8080/actuator/health → `{"status":"UP", ...}`
-- App do quiosque (placeholder): http://localhost:8080/staff/
+- Painel do dono (conta criada por convite do /admin): http://localhost:8080/painel
+- App do quiosque (dono ou equipe): http://localhost:8080/staff/
 - Página do cliente (placeholder): http://localhost:8080/cliente/
 
 O primeiro build demora alguns minutos (baixa o Gradle e as dependências). Os seguintes usam cache.

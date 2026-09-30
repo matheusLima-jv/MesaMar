@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Cardápio')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('cardapio')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <div th:replace="~{painel/fragments :: avisos}"></div>
+
+  <section class="app-section menu-intro">
+    <p class="kicker">Cardápio</p>
+    <h1 class="app-title" th:text="${totalNoCardapio == 1} ? '1 item no cardápio' : |${totalNoCardapio} itens no cardápio|">0 itens no cardápio</h1>
+    <p class="app-lead">É o que o cliente vê no celular, nesta ordem. Acabou alguma coisa? Um toque em
+      <strong>Esgotou</strong> e ninguém consegue pedir até você voltar a vender.</p>
+
+    <form class="inline-form menu-new-cat" method="post" action="/painel/cardapio/categorias" th:action="@{/painel/cardapio/categorias}">
+      <label for="nova-categoria" class="menu-new-label" th:text="${secoes.isEmpty()} ? 'Comece pela primeira categoria' : 'Nova categoria'">Nova categoria</label>
+      <input id="nova-categoria" name="nome" type="text" maxlength="40" required placeholder="Ex.: Bebidas, Porções, Drinks"
+             th:value="${nomeCategoria}">
+      <button class="btn btn-ink btn-small" type="submit">Criar categoria</button>
+    </form>
+  </section>
+
+  <section class="menu-section" th:each="s, it : ${secoes}" th:id="|categoria-${s.categoria.id}|"
+           th:attr="aria-labelledby=|t-${s.categoria.id}|">
+    <div class="menu-section-head">
+      <h2 th:id="|t-${s.categoria.id}|" th:text="${s.categoria.nome}">Bebidas</h2>
+      <div class="menu-tools">
+        <form method="post" th:action="@{/painel/cardapio/categorias/{id}/mover(id=${s.categoria.id})}" th:unless="${it.first}">
+          <input type="hidden" name="direcao" value="CIMA">
+          <button class="icon-btn" type="submit" th:attr="aria-label=|Subir a categoria ${s.categoria.nome}|" title="Subir">↑</button>
+        </form>
+        <form method="post" th:action="@{/painel/cardapio/categorias/{id}/mover(id=${s.categoria.id})}" th:unless="${it.last}">
+          <input type="hidden" name="direcao" value="BAIXO">
+          <button class="icon-btn" type="submit" th:attr="aria-label=|Descer a categoria ${s.categoria.nome}|" title="Descer">↓</button>
+        </form>
+        <details class="menu-more">
+          <summary th:attr="aria-label=|Renomear ou excluir ${s.categoria.nome}|">Editar</summary>
+          <div class="menu-more-body">
+            <form class="inline-form" method="post" th:action="@{/painel/cardapio/categorias/{id}/nome(id=${s.categoria.id})}">
+              <label class="sr-only" th:for="|nome-${s.categoria.id}|">Novo nome</label>
+              <input th:id="|nome-${s.categoria.id}|" name="nome" type="text" maxlength="40" required th:value="${s.categoria.nome}">
+              <button class="btn btn-ink btn-small" type="submit">Renomear</button>
+            </form>
+            <form method="post" th:action="@{/painel/cardapio/categorias/{id}/excluir(id=${s.categoria.id})}">
+              <button class="link-button danger" type="submit" th:text="|Excluir “${s.categoria.nome}”|">Excluir</button>
+            </form>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <p class="app-lead" th:if="${s.noCardapio.isEmpty()}">Nenhum produto aqui ainda.</p>
+
+    <ul class="menu-items" th:unless="${s.noCardapio.isEmpty()}">
+      <li th:each="p, pit : ${s.noCardapio}" th:id="|produto-${p.id}|" th:classappend="${p.esgotado} ? 'is-sold'">
+        <div class="menu-item-main">
+          <p class="menu-item-name"><strong th:text="${p.nome}">Água de coco</strong>
+            <span class="sold-tag" th:if="${p.esgotado}">Esgotado</span></p>
+          <p class="menu-item-desc" th:if="${p.descricao}" th:text="${p.descricao}">Gelada, no coco</p>
+          <p class="menu-item-price" th:text="${p.preco}">R$ 12,00</p>
+        </div>
+        <form method="post" class="menu-item-toggle" th:action="@{/painel/cardapio/produtos/{id}/esgotado(id=${p.id})}">
+          <button type="submit" class="sold-toggle" th:classappend="${p.esgotado} ? 'on'"
+                  th:attr="aria-pressed=${p.esgotado},aria-label=${p.esgotado} ? |Voltar a vender ${p.nome}| : |Marcar ${p.nome} como esgotado|"
+                  th:text="${p.esgotado} ? 'Voltou' : 'Esgotou'">Esgotou</button>
+        </form>
+        <div class="menu-item-tools">
+          <a class="link-button" th:href="@{/painel/cardapio/produtos/{id}(id=${p.id})}" th:attr="aria-label=|Editar ${p.nome}|">Editar</a>
+          <form method="post" th:action="@{/painel/cardapio/produtos/{id}/mover(id=${p.id})}" th:unless="${pit.first}">
+            <input type="hidden" name="direcao" value="CIMA">
+            <button class="icon-btn" type="submit" th:attr="aria-label=|Subir ${p.nome}|" title="Subir">↑</button>
+          </form>
+          <form method="post" th:action="@{/painel/cardapio/produtos/{id}/mover(id=${p.id})}" th:unless="${pit.last}">
+            <input type="hidden" name="direcao" value="BAIXO">
+            <button class="icon-btn" type="submit" th:attr="aria-label=|Descer ${p.nome}|" title="Descer">↓</button>
+          </form>
+          <form method="post" th:action="@{/painel/cardapio/produtos/{id}/no-cardapio(id=${p.id})}">
+            <input type="hidden" name="ativo" value="false">
+            <button class="link-button quiet" type="submit" th:attr="aria-label=|Tirar ${p.nome} do cardápio|">Tirar do cardápio</button>
+          </form>
+        </div>
+      </li>
+    </ul>
+
+    <a class="btn btn-line btn-small menu-add" th:href="@{/painel/cardapio/produtos/novo(categoria=${s.categoria.id})}"
+       th:text="|Adicionar produto em ${s.categoria.nome}|">Adicionar produto</a>
+  </section>
+
+  <section class="menu-section menu-off" id="fora" th:unless="${foraDoCardapio.isEmpty()}" aria-labelledby="t-fora">
+    <h2 id="t-fora" th:text="|Fora do cardápio (${foraDoCardapio.size()})|">Fora do cardápio</h2>
+    <p class="app-lead">O cliente não vê estes itens. Os pedidos antigos continuam com eles no histórico.</p>
+    <ul class="menu-items">
+      <li th:each="f : ${foraDoCardapio}" th:id="|produto-${f.second.id}|">
+        <div class="menu-item-main">
+          <p class="menu-item-name"><strong th:text="${f.second.nome}">Caipirinha</strong></p>
+          <p class="menu-item-desc" th:text="|${f.first} · ${f.second.preco}|">Drinks · R$ 25,00</p>
+        </div>
+        <form method="post" th:action="@{/painel/cardapio/produtos/{id}/no-cardapio(id=${f.second.id})}">
+          <input type="hidden" name="ativo" value="true">
+          <button class="btn btn-line btn-small" type="submit" th:attr="aria-label=|Voltar ${f.second.nome} ao cardápio|">Voltar ao cardápio</button>
+        </form>
+      </li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

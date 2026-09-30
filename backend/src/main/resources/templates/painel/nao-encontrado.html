@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Não encontrado')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <p class="kicker">Painel</p>
+  <h1 class="app-title">Não encontramos isso na sua barraca.</h1>
+  <p class="app-lead">O item pode ter sido removido, ou o link é de outra barraca.</p>
+  <a class="btn btn-ink" href="/painel" th:href="@{/painel}">Voltar ao início</a>
+</main>
+</body>
+</html>

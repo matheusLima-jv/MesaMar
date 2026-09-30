@@ -1,0 +1,116 @@
+import { expect, test } from '@playwright/test'
+import { expectNoHorizontalScroll, failOnConsoleErrors } from './helpers'
+
+const password = process.env.E2E_ADMIN_PASSWORD ?? ''
+
+test.skip(!password, 'defina E2E_ADMIN_PASSWORD para testar o convite')
+
+test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page, browser }) => {
+  // Outro "aparelho" com as mesmas opções do projeto (baseURL, tamanho de celular)
+  const novoAparelho = async () => await (await browser.newContext(test.info().project.use)).newPage()
+  const caminho = (url: string): string => new URL(url).pathname + new URL(url).search
+  const checkConsole = failOnConsoleErrors(page)
+  const email = `dono-${Date.now()}@exemplo.com`
+  const senha = 'guarda-sol azul na enseada'
+
+  // 1) Admin gera um convite avulso
+  await page.goto('/admin/login')
+  await page.getByLabel('Usuário').fill('admin')
+  await page.getByLabel('Senha').fill(password)
+  await page.getByRole('button', { name: 'Entrar no painel' }).click()
+  await page.getByLabel(/Convite avulso/).fill('Quiosque E2E')
+  await page.getByRole('button', { name: 'Gerar convite avulso' }).click()
+  const link = await page.getByLabel('Link do convite').inputValue()
+  expect(link).toContain('/painel/cadastro?convite=')
+  checkConsole()
+
+  // 2) Dono abre o link em outro aparelho
+  const dono = await novoAparelho()
+  const checkDono = failOnConsoleErrors(dono)
+  await dono.goto(caminho(link))
+  await expect(dono.getByRole('heading', { name: 'Crie a sua conta' })).toBeVisible()
+  await expectNoHorizontalScroll(dono)
+  await dono.getByLabel('Seu nome').fill('Zé E2E')
+  await dono.getByLabel('E-mail').fill(email)
+  await dono.getByLabel('Senha').fill(senha)
+  await dono.getByRole('button', { name: 'Criar conta' }).click()
+
+  // 3) Entra (o e-mail já vem preenchido)
+  await expect(dono.getByText('Conta criada!')).toBeVisible()
+  await expect(dono.getByLabel('E-mail')).toHaveValue(email)
+  await dono.getByLabel('Senha').fill(senha)
+  await dono.getByRole('button', { name: 'Entrar' }).click()
+
+  // 4) Primeiro acesso: dados da barraca
+  await expect(dono).toHaveURL(/\/painel\/barraca$/)
+  await dono.getByLabel('Nome da barraca ou quiosque').fill('Quiosque E2E')
+  await dono.getByLabel('Praia').selectOption({ label: 'Enseada' })
+  await dono.getByRole('button', { name: 'Continuar' }).click()
+  await expect(dono.getByText('Barraca criada. Agora falta a chave Pix.')).toBeVisible()
+  await expectNoHorizontalScroll(dono)
+
+  // 5) Chave Pix
+  await dono.getByRole('link', { name: 'Configurar Chave Pix' }).click()
+  await dono.getByRole('radio', { name: 'CPF' }).check()
+  await dono.getByLabel('Chave', { exact: true }).fill('529.982.247-25')
+  await dono.getByLabel('Nome de quem recebe').fill('José da Praia')
+  await dono.getByRole('button', { name: 'Salvar chave Pix' }).click()
+  await expect(dono.getByText('Recebendo em JOSE DA PRAIA')).toBeVisible()
+  await expect(dono.getByText('529.982.247-25')).toBeVisible()
+
+  // 6) Guarda-sóis: aceita a sugestão (1 ao limite padrão, 30)
+  await dono.getByRole('link', { name: 'Guarda-sóis', exact: true }).click()
+  await dono.getByRole('button', { name: 'Criar guarda-sóis' }).click()
+  await expect(dono.getByText('Pronto: 30 criados.')).toBeVisible()
+  await expectNoHorizontalScroll(dono)
+
+  // 7) Cardápio: categoria, produto e "esgotado" com um toque
+  await dono.getByRole('link', { name: 'Cardápio', exact: true }).click()
+  await dono.getByLabel('Comece pela primeira categoria').fill('Bebidas')
+  await dono.getByRole('button', { name: 'Criar categoria' }).click()
+  await dono.getByRole('link', { name: 'Adicionar produto em Bebidas' }).click()
+  await dono.getByLabel('Nome', { exact: true }).fill('Água de coco')
+  await dono.getByLabel('Preço (R$)').fill('12')
+  await dono.getByRole('button', { name: 'Adicionar ao cardápio' }).click()
+  await expect(dono.getByText('Água de coco (R$ 12,00) entrou no cardápio.')).toBeVisible()
+  await dono.getByRole('button', { name: 'Marcar Água de coco como esgotado' }).click()
+  await expect(dono.getByRole('button', { name: 'Voltar a vender Água de coco' })).toHaveAttribute('aria-pressed', 'true')
+  await expectNoHorizontalScroll(dono)
+
+  // 8) Equipe + app do quiosque em outro celular: atendente entra com código, nome e PIN
+  await dono.getByRole('link', { name: 'Equipe', exact: true }).click()
+  await dono.getByLabel('Nome ou apelido').fill('Carla')
+  await dono.getByLabel('PIN (4 a 6 números)').fill('2580')
+  await dono.getByRole('button', { name: 'Adicionar à equipe' }).click()
+  await expect(dono.getByText('Carla foi adicionado.')).toBeVisible()
+  const codigo = (await dono.locator('.app-lead .mono').first().textContent())?.trim() ?? ''
+  expect(codigo).not.toBe('')
+
+  const app = await novoAparelho()
+  const checkApp = failOnConsoleErrors(app)
+  await app.goto('/staff/')
+  await app.getByRole('tab', { name: 'Sou da equipe' }).click()
+  await app.getByLabel('Código da barraca').fill(codigo)
+  await app.getByRole('button', { name: 'Continuar' }).click()
+  await app.getByRole('button', { name: 'Carla' }).click()
+  await app.getByLabel('Seu PIN').fill('2580')
+  await app.getByRole('button', { name: 'Entrar' }).click()
+  await expect(app.getByRole('heading', { name: 'Cardápio' })).toBeVisible()
+  await expectNoHorizontalScroll(app)
+  // A água de coco ficou esgotada no passo 7: a atendente devolve ao cardápio com um toque.
+  await app.getByRole('button', { name: 'Voltar a vender Água de coco' }).click()
+  await expect(app.getByText('Água de coco voltou.')).toBeVisible()
+  await dono.reload()
+  await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
+  await dono.goto('/painel/cardapio')
+  await expect(dono.getByRole('button', { name: 'Marcar Água de coco como esgotado' })).toBeVisible()
+  checkApp()
+
+  // 9) O mesmo link não serve de novo
+  const outro = await novoAparelho()
+  const resposta = await outro.goto(caminho(link))
+  expect(resposta?.status()).toBe(404)
+  await expect(outro.getByText('Esse convite não vale mais.')).toBeVisible()
+
+  checkDono()
+})

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Pix')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('pix')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <section class="app-section app-form-layout">
+    <div>
+      <p class="kicker" th:text="${barraca.temPix} ? 'Chave Pix' : 'Passo 2 de 2'">Passo 2 de 2</p>
+      <h1 class="app-title">Onde você recebe</h1>
+      <p class="app-lead">O cliente paga direto para esta chave, com o QR Pix que aparece no celular dele. O MesaMar não recebe nem repassa dinheiro.</p>
+      <p class="app-lead"><strong>Confira com cuidado:</strong> use a mesma chave que você já usa na maquininha ou no app do banco.</p>
+    </div>
+
+    <form class="lead-form app-form" method="post" action="/painel/pix" th:action="@{/painel/pix}"
+          th:object="${pixForm}" novalidate>
+      <fieldset class="field choice choice-inline" th:classappend="${#fields.hasErrors('tipo')} ? 'has-error'">
+        <legend>Tipo da chave</legend>
+        <label class="choice-pill" th:each="t : ${tiposPix}" th:for="|tipo-${t.name()}|">
+          <input type="radio" th:id="|tipo-${t.name()}|" name="tipo" th:value="${t.name()}" th:checked="${t.name() == pixForm.tipo}">
+          <span th:text="${t.label}">CPF</span>
+        </label>
+        <p class="field-error" th:if="${#fields.hasErrors('tipo')}" th:text="${#fields.errors('tipo')[0]}">Erro</p>
+      </fieldset>
+
+      <div class="field" th:classappend="${#fields.hasErrors('chave')} ? 'has-error'">
+        <label for="chave">Chave</label>
+        <input id="chave" type="text" th:field="*{chave}" maxlength="80" autocomplete="off" autocapitalize="off" spellcheck="false" required
+               th:attr="aria-invalid=${#fields.hasErrors('chave')},aria-describedby=${#fields.hasErrors('chave')} ? 'chave-erro chave-dica' : 'chave-dica'">
+        <p class="field-error" id="chave-erro" th:if="${#fields.hasErrors('chave')}" th:text="${#fields.errors('chave')[0]}">Erro</p>
+        <p class="form-hint" id="chave-dica">Pode digitar com ou sem pontos e traços. Celular com DDD.</p>
+      </div>
+
+      <div class="field" th:classappend="${#fields.hasErrors('nomeRecebedor')} ? 'has-error'">
+        <label for="nomeRecebedor">Nome de quem recebe</label>
+        <input id="nomeRecebedor" type="text" th:field="*{nomeRecebedor}" maxlength="40" required
+               th:attr="aria-invalid=${#fields.hasErrors('nomeRecebedor')},aria-describedby=${#fields.hasErrors('nomeRecebedor')} ? 'nome-erro nome-dica' : 'nome-dica'">
+        <p class="field-error" id="nome-erro" th:if="${#fields.hasErrors('nomeRecebedor')}" th:text="${#fields.errors('nomeRecebedor')[0]}">Erro</p>
+        <p class="form-hint" id="nome-dica">Aparece para o cliente na hora de pagar. Até 25 letras, sem acento.</p>
+      </div>
+
+      <div class="field" th:classappend="${#fields.hasErrors('cidade')} ? 'has-error'">
+        <label for="cidade">Cidade</label>
+        <input id="cidade" type="text" th:field="*{cidade}" maxlength="30" required
+               th:attr="aria-invalid=${#fields.hasErrors('cidade')},aria-describedby=${#fields.hasErrors('cidade')} ? 'cidade-erro'">
+        <p class="field-error" id="cidade-erro" th:if="${#fields.hasErrors('cidade')}" th:text="${#fields.errors('cidade')[0]}">Erro</p>
+      </div>
+
+      <button class="btn btn-ink btn-block" type="submit">Salvar chave Pix</button>
+    </form>
+  </section>
+</main>
+</body>
+</html>

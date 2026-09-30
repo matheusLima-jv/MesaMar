@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Guarda-sóis')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('guarda-sois')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <div th:replace="~{painel/fragments :: avisos}"></div>
+
+  <section class="app-section app-form-layout">
+    <div>
+      <p class="kicker">Guarda-sóis</p>
+      <h1 class="app-title"><span th:text="${ativos}">0</span> de <span th:text="${barraca.limiteGuardaSois}">30</span> ativos</h1>
+      <p class="app-lead">No check-in, a equipe escolhe o número do guarda-sol do cliente. É ele que aparece em destaque na fila.
+        O limite está em <a href="/painel/regras" th:href="@{/painel/regras}">Regras</a>.</p>
+    </div>
+
+    <form class="lead-form app-form" method="post" action="/painel/guarda-sois" th:action="@{/painel/guarda-sois}"
+          th:object="${loteForm}" novalidate>
+      <h2 class="form-title">Criar de uma vez</h2>
+      <p class="form-alert" role="alert" th:if="${#fields.hasGlobalErrors()}" th:text="${#fields.globalErrors()[0]}">Limite</p>
+      <div class="field-row">
+        <div class="field" th:classappend="${#fields.hasErrors('de')} ? 'has-error'">
+          <label for="de">Do número</label>
+          <input id="de" type="number" th:field="*{de}" inputmode="numeric" min="1" max="999" required
+                 th:attr="aria-invalid=${#fields.hasErrors('de')},aria-describedby=${#fields.hasErrors('de')} ? 'de-erro'">
+          <p class="field-error" id="de-erro" th:if="${#fields.hasErrors('de')}" th:text="${#fields.errors('de')[0]}">Erro</p>
+        </div>
+        <div class="field" th:classappend="${#fields.hasErrors('ate')} ? 'has-error'">
+          <label for="ate">Até o número</label>
+          <input id="ate" type="number" th:field="*{ate}" inputmode="numeric" min="1" max="999" required
+                 th:attr="aria-invalid=${#fields.hasErrors('ate')},aria-describedby=${#fields.hasErrors('ate')} ? 'ate-erro'">
+          <p class="field-error" id="ate-erro" th:if="${#fields.hasErrors('ate')}" th:text="${#fields.errors('ate')[0]}">Erro</p>
+        </div>
+      </div>
+      <p class="form-hint">Números que já existem ficam como estão. Os desativados da faixa voltam a valer.</p>
+      <button class="btn btn-ink btn-block" type="submit">Criar guarda-sóis</button>
+    </form>
+  </section>
+
+  <section class="app-section" aria-labelledby="t-lista" th:unless="${guardaSois.isEmpty()}">
+    <h2 id="t-lista" class="app-subtitle">Toque para desativar ou reativar</h2>
+    <ul class="umbrella-grid">
+      <li th:each="g : ${guardaSois}">
+        <form method="post" th:action="@{/painel/guarda-sois/{id}/alternar(id=${g.id})}">
+          <button type="submit" class="umbrella" th:classappend="${g.ativo} ? '' : 'is-off'"
+                  th:attr="aria-pressed=${g.ativo},aria-label=|Guarda-sol ${g.numero}, ${g.ativo ? 'ativo' : 'desativado'}|"
+                  th:text="${g.numero}">1</button>
+        </form>
+      </li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

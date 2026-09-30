@@ -124,7 +124,10 @@ jobs:
       - name: Logs do compose (se falhar)
         if: failure()
         run: |
-          docker compose logs --no-color --tail 60 \
+          # Sem as linhas "at ..." das stack traces: sobra o que importa (erro e causa).
+          docker compose logs --no-color --tail 400 \
+            | grep -v $'^app-1  | \tat \\|^app-1  | \t\\.\\.\\.' \
+            | tail -n 80 \
             | python3 -c "import sys; print('::error title=Logs do compose::' + sys.stdin.read()[-6000:].replace('%','%25').replace('\n','%0A'))"
 
       - name: Derrubar compose

@@ -5,6 +5,12 @@ spring:
     username: ${DB_USER}
     password: ${DB_PASSWORD}
 
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true # só HTTPS (Cloudflare → Nginx)
+
 logging:
   structured:
     format:

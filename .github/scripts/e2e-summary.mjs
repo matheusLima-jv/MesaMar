@@ -30,7 +30,15 @@ function walk (suite, prefix = '') {
       lines.push(`${ok ? '✅' : '❌'} ${suite.file ?? ''} › ${title}${spec.title}`)
       for (const a of t.annotations ?? []) if (a.type === 'carregamento-4g-ms') loadMs = a.description
       for (const r of t.results ?? []) for (const a of r.annotations ?? []) if (a.type === 'carregamento-4g-ms') loadMs = a.description
-      if (!ok && last) failures.push(`${spec.title}\n${stripAnsi(last.error?.message ?? '').slice(0, 2500)}`)
+      if (!ok && last) {
+        // Num timeout, a 1ª mensagem só diz "Test timeout"; as outras dizem em qual ação travou e em que linha.
+        const errors = (last.errors?.length ? last.errors : [last.error]).filter(Boolean)
+        const detail = errors.map((e) => {
+          const where = e.location ? `${e.location.file.split('/').slice(-2).join('/')}:${e.location.line}` : ''
+          return `${where ? `[${where}] ` : ''}${stripAnsi(e.message ?? '')}${e.snippet ? `\n${stripAnsi(e.snippet)}` : ''}`
+        }).join('\n---\n')
+        failures.push(`${spec.title}\n${detail.slice(0, 5000)}`)
+      }
     }
   }
   for (const child of suite.suites ?? []) walk(child, title)

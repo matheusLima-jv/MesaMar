@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head(${produtoId} ? 'Editar produto' : 'Novo produto')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('cardapio')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <div th:replace="~{painel/fragments :: avisos}"></div>
+
+  <section class="app-section app-form-layout">
+    <div>
+      <p class="kicker"><a href="/painel/cardapio" th:href="@{/painel/cardapio}">Cardápio</a></p>
+      <h1 class="app-title" th:text="${produtoId} ? 'Editar produto' : 'Novo produto'">Novo produto</h1>
+      <p class="app-lead" th:if="${produtoId}">O preço novo vale para os próximos pedidos. Os pedidos já feitos continuam com o preço da hora.</p>
+      <p class="app-lead" th:unless="${produtoId}">Nome curto e claro: é o que o cliente lê no sol, no celular.</p>
+    </div>
+
+    <form class="lead-form app-form" method="post" novalidate th:object="${produtoForm}"
+          th:action="${produtoId} ? @{/painel/cardapio/produtos/{id}(id=${produtoId})} : @{/painel/cardapio/produtos}">
+      <p class="form-alert" role="alert" th:if="${#fields.hasGlobalErrors()}" th:text="${#fields.globalErrors()[0]}">Limite</p>
+
+      <div class="field" th:classappend="${#fields.hasErrors('categoriaId')} ? 'has-error'">
+        <label for="categoriaId">Categoria</label>
+        <select id="categoriaId" th:field="*{categoriaId}" required
+                th:attr="aria-invalid=${#fields.hasErrors('categoriaId')},aria-describedby=${#fields.hasErrors('categoriaId')} ? 'cat-erro'">
+          <option th:each="c : ${categorias}" th:value="${c.id}" th:text="${c.nome}">Bebidas</option>
+        </select>
+        <p class="field-error" id="cat-erro" th:if="${#fields.hasErrors('categoriaId')}" th:text="${#fields.errors('categoriaId')[0]}">Erro</p>
+      </div>
+
+      <div class="field" th:classappend="${#fields.hasErrors('nome')} ? 'has-error'">
+        <label for="nome">Nome</label>
+        <input id="nome" type="text" th:field="*{nome}" maxlength="60" required th:autofocus="${produtoId == null}"
+               th:attr="aria-invalid=${#fields.hasErrors('nome')},aria-describedby=${#fields.hasErrors('nome')} ? 'nome-erro'">
+        <p class="field-error" id="nome-erro" th:if="${#fields.hasErrors('nome')}" th:text="${#fields.errors('nome')[0]}">Erro</p>
+      </div>
+
+      <div class="field" th:classappend="${#fields.hasErrors('preco')} ? 'has-error'">
+        <label for="preco">Preço (R$)</label>
+        <input id="preco" type="text" th:field="*{preco}" inputmode="decimal" maxlength="12" placeholder="12,00" required
+               th:attr="aria-invalid=${#fields.hasErrors('preco')},aria-describedby=${#fields.hasErrors('preco')} ? 'preco-erro'">
+        <p class="field-error" id="preco-erro" th:if="${#fields.hasErrors('preco')}" th:text="${#fields.errors('preco')[0]}">Erro</p>
+      </div>
+
+      <div class="field" th:classappend="${#fields.hasErrors('descricao')} ? 'has-error'">
+        <label for="descricao">Descrição <span class="optional">(opcional)</span></label>
+        <input id="descricao" type="text" th:field="*{descricao}" maxlength="140" placeholder="Ex.: 500 ml, bem gelada"
+               th:attr="aria-invalid=${#fields.hasErrors('descricao')},aria-describedby=${#fields.hasErrors('descricao')} ? 'desc-erro'">
+        <p class="field-error" id="desc-erro" th:if="${#fields.hasErrors('descricao')}" th:text="${#fields.errors('descricao')[0]}">Erro</p>
+      </div>
+
+      <button class="btn btn-ink btn-block" type="submit" th:text="${produtoId} ? 'Salvar produto' : 'Adicionar ao cardápio'">Adicionar ao cardápio</button>
+      <button class="btn btn-line btn-block form-second" type="submit" name="outro" value="1" th:unless="${produtoId}">Adicionar e cadastrar outro</button>
+    </form>
+  </section>
+</main>
+</body>
+</html>
