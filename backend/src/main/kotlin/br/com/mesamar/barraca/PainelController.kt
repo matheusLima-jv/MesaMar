@@ -2,14 +2,12 @@ package br.com.mesamar.barraca
 
 import br.com.mesamar.common.ChavePix
 import br.com.mesamar.common.Money
-import br.com.mesamar.common.Praia
 import br.com.mesamar.common.TipoChavePix
-import br.com.mesamar.conta.OwnerPrincipal
 import br.com.mesamar.conta.Usuario
-import br.com.mesamar.conta.UsuarioRepository
+import br.com.mesamar.equipe.AtendenteRepository
+import br.com.mesamar.guardasol.GuardaSolRepository
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpStatus
-import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.validation.BindingResult
@@ -31,24 +29,15 @@ data class PassoConfig(
  * na URL, então um dono nunca consegue abrir (nem tentar abrir) a barraca de outro.
  */
 @Controller
+@PainelPage
 class PainelController(
-    private val usuarios: UsuarioRepository,
     private val service: BarracaService,
+    private val atendentes: AtendenteRepository,
+    private val guardaSois: GuardaSolRepository,
 ) {
-    @ModelAttribute
-    fun comum(
-        @AuthenticationPrincipal principal: OwnerPrincipal?,
-        model: Model,
-    ) {
-        val usuario = principal?.let { usuarios.findById(it.usuarioId).orElse(null) } ?: return
-        model.addAttribute("usuario", usuario)
-        model.addAttribute("barraca", service.daUsuario(usuario))
-        model.addAttribute("praias", Praia.entries)
-    }
-
     @GetMapping("/painel")
     fun home(model: Model): String {
-        val barraca = model.getAttribute("barraca") as Barraca? ?: return "redirect:/painel/barraca"
+        val barraca = model.barraca() ?: return "redirect:/painel/barraca"
         model.addAttribute("passos", passos(barraca))
         model.addAttribute("resumoRegras", resumoRegras(barraca))
         model.addAttribute("pixDisplay", barraca.chavePix?.let { ChavePix.display(barraca.tipoChavePix!!, it) })
@@ -57,7 +46,7 @@ class PainelController(
 
     @GetMapping("/painel/barraca")
     fun barraca(model: Model): String {
-        val barraca = model.getAttribute("barraca") as Barraca?
+        val barraca = model.barraca()
         model.addAttribute("barracaForm", barraca?.let { BarracaForm(it.nome, it.praia.name) } ?: BarracaForm())
         return "painel/barraca"
     }
@@ -71,7 +60,7 @@ class PainelController(
         redirect: RedirectAttributes,
     ): String {
         val usuario = model.getAttribute("usuario") as Usuario
-        val barraca = model.getAttribute("barraca") as Barraca?
+        val barraca = model.barraca()
         val ok =
             if (barraca == null) {
                 service.criar(usuario, form, bindingResult) != null
@@ -88,7 +77,7 @@ class PainelController(
 
     @GetMapping("/painel/regras")
     fun regras(model: Model): String {
-        val barraca = model.getAttribute("barraca") as Barraca? ?: return "redirect:/painel/barraca"
+        val barraca = model.barraca() ?: return "redirect:/painel/barraca"
         model.addAttribute("regrasForm", RegrasForm.of(barraca))
         model.addAttribute("modos", ModoPagamento.entries)
         return "painel/regras"
@@ -102,7 +91,7 @@ class PainelController(
         response: HttpServletResponse,
         redirect: RedirectAttributes,
     ): String {
-        val barraca = model.getAttribute("barraca") as Barraca? ?: return "redirect:/painel/barraca"
+        val barraca = model.barraca() ?: return "redirect:/painel/barraca"
         if (!service.atualizarRegras(barraca, form, bindingResult)) {
             response.status = HttpStatus.UNPROCESSABLE_ENTITY.value()
             model.addAttribute("modos", ModoPagamento.entries)
@@ -114,7 +103,7 @@ class PainelController(
 
     @GetMapping("/painel/pix")
     fun pix(model: Model): String {
-        val barraca = model.getAttribute("barraca") as Barraca? ?: return "redirect:/painel/barraca"
+        val barraca = model.barraca() ?: return "redirect:/painel/barraca"
         model.addAttribute("pixForm", PixForm.of(barraca))
         model.addAttribute("tiposPix", TipoChavePix.entries)
         return "painel/pix"
@@ -128,7 +117,7 @@ class PainelController(
         response: HttpServletResponse,
         redirect: RedirectAttributes,
     ): String {
-        val barraca = model.getAttribute("barraca") as Barraca? ?: return "redirect:/painel/barraca"
+        val barraca = model.barraca() ?: return "redirect:/painel/barraca"
         if (!service.atualizarPix(barraca, form, bindingResult)) {
             response.status = HttpStatus.UNPROCESSABLE_ENTITY.value()
             model.addAttribute("tiposPix", TipoChavePix.entries)
@@ -138,8 +127,10 @@ class PainelController(
         return "redirect:/painel"
     }
 
-    private fun passos(b: Barraca): List<PassoConfig> =
-        listOf(
+    private fun passos(b: Barraca): List<PassoConfig> {
+        val gs = guardaSois.countByBarracaIdAndAtivoTrue(b.id)
+        val equipe = atendentes.findAllByBarracaIdOrderByNome(b.id).count { it.ativo }
+        return listOf(
             PassoConfig("Dados da barraca", "${b.nome} · ${b.praia.label}", true, "/painel/barraca"),
             PassoConfig(
                 "Chave Pix",
@@ -147,11 +138,22 @@ class PainelController(
                 b.temPix,
                 "/painel/pix",
             ),
+            PassoConfig(
+                "Guarda-sóis",
+                if (gs > 0) "$gs ativos, de até ${b.limiteGuardaSois}" else "Crie de uma vez, do 1 ao último.",
+                gs > 0,
+                "/painel/guarda-sois",
+            ),
+            PassoConfig(
+                "Equipe",
+                if (equipe > 0) "$equipe ${if (equipe == 1) "atendente" else "atendentes"}" else "Opcional: se só você atende, pode pular.",
+                equipe > 0,
+                "/painel/equipe",
+            ),
             PassoConfig("Regras de operação", "Já vêm preenchidas com o padrão. Revise quando quiser.", true, "/painel/regras"),
-            PassoConfig("Atendentes", "Chega na próxima etapa do piloto.", false, null),
-            PassoConfig("Guarda-sóis e QR codes", "Chega na próxima etapa do piloto.", false, null),
             PassoConfig("Cardápio", "Chega na próxima etapa do piloto.", false, null),
         )
+    }
 
     private fun resumoRegras(b: Barraca): List<Pair<String, String>> =
         listOf(

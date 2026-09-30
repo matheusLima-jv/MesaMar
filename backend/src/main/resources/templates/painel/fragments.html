@@ -31,11 +31,19 @@
   </div>
   <nav class="wrap app-nav" aria-label="Painel" th:if="${barraca}">
     <a href="/painel" th:href="@{/painel}" th:attr="aria-current=${ativo == 'home'} ? 'page'">Início</a>
-    <a href="/painel/barraca" th:href="@{/painel/barraca}" th:attr="aria-current=${ativo == 'barraca'} ? 'page'">Barraca</a>
-    <a href="/painel/regras" th:href="@{/painel/regras}" th:attr="aria-current=${ativo == 'regras'} ? 'page'">Regras</a>
+    <a href="/painel/guarda-sois" th:href="@{/painel/guarda-sois}" th:attr="aria-current=${ativo == 'guarda-sois'} ? 'page'">Guarda-sóis</a>
+    <a href="/painel/equipe" th:href="@{/painel/equipe}" th:attr="aria-current=${ativo == 'equipe'} ? 'page'">Equipe</a>
     <a href="/painel/pix" th:href="@{/painel/pix}" th:attr="aria-current=${ativo == 'pix'} ? 'page'">Pix</a>
+    <a href="/painel/regras" th:href="@{/painel/regras}" th:attr="aria-current=${ativo == 'regras'} ? 'page'">Regras</a>
+    <a href="/painel/barraca" th:href="@{/painel/barraca}" th:attr="aria-current=${ativo == 'barraca'} ? 'page'">Barraca</a>
   </nav>
 </header>
+
+<!-- Avisos depois de uma ação (flash) -->
+<div th:fragment="avisos">
+  <p class="form-ok" role="status" th:if="${ok}" th:text="${ok}">Salvo.</p>
+  <p class="form-alert" role="alert" th:if="${erro}" th:text="${erro}">Erro.</p>
+</div>
 
 <!-- Regra de senha exibida nos formulários -->
 <p class="form-hint" th:fragment="senhaHint" id="senha-dica">Pelo menos 10 caracteres. Uma frase curta é mais fácil de lembrar e mais segura, ex.: <i>guarda-sol azul na enseada</i>.</p>
