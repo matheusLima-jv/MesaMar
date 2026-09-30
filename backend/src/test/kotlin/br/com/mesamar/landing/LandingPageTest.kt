@@ -36,7 +36,7 @@ class LandingPageTest(
                 .find(html)!!
                 .groupValues[1]
                 .replace(Regex("<[^>]+>"), "")
-        assertEquals("Seu cliente pede pelo celular, você recebe na ordem certa e ninguém sai sem pagar.", h1Text)
+        assertEquals("Seu cliente pede pelo celular, você recebe na ordem certa e sabe quem já pagou.", h1Text)
     }
 
     @Test

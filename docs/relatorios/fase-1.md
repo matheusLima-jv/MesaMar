@@ -310,4 +310,15 @@ Depois do deploy:
    - **Sinal ruim:** registramos em ADR e a Fase 6 (modo offline do atendente) vem **antes** do piloto.
    - **Poucos leads:** pausar e rever o posicionamento antes de construir mais.
 
-⏸️ Aguardando validação do checkpoint 1.3. Responda **"APROVADO 1.3"** ou **"AJUSTAR 1.3: ..."**. Depois do deploy e das medições, me mande o resultado do Portão A.
+✅ Aprovado pelo Matheus em 29/09/2026.
+
+### Ajustes finais de texto (decididos em 29/09)
+
+- Título: "…e ninguém sai sem pagar" → **"…e sabe quem já pagou"** (promessa que o sistema cumpre).
+- FAQ "E se a internet cair?": sem prometer modo offline (a Fase 6 pode vir depois do piloto). Agora fala do reenvio automático, do atendimento no quiosque continuar normal e da medição de sinal antes do piloto.
+- FAQ "E se o cliente não tiver celular?": sem prometer o lançamento de pedido pela equipe (também é Fase 6). Agora diz que o pedido no quiosque continua como sempre.
+- Oferta do piloto: removido "QR Codes impressos para o balcão"; mantidos ajuda com cardápio, treinamento e suporte.
+
+### Portão A
+
+Por decisão do Matheus (29/09), a **Fase 2 começa em paralelo** com a validação em campo, para não apertar o prazo do piloto em dezembro. Se o Portão A não passar, o desenvolvimento para e o posicionamento é revisto.
