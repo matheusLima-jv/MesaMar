@@ -131,7 +131,7 @@ Itens 26 a 31 de [`docs/testar-localmente.md`](../testar-localmente.md).
 ## Checkpoint 2.3 — Cardápio
 
 - **Data:** 2026-09-30
-- **CI:** (preenchido ao final)
+- **CI:** ✅ verde (junto com o 2.4, commit `e00c042`), com `CardapioTest` 8/8. A primeira rodada (`ed43ee5`) teve 3 falhas de teste, e não do app: a mensagem flash de um passo de preparação sobrava na sessão. Corrigido.
 
 ### 1. O que foi feito
 
@@ -180,7 +180,7 @@ Itens 32 a 36 de [`docs/testar-localmente.md`](../testar-localmente.md).
 ## Checkpoint 2.4 — App do quiosque
 
 - **Data:** 2026-09-30
-- **CI:** ⚠️ pendente. O push para o GitHub está sendo recusado (403) desde o meio do 2.3, então este checkpoint ainda não passou pelo CI. O front foi compilado e testado aqui (ver abaixo).
+- **CI:** ✅ verde na primeira rodada (commit `e00c042`): **218 testes de backend** (+17 desde o 2.2), imagem Docker, smoke do compose (inclui `/staff/`) e **10 E2E**, entre eles o fluxo do dono ponta a ponta com a atendente entrando no app. Landing a 358 ms no 4G simulado.
 
 ### 1. O que foi feito
 
