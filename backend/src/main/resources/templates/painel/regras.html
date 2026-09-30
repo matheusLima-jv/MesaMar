@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Regras')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('regras')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <section class="app-section app-form-layout">
+    <div>
+      <p class="kicker">Regras de operação</p>
+      <h1 class="app-title">Como a sua barraca funciona</h1>
+      <p class="app-lead">Dá para mudar a qualquer hora. As mudanças valem para as próximas contas abertas.</p>
+    </div>
+
+    <form class="lead-form app-form" method="post" action="/painel/regras" th:action="@{/painel/regras}"
+          th:object="${regrasForm}" novalidate>
+
+      <fieldset class="field choice" th:classappend="${#fields.hasErrors('modoPagamento')} ? 'has-error'">
+        <legend>Quando o cliente paga?</legend>
+        <label class="choice-option" th:each="m : ${modos}" th:for="|modo-${m.name()}|">
+          <input type="radio" th:id="|modo-${m.name()}|" name="modoPagamento" th:value="${m.name()}"
+                 th:checked="${m.name() == regrasForm.modoPagamento}">
+          <span><strong th:text="${m.label}">No final</strong> <span th:text="${m.descricao}">Descrição</span></span>
+        </label>
+        <p class="field-error" th:if="${#fields.hasErrors('modoPagamento')}" th:text="${#fields.errors('modoPagamento')[0]}">Erro</p>
+      </fieldset>
+
+      <div class="field" th:classappend="${#fields.hasErrors('limiteSaldo')} ? 'has-error'">
+        <label for="limiteSaldo">Limite de conta aberta (R$)</label>
+        <input id="limiteSaldo" type="text" th:field="*{limiteSaldo}" inputmode="decimal" placeholder="Sem limite" maxlength="12"
+               th:attr="aria-invalid=${#fields.hasErrors('limiteSaldo')},aria-describedby=${#fields.hasErrors('limiteSaldo')} ? 'saldo-erro saldo-dica' : 'saldo-dica'">
+        <p class="field-error" id="saldo-erro" th:if="${#fields.hasErrors('limiteSaldo')}" th:text="${#fields.errors('limiteSaldo')[0]}">Erro</p>
+        <p class="form-hint" id="saldo-dica">Ao chegar nesse valor, o cliente precisa pagar antes de pedir mais. Vazio: sem limite.</p>
+      </div>
+
+      <div class="field-row">
+        <div class="field" th:classappend="${#fields.hasErrors('limiteGuardaSois')} ? 'has-error'">
+          <label for="limiteGuardaSois">Guarda-sóis</label>
+          <input id="limiteGuardaSois" type="number" th:field="*{limiteGuardaSois}" inputmode="numeric" min="1" max="200"
+                 th:attr="aria-invalid=${#fields.hasErrors('limiteGuardaSois')},aria-describedby=${#fields.hasErrors('limiteGuardaSois')} ? 'gs-erro'">
+          <p class="field-error" id="gs-erro" th:if="${#fields.hasErrors('limiteGuardaSois')}" th:text="${#fields.errors('limiteGuardaSois')[0]}">Erro</p>
+        </div>
+        <div class="field" th:classappend="${#fields.hasErrors('tempoAlertaMin')} ? 'has-error'">
+          <label for="tempoAlertaMin">Alerta de pedido parado (min)</label>
+          <input id="tempoAlertaMin" type="number" th:field="*{tempoAlertaMin}" inputmode="numeric" min="1" max="120"
+                 th:attr="aria-invalid=${#fields.hasErrors('tempoAlertaMin')},aria-describedby=${#fields.hasErrors('tempoAlertaMin')} ? 'alerta-erro'">
+          <p class="field-error" id="alerta-erro" th:if="${#fields.hasErrors('tempoAlertaMin')}" th:text="${#fields.errors('tempoAlertaMin')[0]}">Erro</p>
+        </div>
+      </div>
+
+      <button class="btn btn-ink btn-block" type="submit">Salvar regras</button>
+    </form>
+  </section>
+</main>
+</body>
+</html>

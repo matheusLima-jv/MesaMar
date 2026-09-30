@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Barraca')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('barraca')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <section class="app-section app-form-layout">
+    <div>
+      <p class="kicker" th:text="${barraca} ? 'Dados da barraca' : 'Passo 1 de 2'">Passo 1 de 2</p>
+      <h1 class="app-title" th:text="${barraca} ? 'Sua barraca' : 'Vamos cadastrar a barraca'">Vamos cadastrar a barraca</h1>
+      <p class="app-lead" th:unless="${barraca}">É o nome que o cliente vê no celular quando lê o QR do guarda-sol.</p>
+      <p class="app-lead" th:if="${barraca}">Código da barraca: <span class="mono" th:text="${barraca.slug}">barraca-do-ze</span>.
+        Ele não muda se você trocar o nome, para os QR codes continuarem valendo.</p>
+    </div>
+
+    <form class="lead-form app-form" method="post" action="/painel/barraca" th:action="@{/painel/barraca}"
+          th:object="${barracaForm}" novalidate>
+      <div class="field" th:classappend="${#fields.hasErrors('nome')} ? 'has-error'">
+        <label for="nome">Nome da barraca ou quiosque</label>
+        <input id="nome" type="text" th:field="*{nome}" autocomplete="organization" maxlength="80" required
+               th:attr="aria-invalid=${#fields.hasErrors('nome')},aria-describedby=${#fields.hasErrors('nome')} ? 'nome-erro'">
+        <p class="field-error" id="nome-erro" th:if="${#fields.hasErrors('nome')}" th:text="${#fields.errors('nome')[0]}">Erro</p>
+      </div>
+      <div class="field" th:classappend="${#fields.hasErrors('praia')} ? 'has-error'">
+        <label for="praia">Praia</label>
+        <select id="praia" th:field="*{praia}" required
+                th:attr="aria-invalid=${#fields.hasErrors('praia')},aria-describedby=${#fields.hasErrors('praia')} ? 'praia-erro'">
+          <option value="">Escolha a praia</option>
+          <option th:each="p : ${praias}" th:value="${p.name()}" th:text="${p.label}">Enseada</option>
+        </select>
+        <p class="field-error" id="praia-erro" th:if="${#fields.hasErrors('praia')}" th:text="${#fields.errors('praia')[0]}">Erro</p>
+      </div>
+      <button class="btn btn-ink btn-block" type="submit" th:text="${barraca} ? 'Salvar' : 'Continuar'">Continuar</button>
+    </form>
+  </section>
+</main>
+</body>
+</html>
