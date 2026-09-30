@@ -53,10 +53,12 @@ class HttpTestClient(
     fun postJson(
         path: String,
         json: String,
+        headers: Map<String, String> = emptyMap(),
     ): HttpResponse<String> {
         val request =
             request(path)
                 .header("Content-Type", "application/json")
+                .apply { headers.forEach { (k, v) -> header(k, v) } }
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build()
         return client.send(request, HttpResponse.BodyHandlers.ofString())

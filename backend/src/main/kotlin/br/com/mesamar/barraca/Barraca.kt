@@ -64,4 +64,6 @@ class Barraca(
 
 interface BarracaRepository : JpaRepository<Barraca, UUID> {
     fun existsBySlug(slug: String): Boolean
+
+    fun findBySlugAndAtivaTrue(slug: String): Barraca?
 }

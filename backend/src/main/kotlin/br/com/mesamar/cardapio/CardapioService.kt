@@ -178,6 +178,14 @@ class CardapioService(
         id: UUID,
     ): Produto? = produtos.findByIdAndBarracaId(id, barraca.id)?.also { it.esgotado = !it.esgotado }?.let(::salvar)
 
+    /** Versão "definir" (não alternar) para o app: repetir a mesma chamada não desfaz a ação. */
+    @Transactional
+    fun definirEsgotado(
+        barraca: Barraca,
+        id: UUID,
+        esgotado: Boolean,
+    ): Produto? = produtos.findByIdAndBarracaId(id, barraca.id)?.also { it.esgotado = esgotado }?.let(::salvar)
+
     @Transactional
     fun definirNoCardapio(
         barraca: Barraca,

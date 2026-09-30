@@ -1,8 +1,13 @@
 package br.com.mesamar.config
 
+import br.com.mesamar.barraca.BarracaRepository
 import br.com.mesamar.common.RateLimiter
 import br.com.mesamar.conta.OwnerLoginSuccessHandler
 import br.com.mesamar.conta.OwnerUserDetailsService
+import br.com.mesamar.conta.UsuarioRepository
+import br.com.mesamar.equipe.AtendenteRepository
+import br.com.mesamar.staff.StaffPrincipalCheckFilter
+import br.com.mesamar.staff.StaffSessao
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -22,8 +27,11 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy
 import org.springframework.web.filter.OncePerRequestFilter
 import java.time.Duration
@@ -120,8 +128,48 @@ class SecurityConfig {
         return http.build()
     }
 
+    /**
+     * API do app do quiosque (/staff). Login por JSON (StaffController), sessão com chave própria,
+     * CSRF no cabeçalho X-CSRF-TOKEN (o app pega o token em GET /api/staff/sessao).
+     * Sem redirects para páginas de login: quem não está logado recebe 401 em JSON.
+     */
     @Bean
     @Order(3)
+    fun staffChain(
+        http: HttpSecurity,
+        staffSessao: StaffSessao,
+        atendentes: AtendenteRepository,
+        usuarios: UsuarioRepository,
+        barracas: BarracaRepository,
+    ): SecurityFilterChain {
+        http
+            .securityMatcher("/api/staff/**")
+            .securityContext { it.securityContextRepository(staffSessao.repository) }
+            .authorizeHttpRequests {
+                it
+                    .requestMatchers(*STAFF_PUBLICO)
+                    .permitAll()
+                    .anyRequest()
+                    .hasRole("STAFF")
+            }.csrf {
+                it
+                    .csrfTokenRepository(HttpSessionCsrfTokenRepository())
+                    // Token "cru" (sem a máscara XOR): o app envia de volta o mesmo valor que recebeu.
+                    .csrfTokenRequestHandler(CsrfTokenRequestAttributeHandler())
+            }.exceptionHandling {
+                it
+                    .authenticationEntryPoint { _, response, _ -> jsonErro(response, 401, "sessao", "Entre de novo no app.") }
+                    .accessDeniedHandler { _, response, _ -> jsonErro(response, 403, "csrf", "Sessão expirada. Tente de novo.") }
+            }.addFilterBefore(StaffPrincipalCheckFilter(atendentes, usuarios, barracas), AnonymousAuthenticationFilter::class.java)
+            .requestCache { it.disable() }
+            .formLogin { it.disable() }
+            .httpBasic { it.disable() }
+        applyHeaders(http)
+        return http.build()
+    }
+
+    @Bean
+    @Order(4)
     fun publicChain(http: HttpSecurity): SecurityFilterChain {
         http
             .authorizeHttpRequests { it.anyRequest().permitAll() }
@@ -147,6 +195,17 @@ class SecurityConfig {
      * o login do admin (e vice-versa), e um login nunca vale na área do outro.
      */
     private fun contextRepository(key: String) = HttpSessionSecurityContextRepository().apply { setSpringSecurityContextKey(key) }
+
+    private fun jsonErro(
+        response: HttpServletResponse,
+        status: Int,
+        codigo: String,
+        mensagem: String,
+    ) {
+        response.status = status
+        response.contentType = "application/json;charset=UTF-8"
+        response.writer.write("""{"erro":"$codigo","mensagem":"$mensagem"}""")
+    }
 
     private fun authenticationManager(
         users: UserDetailsService,
@@ -174,6 +233,9 @@ class SecurityConfig {
     }
 
     companion object {
+        val STAFF_PUBLICO =
+            arrayOf("/api/staff/sessao", "/api/staff/entrar/**", "/api/staff/barracas/*/atendentes", "/api/staff/sair")
+
         val PAINEL_PUBLICO =
             arrayOf("/painel/entrar", "/painel/cadastro", "/painel/esqueci-senha", "/painel/nova-senha")
 
