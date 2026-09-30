@@ -1,15 +1,15 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-09-30**, no fim do checkpoint **2.4**: **CI verde** (218 testes de backend + 10 E2E), **aguardando a aprovação do Matheus**.
+> Última atualização: **2026-09-30**. **Fase 2 concluída e mergeada na `main`** (PR #3). Próximo: **checkpoint 3.1**.
 
 ---
 
 ## 0. Onde estamos agora
 
-- Todos os commits estão no GitHub (branch `fase-2-contas`, PR #3, rascunho). O problema de push (403) da sessão anterior foi resolvido, e o bundle `mesamar-pendente.bundle` **não é mais necessário**.
-- **CI do último commit: verde** (218 testes de backend, imagem Docker, smoke do compose, 10 E2E).
-- **Próximo passo:** o Matheus aprova o 2.4 ("aprovado 2.4"), o que fecha a Fase 2. Então tire o PR #3 do rascunho e pergunte se ele quer o merge na `main` agora. Depois, comece o **checkpoint 3.1** (seção 7).
+- **`main` tem tudo até a Fase 2** (PR #3 mergeado em 2026-09-30, CI verde: 218 testes de backend + 10 E2E). Não há branch nem PR pendente.
+- **O Matheus vai testar na máquina dele** o roteiro de `docs/testar-localmente.md` (itens 1 a 42). Se ele relatar problemas, **corrija primeiro** (branch `fix/…` a partir da `main`, PR, CI verde, merge quando ele pedir).
+- **Próximo trabalho: Fase 3, checkpoint 3.1** (check-in e QR; seção 7). Crie a branch `fase-3-pedidos` a partir da `main` e abra o PR da Fase 3 em rascunho.
 
 ---
 
@@ -37,7 +37,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | 0 — Fundação | ✅ Na `main` |
 | 1 — Landing + lista de espera + teste de sinal + /admin + deploy | ✅ Na `main` (PR #2). Deploy em `mesamar.0mega.fun` **ainda não feito** pelo Matheus |
 | Portão A (validação em campo + medição de sinal) | ⏳ O Matheus faz **em paralelo** (decisão dele). Não bloqueia o código |
-| **2 — Contas, barraca, equipe, guarda-sóis, cardápio, app** | 🔶 Branch `fase-2-contas`, **PR #3 (rascunho)** |
+| 2 — Contas, barraca, equipe, guarda-sóis, cardápio, app | ✅ Na `main` (PR #3) |
 | 3 — Check-in, QR e pedido pelo cliente | ⬜ |
 | 4 — Fila + tempo real + Web Push | ⬜ |
 | 5 — Fechar conta, Pix, pagamentos, relatório | ⬜ |
@@ -51,7 +51,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | 2.1 | Convites no /admin, cadastro/login/troca de senha do dono, painel com barraca, regras e Pix | ✅ verde (170 testes) | ✅ aprovado |
 | 2.2 | Equipe (atendentes com PIN, bloqueio, desbloqueio) e guarda-sóis em lote com limite | ✅ verde (201 testes) | ✅ aprovado |
 | 2.3 | Cardápio: categorias, produtos, ordem, esgotado com um toque, tirar do cardápio | ✅ verde | ✅ aprovado |
-| **2.4** | **App do quiosque (PWA) em `/staff/` + API `/api/staff`** | ✅ verde (218 testes + 10 E2E) | ⏳ aguardando |
+| 2.4 | App do quiosque (PWA) em `/staff/` + API `/api/staff` | ✅ verde (218 testes + 10 E2E) | ✅ aprovado |
 
 **Sobre o 2.3:** o CI do commit `ed43ee5` falhou em 3 testes de `CardapioTest`. Não era bug do app: a mensagem "flash" de um passo de preparação sobrava na sessão. Corrigido e verde no `e00c042`.
 
@@ -193,7 +193,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0006, relatorios/fase-0.
 > Cada item abaixo é um checkpoint: implementar, testar (inclusive isolamento), CI verde, relatório e **parar para aprovação**. Detalhes de escopo em `docs/MESAMAR_PROMPT.md`.
 
 ### Fase 2 (fechamento)
-- **2.4:** ✅ CI verde e relatório pronto → aguardando a aprovação → **tirar o PR #3 do rascunho e o Matheus decide o merge.**
+- ✅ Concluída e mergeada (PR #3).
 
 ### Fase 3: check-in, QR e pedido pelo cliente (núcleo)
 
