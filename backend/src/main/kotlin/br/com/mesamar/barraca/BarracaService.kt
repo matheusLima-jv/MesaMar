@@ -7,6 +7,7 @@ import br.com.mesamar.common.TipoChavePix
 import br.com.mesamar.common.toPixText
 import br.com.mesamar.conta.Usuario
 import br.com.mesamar.conta.UsuarioRepository
+import br.com.mesamar.guardasol.GuardaSolRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -69,6 +70,7 @@ data class PixForm(
 class BarracaService(
     private val barracas: BarracaRepository,
     private val usuarios: UsuarioRepository,
+    private val guardaSois: GuardaSolRepository,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -123,6 +125,15 @@ class BarracaService(
         val limite = form.limiteGuardaSois.trim().toIntOrNull()
         if (limite == null || limite !in 1..LIMITE_GUARDA_SOIS_MAX) {
             errors.rejectValue("limiteGuardaSois", "faixa", "Informe um número de 1 a $LIMITE_GUARDA_SOIS_MAX.")
+        } else {
+            val ativos = guardaSois.countByBarracaIdAndAtivoTrue(barraca.id)
+            if (limite < ativos) {
+                errors.rejectValue(
+                    "limiteGuardaSois",
+                    "abaixo",
+                    "Você tem $ativos guarda-sóis ativos. Desative alguns em Guarda-sóis antes de baixar o limite.",
+                )
+            }
         }
         val modo = ModoPagamento.entries.firstOrNull { it.name == form.modoPagamento }
         if (modo == null) errors.rejectValue("modoPagamento", "obrigatorio", "Escolha quando o cliente paga.")
