@@ -58,7 +58,26 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(dono.getByText('Recebendo em JOSE DA PRAIA')).toBeVisible()
   await expect(dono.getByText('529.982.247-25')).toBeVisible()
 
-  // 6) O mesmo link não serve de novo
+  // 6) Guarda-sóis: aceita a sugestão (1 ao limite padrão, 30)
+  await dono.getByRole('link', { name: 'Guarda-sóis', exact: true }).click()
+  await dono.getByRole('button', { name: 'Criar guarda-sóis' }).click()
+  await expect(dono.getByText('Pronto: 30 criados.')).toBeVisible()
+  await expectNoHorizontalScroll(dono)
+
+  // 7) Cardápio: categoria, produto e "esgotado" com um toque
+  await dono.getByRole('link', { name: 'Cardápio', exact: true }).click()
+  await dono.getByLabel('Comece pela primeira categoria').fill('Bebidas')
+  await dono.getByRole('button', { name: 'Criar categoria' }).click()
+  await dono.getByRole('link', { name: 'Adicionar produto em Bebidas' }).click()
+  await dono.getByLabel('Nome', { exact: true }).fill('Água de coco')
+  await dono.getByLabel('Preço (R$)').fill('12')
+  await dono.getByRole('button', { name: 'Adicionar ao cardápio' }).click()
+  await expect(dono.getByText('Água de coco (R$ 12,00) entrou no cardápio.')).toBeVisible()
+  await dono.getByRole('button', { name: 'Marcar Água de coco como esgotado' }).click()
+  await expect(dono.getByRole('button', { name: 'Voltar a vender Água de coco' })).toHaveAttribute('aria-pressed', 'true')
+  await expectNoHorizontalScroll(dono)
+
+  // 8) O mesmo link não serve de novo
   const outro = await novoAparelho()
   const resposta = await outro.goto(caminho(link))
   expect(resposta?.status()).toBe(404)
