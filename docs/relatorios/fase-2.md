@@ -125,3 +125,52 @@ Siga a seção **"Painel do dono"** de [`docs/testar-localmente.md`](../testar-l
 ### 4. Como validar (na entrega final)
 
 Itens 26 a 31 de [`docs/testar-localmente.md`](../testar-localmente.md).
+
+---
+
+## Checkpoint 2.3 — Cardápio
+
+- **Data:** 2026-09-30
+- **CI:** (preenchido ao final)
+
+### 1. O que foi feito
+
+- **Cardápio em `/painel/cardapio`**, na ordem em que o cliente vai ver:
+  - **Categorias:** criar, renomear, subir ou descer, excluir. Só exclui categoria vazia, então um produto nunca fica órfão.
+  - **Produtos:** nome, preço em reais (`12`, `12,50`, `1.200,00`), descrição opcional, categoria e ordem dentro da categoria.
+  - **"Esgotou" com um toque:** o botão grande ao lado de cada item vira **"Voltou"** e risca o item. Depois do toque, a página volta **no mesmo item**, sem jogar o dono para o topo.
+  - **"Tirar do cardápio" e "Voltar ao cardápio":** o produto some para o cliente, mas nunca é apagado, porque pedidos e relatórios antigos continuam apontando para ele.
+  - **"Adicionar e cadastrar outro":** volta ao formulário na mesma categoria, para cadastrar 15 itens em sequência sem navegar.
+- **Limites:** até 30 categorias e 300 produtos por barraca, e preço entre R$ 0,01 e R$ 10.000,00.
+- **Integridade no banco:** uma FK composta (`categoria_id, barraca_id`) impede que um produto aponte para a categoria de outra barraca, mesmo que um bug no código tente.
+- **Checklist da home:** o cardápio conta itens ativos. Agora só o **app do quiosque** (2.4) aparece como "Em breve".
+
+### 2. Decisões
+
+- **Produto nunca é excluído, só sai do cardápio.** A Fase 3 congela nome e preço no pedido, mas o relatório de "mais vendidos" precisa do produto.
+- **Trocar o preço vale para os próximos pedidos.** Os pedidos já feitos guardam o preço da hora (snapshot da Fase 3). A tela de edição avisa isso.
+- **"Esgotado" é diferente de "fora do cardápio".** O esgotado continua visível para o cliente, desabilitado (como pede a Fase 3), porque avisa "hoje tem, mas acabou agora". O fora do cardápio some.
+
+### 3. Testes automatizados novos
+
+- **Criação e validação:**
+  - produto e categoria, com o valor em reais convertido para centavos;
+  - nome vazio, preço inválido, zero ou acima do máximo;
+  - categoria com nome repetido, sem diferenciar maiúsculas.
+- **Uso no dia a dia:**
+  - "salvar e cadastrar outro" volta com a categoria já escolhida;
+  - esgotado liga e desliga, e a página volta no item;
+  - subir e descer produtos e categorias (o primeiro não sobe);
+  - tirar do cardápio e voltar;
+  - editar muda preço e categoria;
+  - só exclui categoria vazia.
+- **Isolamento:**
+  - o dono B não vê o cardápio de A;
+  - abrir a edição do produto de A dá 404;
+  - as **7 ações** de escrita com ids de A (editar, esgotado, tirar do cardápio, mover produto, renomear, mover e excluir categoria) não mudam nada;
+  - criar um produto de B apontando para a categoria de A é recusado.
+- **E2E (celular):** o fluxo do dono agora cria os guarda-sóis 1–30, uma categoria e um produto, e marca "Esgotou", sempre conferindo que não há rolagem lateral nem erro no console.
+
+### 4. Como validar (na entrega final)
+
+Itens 32 a 36 de [`docs/testar-localmente.md`](../testar-localmente.md).

@@ -82,6 +82,11 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 29 | Painel → Equipe | Adicionar "Carla" com PIN `1234` | Recusa por ser sequência; com `2580` entra |
 | 30 | Mesma tela | Adicionar "carla" de novo | "Já existe um atendente com esse nome." |
 | 31 | Regras | Baixar o limite de guarda-sóis para 5 | Recusa: "Você tem 20 guarda-sóis ativos…" |
+| 32 | Painel → Cardápio | Criar "Bebidas" e "Porções"; cadastrar 15 itens com "Adicionar e cadastrar outro" | Cada item volta ao formulário já na mesma categoria; anote quanto tempo levou |
+| 33 | Cardápio | Tocar em "Esgotou" num item do meio da lista | A página volta no mesmo item, riscado, com o botão "Voltou" |
+| 34 | Cardápio | Subir e descer itens e categorias (↑ ↓) | A ordem muda na hora |
+| 35 | Cardápio | "Tirar do cardápio" num item | Some da categoria e aparece em "Fora do cardápio" |
+| 36 | Cardápio → Editar "Bebidas" | Tentar excluir com produtos dentro | Recusa: "ainda tem N produtos" |
 
 Consultar direto no banco, se quiser:
 
