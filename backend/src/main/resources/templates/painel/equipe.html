@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Equipe')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('equipe')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <div th:replace="~{painel/fragments :: avisos}"></div>
+
+  <section class="app-section app-form-layout">
+    <div>
+      <p class="kicker">Equipe</p>
+      <h1 class="app-title">Quem atende com você</h1>
+      <p class="app-lead">Cada atendente entra no app do quiosque com o <strong>código da barraca</strong>
+        (<span class="mono" th:text="${barraca.slug}">barraca-do-ze</span>), escolhe o próprio nome e digita o PIN.
+        Ele faz check-in e cuida da fila, mas não mexe em Pix, regras nem cardápio.</p>
+      <p class="app-lead">5 PINs errados seguidos bloqueiam o atendente por 15 minutos. Você pode desbloquear aqui antes disso.</p>
+    </div>
+
+    <form class="lead-form app-form" method="post" action="/painel/equipe" th:action="@{/painel/equipe}"
+          th:object="${atendenteForm}" novalidate>
+      <h2 class="form-title">Adicionar atendente</h2>
+      <p class="form-alert" role="alert" th:if="${#fields.hasGlobalErrors()}" th:text="${#fields.globalErrors()[0]}">Limite</p>
+      <div class="field" th:classappend="${#fields.hasErrors('nome')} ? 'has-error'">
+        <label for="nome">Nome ou apelido</label>
+        <input id="nome" type="text" th:field="*{nome}" maxlength="40" autocomplete="off" required
+               th:attr="aria-invalid=${#fields.hasErrors('nome')},aria-describedby=${#fields.hasErrors('nome')} ? 'nome-erro'">
+        <p class="field-error" id="nome-erro" th:if="${#fields.hasErrors('nome')}" th:text="${#fields.errors('nome')[0]}">Erro</p>
+      </div>
+      <div class="field" th:classappend="${#fields.hasErrors('pin')} ? 'has-error'">
+        <label for="pin">PIN (4 a 6 números)</label>
+        <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="6"
+               autocomplete="new-password" required
+               th:attr="aria-invalid=${#fields.hasErrors('pin')},aria-describedby=${#fields.hasErrors('pin')} ? 'pin-erro pin-dica' : 'pin-dica'">
+        <p class="field-error" id="pin-erro" th:if="${#fields.hasErrors('pin')}" th:text="${#fields.errors('pin')[0]}">Erro</p>
+        <p class="form-hint" id="pin-dica">Nada de 1234 ou 1111. Combine o PIN pessoalmente com o atendente.</p>
+      </div>
+      <button class="btn btn-ink btn-block" type="submit">Adicionar à equipe</button>
+    </form>
+  </section>
+
+  <section class="app-section" aria-labelledby="t-equipe">
+    <h2 id="t-equipe" class="app-subtitle" th:text="${atendentes.isEmpty()} ? 'Ninguém na equipe ainda' : |${atendentes.size()} na equipe|">Equipe</h2>
+    <p class="app-lead" th:if="${atendentes.isEmpty()}">Se só você atende, pode pular esta parte. Você entra no app com o seu e-mail e senha.</p>
+
+    <ul class="team-list" th:unless="${atendentes.isEmpty()}">
+      <li th:each="a : ${atendentes}" th:classappend="${a.bloqueadoAte} ? 'is-blocked' : (${a.ativo} ? '' : 'is-off')">
+        <div class="team-row">
+          <div>
+            <strong th:text="${a.nome}">Carla</strong>
+            <span class="team-status" th:text="${a.situacao}">Ativo</span>
+          </div>
+          <div class="team-actions">
+            <form th:if="${a.bloqueadoAte}" method="post" th:action="@{/painel/equipe/{id}/desbloquear(id=${a.id})}">
+              <button class="btn btn-sun btn-small" type="submit" th:attr="aria-label=|Desbloquear ${a.nome}|">Desbloquear</button>
+            </form>
+            <form method="post" th:action="@{/painel/equipe/{id}/ativo(id=${a.id})}">
+              <input type="hidden" name="ativo" th:value="${!a.ativo}">
+              <button class="link-button" type="submit" th:text="${a.ativo} ? 'Desativar' : 'Reativar'"
+                      th:attr="aria-label=|${a.ativo ? 'Desativar' : 'Reativar'} ${a.nome}|">Desativar</button>
+            </form>
+          </div>
+        </div>
+        <details class="team-pin" th:attr="open=${abrirPin != null and abrirPin == a.id} ? 'open'">
+          <summary th:text="|Trocar o PIN de ${a.nome}|">Trocar PIN</summary>
+          <form class="inline-form" method="post" th:action="@{/painel/equipe/{id}/pin(id=${a.id})}">
+            <label class="sr-only" th:for="|pin-${a.id}|" th:text="|Novo PIN de ${a.nome}|">Novo PIN</label>
+            <input th:id="|pin-${a.id}|" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="6"
+                   autocomplete="new-password" placeholder="Novo PIN" required>
+            <button class="btn btn-ink btn-small" type="submit">Salvar PIN</button>
+          </form>
+        </details>
+      </li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

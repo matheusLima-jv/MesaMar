@@ -57,8 +57,9 @@ class PainelTestSupport(
     fun donoComBarraca(
         nomeBarraca: String = "Barraca do Zé",
         praia: String = "ENSEADA",
+        email: String = novoEmail(),
     ): HttpTestClient {
-        val http = donoLogado()
+        val http = donoLogado(email)
         val response = post(http, "/painel/barraca", "/painel/barraca", mapOf("nome" to nomeBarraca, "praia" to praia))
         assertEquals(302, response.statusCode(), response.body())
         return http
