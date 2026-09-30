@@ -4,7 +4,7 @@
 // - /api/: NUNCA passa pelo cache (dados de pedidos e sessão sempre vêm do servidor).
 // O modo offline completo (fila de ações para reenviar) chega na Fase 6.
 const VERSAO = 'mesamar-staff-v1'
-const SHELL = ['/staff/', '/staff/manifest.webmanifest', '/staff/icons/icon-192.png']
+const SHELL = ['/staff/', '/staff/manifest.json', '/staff/icons/icon-192.png']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(VERSAO).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()))
