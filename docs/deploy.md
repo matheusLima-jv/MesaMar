@@ -87,6 +87,18 @@ openssl rand -base64 24
 nano .env   # preencha também MESAMAR_WHATSAPP e, se quiser, Turnstile e Analytics
 ```
 
+**E-mail (troca de senha do painel).** Sem SMTP, o "esqueci a senha" do dono não chega a lugar nenhum (o link só vai para o log). Qualquer SMTP serve; o mais simples é um serviço transacional com plano grátis (Brevo, Resend, Amazon SES…) usando um remetente do seu domínio `0mega.fun`, e no `.env`:
+
+```bash
+MESAMAR_MAIL_FROM=MesaMar <nao-responda@0mega.fun>
+SPRING_MAIL_HOST=smtp.do-servico
+SPRING_MAIL_PORT=587
+SPRING_MAIL_USERNAME=...
+SPRING_MAIL_PASSWORD=...
+```
+
+O serviço vai pedir registros **SPF/DKIM** no DNS. **Esses registros você cria manualmente na Cloudflare**; este passo a passo não mexe na Cloudflare.
+
 ## 5. Subir
 
 ```bash
@@ -126,6 +138,8 @@ Se o `nginx -t` reclamar de `http2 on;`, o seu Nginx é anterior à 1.25.1: troq
 | 5 | Mandar o link da landing para você mesmo no WhatsApp | Aparece a prévia com a imagem e o título do MesaMar |
 | 6 | Abrir `/teste-sinal` no celular e medir | A medição aparece no painel, em "Sinal por praia" |
 | 7 | **IP real:** enviar o formulário vazio 9 vezes seguidas no celular | Na 9ª aparece "Recebemos muitos envios deste aparelho". No computador, na mesma hora, o formulário continua funcionando (prova de que o limite é por aparelho, não global) |
+| 8 | `/admin` → "Gerar convite avulso" → abrir o link numa janela anônima e criar uma conta | Entra no `/painel` e cadastra a barraca |
+| 9 | Painel → Sair → "Esqueci a senha" com o e-mail da conta | O e-mail chega (olhe o spam na primeira vez) e o link troca a senha |
 
 Se o passo 7 bloquear **todo mundo** junto, o Nginx não está repassando o IP real: confira o bloco `set_real_ip_from` / `real_ip_header` e o `proxy_set_header X-Forwarded-For $remote_addr`.
 

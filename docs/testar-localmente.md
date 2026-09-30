@@ -60,6 +60,23 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 12 | http://localhost:8080/privacidade | Ler | Texto claro; links do rodapé funcionando |
 | 13 | DevTools do navegador → Application → Cookies, na landing | Conferir | **Nenhum cookie** em `localhost:8080` |
 
+### Painel do dono (Fase 2 · checkpoint 2.1)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 14 | `/admin` → linha do lead do passo 5 → "Gerar convite" | Tocar | Caixa com o link do convite e o botão "Enviar pelo WhatsApp" (o link só aparece uma vez) |
+| 15 | Link do convite, numa **janela anônima** | Criar a conta com senha curta (`123`) | "A senha precisa ter pelo menos 10 caracteres." |
+| 16 | Mesmo formulário | Criar a conta certa | Vai para "Entrar", com "Conta criada!" e o e-mail já preenchido |
+| 17 | Abrir o mesmo link do convite de novo | — | "Esse convite não vale mais." |
+| 18 | Entrar | E-mail + senha | Primeiro acesso cai em "Vamos cadastrar a barraca" |
+| 19 | Barraca → Continuar | Nome + praia | Home com o checklist: dados ✓, Pix pendente, atendentes/guarda-sóis/cardápio "Em breve" |
+| 20 | Pix | CPF `529.982.247-24` (dígito errado) | "Essa chave não parece um CPF válido." |
+| 21 | Pix | CPF `529.982.247-25`, nome `José da Praia` | Home mostra `529.982.247-25` e "JOSE DA PRAIA" (sem acento, como o Pix exige) |
+| 22 | Regras | Limite de conta `1.250,50`, pagamento "A cada pedido" | Home mostra `R$ 1.250,50` e "A cada pedido" |
+| 23 | Na mesma janela, abrir `/admin` | — | Pede o login do admin (as duas áreas não se misturam) |
+| 24 | Painel → Sair → "Esqueci a senha" → seu e-mail | Enviar | "Se existir uma conta com esse e-mail…" |
+| 25 | Log da aplicação (`docker compose logs app`) | Procurar `nova-senha?token=` | Sem SMTP, o e-mail aparece no log: abra o link, troque a senha e entre com a nova |
+
 Consultar direto no banco, se quiser:
 
 ```bash
