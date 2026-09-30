@@ -87,6 +87,14 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 34 | Cardápio | Subir e descer itens e categorias (↑ ↓) | A ordem muda na hora |
 | 35 | Cardápio | "Tirar do cardápio" num item | Some da categoria e aparece em "Fora do cardápio" |
 | 36 | Cardápio → Editar "Bebidas" | Tentar excluir com produtos dentro | Recusa: "ainda tem N produtos" |
+| 37 | Painel → Equipe | Adicionar "Carla" com PIN `2580` e anotar o código da barraca | Aparece na lista como "Ativo" |
+| 38 | Celular: `http://IP-DO-PC:8080/staff/` | "Sou da equipe" → código → Carla → PIN `1111` | "PIN errado. Restam 4 tentativas…" |
+| 39 | Mesmo celular | PIN `2580` | Abre o app na aba Cardápio |
+| 40 | Aba Cardápio | Tocar "Esgotou" num item; conferir no painel do computador | O item fica riscado nos dois |
+| 41 | Aba Mais | Seguir o passo a passo de instalação (Android: Chrome; iPhone: Safari) | Ícone do MesaMar na tela inicial; abre sem barra do navegador |
+| 42 | Painel → Equipe → desativar a Carla; tocar em qualquer coisa no app | — | O app volta para a tela de entrada |
+
+> A instalação na tela inicial (item 41) exige **HTTPS** fora do `localhost`. No celular pela rede local (`http://IP-DO-PC`), o app abre, mas o Chrome não oferece "Instalar". Para testar a instalação de verdade, use o ambiente publicado (`https://mesamar.0mega.fun/staff/`).
 
 Consultar direto no banco, se quiser:
 

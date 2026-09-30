@@ -4,9 +4,9 @@
 - A Fase 2 foi dividida em 4 checkpoints, aprovados um por vez (os testes manuais ficam para a entrega final, a pedido do Matheus):
   - [x] **2.1 — Contas do dono, barraca, regras e Pix** (aprovado)
   - [x] **2.2 — Equipe (PIN) e guarda-sóis** (aprovado)
-  - [ ] **2.3 — Cardápio** ← checkpoint atual (final deste arquivo)
-  - [ ] **2.4 — App do quiosque (PWA): login do dono e do atendente, instalação na tela inicial**
-- Decisões de arquitetura: [ADR 0005](../adr/0005-painel-do-dono.md)
+  - [x] **2.3 — Cardápio** (aprovado)
+  - [ ] **2.4 — App do quiosque (PWA): login do dono e do atendente, instalação na tela inicial** ← checkpoint atual (final deste arquivo)
+- Decisões de arquitetura: [ADR 0005](../adr/0005-painel-do-dono.md) · [ADR 0006](../adr/0006-app-do-quiosque.md)
 
 ---
 
@@ -174,3 +174,62 @@ Itens 26 a 31 de [`docs/testar-localmente.md`](../testar-localmente.md).
 ### 4. Como validar (na entrega final)
 
 Itens 32 a 36 de [`docs/testar-localmente.md`](../testar-localmente.md).
+
+---
+
+## Checkpoint 2.4 — App do quiosque
+
+- **Data:** 2026-09-30
+- **CI:** ⚠️ pendente. O push para o GitHub está sendo recusado (403) desde o meio do 2.3, então este checkpoint ainda não passou pelo CI. O front foi compilado e testado aqui (ver abaixo).
+
+### 1. O que foi feito
+
+- **App em `/staff/`**, instalável na tela inicial:
+  - manifest e ícones (inclusive o "maskable" do Android e o do iPhone);
+  - service worker, então o app abre mesmo sem rede.
+- **Entrada:**
+  - **equipe:** código da barraca (lembrado no celular) → toca no próprio nome → PIN. Os erros dizem quantas tentativas restam e avisam do bloqueio;
+  - **dono:** o mesmo e-mail e senha do painel. Se ele ainda não cadastrou a barraca, o app manda para o painel.
+- **Abas:**
+  - **Cardápio (funcionando):** um toque marca **Esgotou** ou **Voltou**. A tela responde na hora, antes do servidor. Se o servidor recusar, o botão volta ao estado anterior e aparece um aviso;
+  - **Clientes** e **Fila** dizem que chegam nas próximas etapas, em vez de mostrar tela vazia;
+  - **Mais:** instalação guiada, com botão "Instalar" no Android e passo a passo no iPhone, pelo Safari. Também tem "Sair deste celular" e, para o dono, o atalho para o painel.
+- **API `/api/staff`:**
+  - sessão própria e CSRF no cabeçalho;
+  - 401/403 em JSON;
+  - troca do id de sessão no login;
+  - limites por IP (10 logins de dono, 20 PINs e 30 consultas de nomes a cada 10 minutos);
+  - **atendente desativado perde o acesso no próximo clique.**
+- **Painel:** o texto da Equipe agora diz que o atendente marca esgotado, mas não mexe em preços, Pix nem regras.
+
+### 2. Decisões
+
+[ADR 0006](../adr/0006-app-do-quiosque.md): cookie `HttpOnly` em vez de token no JavaScript, "definir esgotado" em vez de "alternar" (um reenvio não desfaz), quem pode o quê e o que o service worker faz ou não faz.
+
+### 3. Testes
+
+- **Integração (backend, `StaffApiTest`):**
+  - sem login, 401 em JSON;
+  - dono entra (e-mail em qualquer caixa) e vê o cardápio;
+  - POST sem CSRF é recusado com 403;
+  - dono sem barraca recebe 409;
+  - atendente: lista de nomes sem dados sensíveis, código inexistente dá 404, PIN errado informa "Restam 4 tentativas", o 5º erro dá 423 e bloqueia até o PIN certo, e o desbloqueio pelo painel libera;
+  - atendente desativado perde o acesso na hora;
+  - esgotado pelo app aparece no painel, e repetir a chamada não desfaz;
+  - o app da barraca B não mexe no produto de A, e o PIN de A com o código de B não entra;
+  - a sessão do painel não vale no app;
+  - "sair" encerra a sessão.
+- **E2E (celular, no CI):** o fluxo do dono agora cadastra a Carla. Um terceiro "celular" abre o app, entra como Carla e devolve a água de coco ao cardápio, e o painel do dono mostra a mudança. Tudo sem erro no console e sem rolagem lateral.
+- **Feito aqui, antes do CI:** o app compilado rodou num Chromium em tamanho de celular (Pixel 7) contra uma simulação da API com o **mesmo contrato e a mesma CSP** do servidor. Passaram 13 passos:
+  - código errado, PIN errado com tentativas restantes, entrada;
+  - esgotado otimista e confirmado; falha do servidor desfaz e avisa;
+  - abas; recarregar mantém a sessão;
+  - sair limpa a aba;
+  - login do dono;
+  - service worker e manifest registrados.
+
+  Essa rodada **achou e corrigiu um bug**: depois de "Sair", quem entrasse em seguida caía na última aba de quem saiu.
+
+### 4. Como validar (na entrega final)
+
+Itens 37 a 42 de [`docs/testar-localmente.md`](../testar-localmente.md).
