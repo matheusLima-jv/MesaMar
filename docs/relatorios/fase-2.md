@@ -12,7 +12,7 @@
 ## Checkpoint 2.1 — Contas do dono
 
 - **Data:** 2026-09-30
-- **CI:** ver o PR (ktlint, testes de backend, imagem Docker, smoke do compose e E2E no tamanho de celular)
+- **CI:** ✅ verde: ktlint, **170 testes de backend** (eram 98 na Fase 1), imagem Docker, smoke do compose e **10 E2E** no tamanho de celular (landing em 358 ms no 4G simulado)
 
 ### 1. O que foi feito
 
