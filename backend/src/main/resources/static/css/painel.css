@@ -145,3 +145,54 @@
 }
 .umbrella:hover { background: var(--sun); }
 .umbrella.is-off { border-style: dashed; border-color: var(--rule); color: var(--ink-2); background: transparent; text-decoration: line-through; }
+
+/* ---------- Cardápio (2.3) ---------- */
+.menu-new-cat { align-items: end; max-width: 40rem; margin-top: 1.5rem; }
+.menu-new-label { width: 100%; font-weight: 700; font-size: 0.95rem; }
+.menu-section { padding: 1.5rem 0 2rem; border-top: 2px solid var(--ink); max-width: 46rem; }
+.menu-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.75rem; }
+.menu-section-head h2 { font-size: 1.6rem; margin: 0; letter-spacing: -0.03em; }
+.menu-tools { display: flex; align-items: center; gap: 0.25rem; }
+.icon-btn {
+  width: 44px; height: 44px; border-radius: 10px; border: 2px solid var(--rule); background: #fff;
+  font: 800 1.1rem/1 var(--body); color: var(--ink); cursor: pointer;
+}
+.icon-btn:hover { border-color: var(--ink); }
+.menu-more { position: relative; }
+.menu-more summary { list-style: none; cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 0 0.75rem; font-weight: 700; border-bottom: 2px solid var(--sun); }
+.menu-more summary::-webkit-details-marker { display: none; }
+.menu-more-body {
+  position: absolute; right: 0; top: calc(100% + 0.25rem); z-index: 2; width: min(20rem, 85vw);
+  padding: 1rem; background: #fff; border: 2px solid var(--ink); border-radius: 14px; box-shadow: 6px 6px 0 var(--sun);
+  display: grid; gap: 0.75rem;
+}
+.link-button.danger { color: var(--late); border-bottom-color: var(--late); }
+.link-button.quiet { border-bottom-color: var(--rule); color: var(--ink-2); font-weight: 600; }
+
+.menu-items { list-style: none; margin: 0; padding: 0; }
+.menu-items > li {
+  display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 1rem; align-items: center;
+  padding: 0.9rem 0; border-bottom: 1px solid var(--rule); scroll-margin-top: 1rem;
+}
+.menu-items > li:target { background: linear-gradient(90deg, rgb(255 194 51 / 25%), transparent); }
+.menu-item-main p { margin: 0; }
+.menu-item-name strong { font-size: 1.05rem; }
+.menu-item-desc { color: var(--ink-2); font-size: 0.9rem; }
+.menu-item-price { font-family: var(--display); font-weight: 750; letter-spacing: -0.02em; }
+.is-sold .menu-item-name strong, .is-sold .menu-item-price { color: var(--ink-2); text-decoration: line-through; }
+.sold-tag {
+  display: inline-block; margin-left: 0.4rem; padding: 0.1rem 0.45rem; border-radius: 6px;
+  background: var(--late); color: #fff; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; vertical-align: 0.15em;
+}
+.sold-toggle {
+  min-width: 6.5rem; min-height: 48px; padding: 0 1rem; border-radius: 12px; cursor: pointer;
+  border: 2px solid var(--ink); background: #fff; color: var(--ink); font: 800 1rem/1 var(--body);
+}
+.sold-toggle:hover { background: var(--paper-2); }
+.sold-toggle.on { background: var(--ink); color: var(--sun); }
+.menu-item-tools { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; }
+.menu-item-tools .link-button { min-height: 44px; display: inline-flex; align-items: center; font-size: 0.92rem; text-decoration: none; }
+.menu-add { margin-top: 1rem; }
+.menu-off h2 { font-size: 1.3rem; margin: 0 0 0.25rem; }
+.optional { font-weight: 500; color: var(--ink-2); }
+.form-second { margin-top: 0.75rem; }

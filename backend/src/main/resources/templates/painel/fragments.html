@@ -31,6 +31,7 @@
   </div>
   <nav class="wrap app-nav" aria-label="Painel" th:if="${barraca}">
     <a href="/painel" th:href="@{/painel}" th:attr="aria-current=${ativo == 'home'} ? 'page'">Início</a>
+    <a href="/painel/cardapio" th:href="@{/painel/cardapio}" th:attr="aria-current=${ativo == 'cardapio'} ? 'page'">Cardápio</a>
     <a href="/painel/guarda-sois" th:href="@{/painel/guarda-sois}" th:attr="aria-current=${ativo == 'guarda-sois'} ? 'page'">Guarda-sóis</a>
     <a href="/painel/equipe" th:href="@{/painel/equipe}" th:attr="aria-current=${ativo == 'equipe'} ? 'page'">Equipe</a>
     <a href="/painel/pix" th:href="@{/painel/pix}" th:attr="aria-current=${ativo == 'pix'} ? 'page'">Pix</a>

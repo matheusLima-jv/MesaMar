@@ -1,5 +1,6 @@
 package br.com.mesamar.barraca
 
+import br.com.mesamar.cardapio.ProdutoRepository
 import br.com.mesamar.common.ChavePix
 import br.com.mesamar.common.Money
 import br.com.mesamar.common.TipoChavePix
@@ -34,6 +35,7 @@ class PainelController(
     private val service: BarracaService,
     private val atendentes: AtendenteRepository,
     private val guardaSois: GuardaSolRepository,
+    private val produtos: ProdutoRepository,
 ) {
     @GetMapping("/painel")
     fun home(model: Model): String {
@@ -130,6 +132,7 @@ class PainelController(
     private fun passos(b: Barraca): List<PassoConfig> {
         val gs = guardaSois.countByBarracaIdAndAtivoTrue(b.id)
         val equipe = atendentes.findAllByBarracaIdOrderByNome(b.id).count { it.ativo }
+        val noCardapio = produtos.countByBarracaIdAndAtivoTrue(b.id)
         return listOf(
             PassoConfig("Dados da barraca", "${b.nome} · ${b.praia.label}", true, "/painel/barraca"),
             PassoConfig(
@@ -151,7 +154,19 @@ class PainelController(
                 "/painel/equipe",
             ),
             PassoConfig("Regras de operação", "Já vêm preenchidas com o padrão. Revise quando quiser.", true, "/painel/regras"),
-            PassoConfig("Cardápio", "Chega na próxima etapa do piloto.", false, null),
+            PassoConfig(
+                "Cardápio",
+                if (noCardapio >
+                    0
+                ) {
+                    "$noCardapio ${if (noCardapio == 1) "item" else "itens"} para o cliente pedir"
+                } else {
+                    "Categorias, produtos e preços."
+                },
+                noCardapio > 0,
+                "/painel/cardapio",
+            ),
+            PassoConfig("App do quiosque", "Chega na próxima etapa do piloto.", false, null),
         )
     }
 

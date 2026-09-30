@@ -3,8 +3,8 @@
 - **Branch / PR:** `fase-2-contas` → [PR #3](https://github.com/matheusLima-jv/MesaMar/pull/3) (rascunho até o último checkpoint)
 - A Fase 2 foi dividida em 4 checkpoints, aprovados um por vez (os testes manuais ficam para a entrega final, a pedido do Matheus):
   - [x] **2.1 — Contas do dono, barraca, regras e Pix** (aprovado)
-  - [ ] **2.2 — Equipe (PIN) e guarda-sóis** ← checkpoint atual (final deste arquivo)
-  - [ ] **2.3 — Cardápio**
+  - [x] **2.2 — Equipe (PIN) e guarda-sóis** (aprovado)
+  - [ ] **2.3 — Cardápio** ← checkpoint atual (final deste arquivo)
   - [ ] **2.4 — App do quiosque (PWA): login do dono e do atendente, instalação na tela inicial**
 - Decisões de arquitetura: [ADR 0005](../adr/0005-painel-do-dono.md)
 
