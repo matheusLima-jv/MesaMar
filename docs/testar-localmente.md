@@ -76,6 +76,12 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 23 | Na mesma janela, abrir `/admin` | — | Pede o login do admin (as duas áreas não se misturam) |
 | 24 | Painel → Sair → "Esqueci a senha" → seu e-mail | Enviar | "Se existir uma conta com esse e-mail…" |
 | 25 | Log da aplicação (`docker compose logs app`) | Procurar `nova-senha?token=` | Sem SMTP, o e-mail aparece no log: abra o link, troque a senha e entre com a nova |
+| 26 | Painel → Guarda-sóis | Criar "do 1 ao 20" | "Pronto: 20 criados." e a sugestão passa para 21 a 30 |
+| 27 | Mesma tela | Criar "do 21 ao 40" (limite padrão é 30) | "…cabem só mais 10" e nada é criado |
+| 28 | Grade de números | Tocar no 5, depois criar "do 1 ao 20" de novo | O 5 fica riscado; depois volta ("1 reativado") |
+| 29 | Painel → Equipe | Adicionar "Carla" com PIN `1234` | Recusa por ser sequência; com `2580` entra |
+| 30 | Mesma tela | Adicionar "carla" de novo | "Já existe um atendente com esse nome." |
+| 31 | Regras | Baixar o limite de guarda-sóis para 5 | Recusa: "Você tem 20 guarda-sóis ativos…" |
 
 Consultar direto no banco, se quiser:
 
