@@ -8,8 +8,10 @@ import org.springframework.stereotype.Component
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 data class LeadRow(
+    val id: UUID,
     val nome: String,
     val nomeBarraca: String,
     val praia: String,
@@ -31,6 +33,29 @@ data class MedicaoRow(
     val criadaEmLocal: String get() = AdminQueries.format(criadaEm)
 }
 
+enum class StatusConvite(
+    val label: String,
+) {
+    ABERTO("Aguardando cadastro"),
+    USADO("Conta criada"),
+    EXPIRADO("Expirado"),
+}
+
+data class ConviteRow(
+    val leadNome: String?,
+    val leadBarraca: String?,
+    val observacao: String?,
+    val emailConta: String?,
+    val criadoEm: Instant,
+    val expiraEm: Instant,
+    val usadoEm: Instant?,
+    val status: StatusConvite,
+) {
+    val paraQuem: String get() = listOfNotNull(leadNome?.let { "$it · $leadBarraca" }, observacao).joinToString(" — ").ifEmpty { "Avulso" }
+    val criadoEmLocal: String get() = AdminQueries.format(criadoEm)
+    val expiraEmLocal: String get() = AdminQueries.format(expiraEm)
+}
+
 /** Resumo do sinal por praia: é o dado que decide o Portão A (meta: abrir em até 5 s). */
 data class ResumoSinal(
     val praia: String,
@@ -48,20 +73,21 @@ class AdminQueries(
 ) {
     fun leadCount(): Int = jdbc.queryForObject("SELECT count(*) FROM lead", Int::class.java) ?: 0
 
-    fun leads(limit: Int = Int.MAX_VALUE): List<LeadRow> =
-        jdbc.query(
-            "SELECT nome, nome_barraca, praia, whatsapp, criado_em FROM lead ORDER BY criado_em DESC LIMIT ?",
-            RowMapper { rs, _ ->
-                LeadRow(
-                    nome = rs.getString("nome"),
-                    nomeBarraca = rs.getString("nome_barraca"),
-                    praia = praiaLabel(rs.getString("praia")),
-                    whatsappE164 = rs.getString("whatsapp"),
-                    criadoEm = rs.getTimestamp("criado_em").toInstant(),
-                )
-            },
-            limit,
-        )
+    fun leads(limit: Int = Int.MAX_VALUE): List<LeadRow> = jdbc.query("$LEAD_SELECT ORDER BY criado_em DESC LIMIT ?", leadMapper, limit)
+
+    fun lead(id: UUID): LeadRow? = jdbc.query("$LEAD_SELECT WHERE id = ?", leadMapper, id).firstOrNull()
+
+    private val leadMapper =
+        RowMapper<LeadRow> { rs, _ ->
+            LeadRow(
+                id = rs.getObject("id", UUID::class.java),
+                nome = rs.getString("nome"),
+                nomeBarraca = rs.getString("nome_barraca"),
+                praia = praiaLabel(rs.getString("praia")),
+                whatsappE164 = rs.getString("whatsapp"),
+                criadoEm = rs.getTimestamp("criado_em").toInstant(),
+            )
+        }
 
     fun medicoes(limit: Int = Int.MAX_VALUE): List<MedicaoRow> =
         jdbc.query(
@@ -101,9 +127,46 @@ class AdminQueries(
             },
         )
 
+    fun convites(
+        now: Instant,
+        limit: Int = 100,
+    ): List<ConviteRow> =
+        jdbc.query(
+            """
+            SELECT c.observacao, c.criado_em, c.expira_em, c.usado_em,
+                   l.nome AS lead_nome, l.nome_barraca AS lead_barraca, u.email AS email_conta
+            FROM convite c
+            LEFT JOIN lead l ON l.id = c.lead_id
+            LEFT JOIN usuario u ON u.id = c.usado_por
+            ORDER BY c.criado_em DESC
+            LIMIT ?
+            """.trimIndent(),
+            RowMapper<ConviteRow> { rs, _ ->
+                val expiraEm = rs.getTimestamp("expira_em").toInstant()
+                val usadoEm = rs.getTimestamp("usado_em")?.toInstant()
+                ConviteRow(
+                    leadNome = rs.getString("lead_nome"),
+                    leadBarraca = rs.getString("lead_barraca"),
+                    observacao = rs.getString("observacao"),
+                    emailConta = rs.getString("email_conta"),
+                    criadoEm = rs.getTimestamp("criado_em").toInstant(),
+                    expiraEm = expiraEm,
+                    usadoEm = usadoEm,
+                    status =
+                        when {
+                            usadoEm != null -> StatusConvite.USADO
+                            !now.isBefore(expiraEm) -> StatusConvite.EXPIRADO
+                            else -> StatusConvite.ABERTO
+                        },
+                )
+            },
+            limit,
+        )
+
     private fun praiaLabel(code: String): String = Praia.fromCode(code)?.label ?: code
 
     companion object {
+        private const val LEAD_SELECT = "SELECT id, nome, nome_barraca, praia, whatsapp, criado_em FROM lead"
         val ZONE: ZoneId = ZoneId.of("America/Sao_Paulo")
         private val FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZONE)
 
