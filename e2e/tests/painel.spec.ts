@@ -51,7 +51,7 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
 
   // 5) Chave Pix
   await dono.getByRole('link', { name: 'Configurar Chave Pix' }).click()
-  await dono.getByText('CPF', { exact: true }).click()
+  await dono.getByRole('radio', { name: 'CPF' }).check()
   await dono.getByLabel('Chave', { exact: true }).fill('529.982.247-25')
   await dono.getByLabel('Nome de quem recebe').fill('José da Praia')
   await dono.getByRole('button', { name: 'Salvar chave Pix' }).click()
