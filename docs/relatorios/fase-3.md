@@ -3,9 +3,9 @@
 - **Branch / PR:** `fase-3-cliente` → [PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4) (rascunho até o último checkpoint)
 - A Fase 3 está dividida em 3 checkpoints, aprovados um por vez:
   - [x] **3.1 — Check-in e QR pessoal** (aprovado; CI verde no PR #4)
-  - [ ] **3.2 — Página do cliente: cardápio, carrinho e pedido idempotente** ← checkpoint atual
-  - [ ] **3.3 — Meus pedidos, saldo, bloqueios e E2E multi-contexto**
-- Decisões de arquitetura: [ADR 0007](../adr/0007-checkin-e-token-da-comanda.md) (check-in e token) e [ADR 0008](../adr/0008-pedido-do-cliente.md) (pedido do cliente)
+  - [x] **3.2 — Página do cliente: cardápio, carrinho e pedido idempotente** (aprovado; CI verde no PR #4)
+  - [ ] **3.3 — Meus pedidos, saldo, bloqueios e E2E multi-contexto** ← checkpoint atual
+- Decisões de arquitetura: [ADR 0007](../adr/0007-checkin-e-token-da-comanda.md) (check-in e token) e [ADR 0008](../adr/0008-pedido-do-cliente.md) (pedido do cliente) e [ADR 0009](../adr/0009-saldo-limite-e-pagamento-por-pedido.md) (saldo, limite e pagar a cada pedido)
 
 ---
 
@@ -61,7 +61,7 @@ Itens 43 a 48 de [`docs/testar-localmente.md`](../testar-localmente.md).
 ## Checkpoint 3.2 — Página do cliente: cardápio, carrinho e pedido idempotente
 
 - **Data:** 2026-09-30
-- **CI (rodado localmente, com as mesmas etapas):** ✅ ktlint, **244 testes de backend** (+16), imagem Docker, smoke do compose e **10 E2E** no tamanho de celular. O resultado no GitHub entra aqui depois do push.
+- **CI:** ✅ verde no GitHub (PR #4): ktlint, **244 testes de backend**, imagem Docker, smoke do compose e **10 E2E** no tamanho de celular.
 
 ### 1. O que foi feito
 
@@ -115,3 +115,52 @@ Ver o [ADR 0008](../adr/0008-pedido-do-cliente.md). As que merecem o seu olho:
 ### 5. Como validar (na entrega final)
 
 Itens 49 a 58 de [`docs/testar-localmente.md`](../testar-localmente.md). Os dois que mais importam, do plano: **cronometrar do QR até o pedido confirmado e contar os toques** (item 53) e **o teste do modo avião** (itens 54 e 55).
+
+---
+
+## Checkpoint 3.3 — Meus pedidos, saldo, bloqueios e E2E multi-contexto
+
+- **Data:** 2026-10-01
+- **CI (rodado localmente, com as mesmas etapas):** ✅ ktlint, **252 testes de backend** (+8), imagem Docker, smoke do compose e **10 E2E** no tamanho de celular. O resultado no GitHub entra aqui depois do push.
+- **Com este checkpoint a Fase 3 fica completa.**
+
+### 1. O que foi feito
+
+- **Saldo sempre visível:** "Sua conta: R$ 49,00" no cabeçalho, em todas as telas, atualizado a cada pedido enviado.
+- **Aba "Meus pedidos":** do mais novo para o mais antigo, com número, hora, **status** (Aguardando pagamento, Recebido, Em preparo, Entregue, Cancelado), itens, observação e total. Atualiza sozinha a cada **15 s**; sem sinal, mostra a última lista com um aviso. Item cancelado aparece riscado e fora do total.
+- **Limite de conta aberta:** com o limite atingido, o pedido novo é recusado ("Sua conta chegou a R$ 90,00. Para pedir mais, pague uma parte com um atendente."), e a página mostra o aviso e tira os botões. Vale por comanda e **não é furado por pedidos ao mesmo tempo**.
+- **Modo "pagar a cada pedido":** o pedido nasce **"Aguardando pagamento"**, fora da fila, e a página diz quanto pagar e a quem. A confirmação de pagamento (Fase 5) é que o põe na fila.
+- **Bloqueios com mensagem clara**, todos do servidor: pedidos pausados, conta fechando, comanda bloqueada, encerrada ou cancelada, limite de saldo.
+- **E2E multi-contexto completo:** o dono configura a barraca e o limite, a atendente faz o check-in em outro celular, a Ana abre o QR em um terceiro e faz os pedidos (com e sem sinal), e a lista é conferida em "Meus pedidos".
+
+### 2. Decisões
+
+Ver o [ADR 0009](../adr/0009-saldo-limite-e-pagamento-por-pedido.md). As que merecem o seu olho:
+- **"Limite atingido" é `saldo >= limite`, e o pedido que cruza o limite passa.** A exposição máxima de uma comanda é o limite mais um pedido. O contrário (recusar o que ultrapassaria) deixaria o cliente sem poder pedir nada perto do teto.
+- **Pedido "aguardando pagamento" conta no saldo**, mesmo fora da fila, porque a conta existe desde o pedido.
+- **A Fase 4 deve listar na fila só `RECEBIDO` e `EM_PREPARO`**, e não avisar o dono de pedido novo enquanto ele aguarda o pagamento. O evento `PedidoCriado` já leva o status.
+
+### 3. Um erro que o teste pegou
+
+Na V7 o `status` do pedido era `VARCHAR(12)`, e `AGUARDANDO_PAGAMENTO` tem 20 caracteres: o primeiro pedido no modo "a cada pedido" dava erro 500. O teste do modo pegou na hora, e a V8 alarga a coluna junto com a nova regra do status.
+
+### 4. Ainda não existe (de propósito)
+
+- A fila e os avisos do dono (Fase 4) e a confirmação de pagamento (Fase 5). Por isso, **hoje o status de um pedido só muda por SQL** (o roteiro mostra como), e a conta só baixa cancelando item.
+
+### 5. Testes automatizados novos
+
+- **API da conta (`ContaDoClienteApiTest`, 8 testes):**
+  - Meus pedidos mostra só os da própria comanda (a Ana não vê o do Beto nem o de outra barraca), do mais novo para o mais antigo, com o saldo; token inexistente dá 404; sem pedidos, lista vazia e saldo zero;
+  - o saldo ignora item cancelado e pedido cancelado, e a abertura da página mostra o mesmo valor;
+  - limite atingido recusa pedido novo (409 `limite-saldo`, com o valor na mensagem), o reenvio de pedido existente continua valendo, e cancelar item libera de novo; sem limite, sem bloqueio;
+  - o limite vale por comanda;
+  - **6 pedidos simultâneos contra um limite que cabe 1: entra um, cinco recebem `limite-saldo`**;
+  - modo "a cada pedido": status `AGUARDANDO_PAGAMENTO`, aparece na lista e no saldo, o reenvio devolve o mesmo, o pedido ganha número; ao voltar para "no final", o próximo nasce `RECEBIDO`;
+  - por padrão, o pedido entra direto como `RECEBIDO`.
+- **Apoio de testes:** `ClienteTestSupport` reúne a montagem de barraca, comanda e pedido, e o `PedidoClienteApiTest` passou a usá-lo.
+- **E2E (celular):** o dono define o limite de R$ 90 no painel. A Ana vê "Sua conta: R$ 0,00", pede (R$ 49, R$ 25 e R$ 25, este último sem sinal) e a conta vai a R$ 99. O cardápio mostra o aviso do limite e **sem botões**; "Meus pedidos" lista os pedidos 3, 2 e 1 com o status "Recebido", as observações e o total da conta.
+
+### 6. Como validar (na entrega final)
+
+Itens 59 a 66 de [`docs/testar-localmente.md`](../testar-localmente.md). Os mais importantes: **o limite atingido (62 e 63)**, o **modo "a cada pedido" (64 e 65)** e **a página reagindo sozinha a uma mudança no banco (60 e 61)**.

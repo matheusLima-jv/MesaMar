@@ -132,6 +132,29 @@ Conferir os pedidos direto no banco:
 docker compose exec db psql -U mesamar -c "select p.numero_pedido, p.status, p.criado_em, i.linha, i.quantidade, i.nome_snapshot, i.preco_snapshot_centavos, i.observacao from pedido p join item_pedido i on i.pedido_id = p.id order by p.criado_em, i.linha;"
 ```
 
+### Meus pedidos, saldo e regras (Fase 3 · checkpoint 3.3)
+
+Continue no **celular B**, com a Ana. Como o app do quiosque ainda não tem a fila (Fase 4), os itens 60, 61 e 66 mudam o banco direto, só para você ver a página reagir.
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 59 | Celular B | Olhar o topo da página e abrir a aba **Meus pedidos** | "Sua conta: R$ …" no topo, igual à soma dos pedidos. Os pedidos aparecem do mais novo para o mais antigo, com "Recebido", itens, observação e total |
+| 60 | Deixar "Meus pedidos" aberta; no computador, rodar o 1º comando abaixo | Esperar até 15 s, **sem recarregar** | O pedido nº 1 passa a "Em preparo" |
+| 61 | No computador, rodar o 2º comando abaixo (cancela o último item pedido) | Esperar até 15 s | O item aparece riscado com "Cancelado" e **a conta baixa** |
+| 62 | Painel → Regras → "Limite de conta aberta" `50` → Salvar. No celular B, pedir até a conta chegar a R$ 50 ou mais | Voltar ao cardápio | Aviso vermelho "Sua conta chegou a R$ 50,00…", **sem botões** de adicionar. O último pedido, o que cruzou o limite, passou |
+| 63 | Com o limite atingido, cancelar itens (como no 61) até a conta ficar abaixo de R$ 50. No celular B, tocar em "Cardápio" depois de 10 s | Esperar a página atualizar | O aviso some e os botões voltam. Dá para pedir de novo |
+| 64 | Painel → Regras → "A cada pedido" → Salvar (e tirar o limite). Celular B: abrir o cardápio e pedir | Conferir | Cardápio: "Neste quiosque você paga a cada pedido". Confirmação: "Para o pedido entrar na fila, pague R$ … a um atendente". Em Meus pedidos: **"Aguardando pagamento"** |
+| 65 | Painel → Regras → "No final" → Salvar. Celular B: pedir de novo | Conferir | O novo pedido nasce "Recebido" |
+| 66 | No computador, rodar o 3º comando abaixo. Celular B: recarregar e tentar pedir | Conferir | "O quiosque pausou os pedidos por agora…". Depois, trocar `true` por `false` no comando e voltar ao normal |
+
+Comandos para os itens 60, 61 e 66 (o app do quiosque ainda não faz isso; chega na Fase 4):
+
+```bash
+docker compose exec db psql -U mesamar -c "update pedido set status='EM_PREPARO' where numero_pedido = 1 and dia = current_date;"
+docker compose exec db psql -U mesamar -c "update item_pedido set cancelado = true, motivo_cancelamento = 'teste' where id = (select i.id from item_pedido i join pedido p on p.id = i.pedido_id order by p.criado_em desc, i.linha limit 1);"
+docker compose exec db psql -U mesamar -c "update barraca set pedidos_pausados = true;"
+```
+
 > A instalação na tela inicial (item 41) exige **HTTPS** fora do `localhost`. No celular pela rede local (`http://IP-DO-PC`), o app abre, mas o Chrome não oferece "Instalar". Para testar a instalação de verdade, use o ambiente publicado (`https://mesamar.0mega.fun/staff/`).
 
 Consultar direto no banco, se quiser:
@@ -160,7 +183,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 244 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 252 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 
