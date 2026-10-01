@@ -258,3 +258,8 @@ button { font: inherit; }
 }
 
 .quem .tag { margin-left: 0.4rem; }
+
+/* Pausar pedidos e avisos de pedido */
+.btn-pausa { margin: 0.75rem 0 0.25rem; min-height: 48px; }
+.pausa { margin: 0.75rem 0 1rem; padding: 0.9rem 1rem; background: #fff; border: 2px solid var(--late); border-radius: 14px; }
+.pausa p { margin: 0 0 0.75rem; color: var(--late); font-weight: 600; }

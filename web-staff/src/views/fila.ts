@@ -1,9 +1,10 @@
-import { ApiError, mudarStatus, type PedidoFila } from '../api'
+import { ApiError, mudarStatus, pausar, type Fila, type PedidoFila } from '../api'
 import { h, mount } from '../dom'
 import { agoraDoServidor, ehNovo, estado, observar, recarregar } from '../fila-store'
 import { definirSom, somLigado } from '../som'
 import { avisar } from '../toast'
 import { dialogoCancelar } from './cancelar'
+import { dialogoPausar } from './pausar'
 
 type Modo = 'todos' | 'pendentes'
 
@@ -98,6 +99,7 @@ function render (root: HTMLElement): void {
         botaoSom(root)
       )
     ),
+    blocoPausa(dados),
     total === 0
       ? h('div', { class: 'empty' }, h('h2', {}, 'Tudo em dia'), h('p', {}, 'Quando um cliente pedir pelo celular, o pedido aparece aqui sozinho.'))
       : h('div', { class: 'fila-filtros' },
@@ -110,6 +112,29 @@ function render (root: HTMLElement): void {
     total > 0 && lista.length === 0
       ? h('p', { class: 'hint center' }, 'Nenhum pedido com esse filtro.')
       : h('ul', { class: 'fila' }, ...lista.map((p) => cartao(root, p, dados.tempoAlertaMin)))
+  )
+}
+
+/** "Pausar pedidos" (ou, se já está pausado, o aviso e o botão para voltar a receber). */
+function blocoPausa (dados: Fila): HTMLElement {
+  if (!dados.pedidosPausados) {
+    return h('button', {
+      type: 'button',
+      class: 'btn btn-line btn-block btn-pausa',
+      onclick: () => { dialogoPausar(() => { void recarregar() }) }
+    }, 'Pausar pedidos')
+  }
+  const voltar = h('button', { type: 'button', class: 'btn btn-sun btn-block' }, 'Voltar a receber pedidos')
+  voltar.addEventListener('click', () => {
+    voltar.disabled = true
+    pausar(false)
+      .then(() => { avisar('Voltou a receber pedidos.') })
+      .catch((e: unknown) => { avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
+      .finally(() => { void recarregar() })
+  })
+  return h('div', { class: 'pausa', role: 'status' },
+    h('p', {}, h('strong', {}, 'Pedidos pausados.'), ' ', dados.mensagemPausa ?? 'Os clientes veem que o quiosque não está recebendo pedidos agora.'),
+    voltar
   )
 }
 

@@ -76,7 +76,21 @@ export interface Fila {
   /** Horário do servidor no momento da resposta. */
   agora: string
   tempoAlertaMin: number
+  /** O quiosque está sem receber pedidos pelo celular dos clientes. */
+  pedidosPausados: boolean
+  mensagemPausa: string | null
   pedidos: PedidoFila[]
+}
+
+export interface Pausa {
+  pedidosPausados: boolean
+  mensagemPausa: string | null
+}
+
+export interface PushConfig {
+  /** Falso enquanto o servidor não tem as chaves VAPID. */
+  habilitado: boolean
+  chavePublica: string | null
 }
 
 export class ApiError extends Error {
@@ -209,6 +223,27 @@ export async function cancelarPedido (pedidoId: string, motivo: Motivo, detalhe:
 
 export async function cancelarItem (pedidoId: string, itemId: string, motivo: Motivo, detalhe: string): Promise<PedidoFila> {
   return await chamar<PedidoFila>('POST', `/pedidos/${pedidoId}/itens/${itemId}/cancelar`, { motivo, detalhe })
+}
+
+/** "Pausar pedidos" (com um recado opcional para os clientes) e "Voltar a receber". */
+export async function pausar (pausado: boolean, mensagem = ''): Promise<Pausa> {
+  return await chamar<Pausa>('POST', '/pausa', { pausado, mensagem })
+}
+
+export async function pushConfig (): Promise<PushConfig> {
+  return await chamar<PushConfig>('GET', '/push')
+}
+
+export async function inscreverPush (inscricao: unknown): Promise<void> {
+  await chamar<void>('POST', '/push/inscrever', inscricao)
+}
+
+export async function cancelarPush (endpoint: string): Promise<void> {
+  await chamar<void>('POST', '/push/cancelar', { endpoint })
+}
+
+export async function testarPush (endpoint: string): Promise<void> {
+  await chamar<void>('POST', '/push/testar', { endpoint })
 }
 
 /** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */

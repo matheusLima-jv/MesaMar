@@ -47,7 +47,7 @@ function cartao (p: Pedido): HTMLElement {
       h('strong', {}, `Pedido nº ${p.numero}`, h('span', { class: 'order-hora' }, ` · ${p.hora}`)),
       h('span', { class: 'badge' }, ROTULO[p.status] ?? p.status)
     ),
-    h('ul', { class: 'order-items' }, ...p.itens.map(linha)),
+    h('ul', { class: 'order-items' }, ...p.itens.map((i) => linha(i, p.status === 'CANCELADO'))),
     p.status === 'AGUARDANDO_PAGAMENTO'
       ? h('p', { class: 'hint' }, `Pague ${reais(p.totalCentavos)} a um atendente para o pedido entrar na fila.`)
       : null,
@@ -58,10 +58,12 @@ function cartao (p: Pedido): HTMLElement {
   )
 }
 
-function linha (i: ItemPedido): HTMLElement {
+/** Num pedido cancelado inteiro, o motivo aparece uma vez só, embaixo; num item cancelado sozinho, aparece no item. */
+function linha (i: ItemPedido, pedidoCancelado: boolean): HTMLElement {
+  const motivo = !pedidoCancelado && i.motivoCancelamento !== null ? `Cancelado: ${i.motivoCancelamento}` : 'Cancelado'
   return h('li', { class: i.cancelado ? 'is-sold' : '' },
     h('strong', {}, `${i.quantidade}× ${i.nome}`),
-    i.cancelado ? h('span', { class: 'tag' }, i.motivoCancelamento !== null ? `Cancelado: ${i.motivoCancelamento}` : 'Cancelado') : null,
+    i.cancelado ? h('span', { class: 'tag' }, motivo) : null,
     i.observacao !== null ? h('span', { class: 'desc' }, i.observacao) : null
   )
 }

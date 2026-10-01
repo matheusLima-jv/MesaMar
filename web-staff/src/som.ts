@@ -35,6 +35,15 @@ function bip (inicio: number, frequencia: number): void {
   osc.stop(audio.currentTime + inicio + 0.3)
 }
 
+/** Pedido parado além do tempo: três bips mais graves e uma vibração mais longa. */
+export function avisarAtraso (): void {
+  if (!somLigado()) return
+  bip(0, 660)
+  bip(0.28, 660)
+  bip(0.56, 520)
+  try { navigator.vibrate?.([400, 150, 400]) } catch { /* sem vibração */ }
+}
+
 /** Pedido novo na fila: som (se estiver ligado) e vibração. */
 export function avisarPedidoNovo (): void {
   if (!somLigado()) return

@@ -4,7 +4,8 @@
 // O servidor só avisa "um pedido mudou"; o app busca a fila de novo (/api/staff/fila). Assim a tela sempre mostra
 // o que o servidor tem, e se um aviso se perder a próxima busca corrige. Sem conexão, busca a cada 15 s.
 import { ApiError, fila, type Fila, type PedidoFila } from './api'
-import { avisarPedidoNovo } from './som'
+import { avisarAtraso, avisarPedidoNovo } from './som'
+import { avisar } from './toast'
 
 type Ouvinte = () => void
 
@@ -86,6 +87,15 @@ function conectar (): void {
   }
   es.addEventListener('fila', agendarBusca)
   es.addEventListener('ressincronizar', agendarBusca)
+  // Um pedido passou do tempo de espera da barraca: alerta no app aberto (o push cobre o app fechado)
+  es.addEventListener('atraso', (ev) => {
+    try {
+      const { numero } = JSON.parse((ev as MessageEvent<string>).data) as { numero: number }
+      avisar(`O pedido nº ${numero} está parado há muito tempo.`, true)
+    } catch { /* aviso sem número: só toca o alerta */ }
+    avisarAtraso()
+    agendarBusca()
+  })
   es.onerror = () => {
     conectado = false
     avisarOuvintes()

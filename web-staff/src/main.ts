@@ -5,6 +5,7 @@ import { h, mount } from './dom'
 import { abaCardapio } from './views/cardapio'
 import { abaClientes } from './views/clientes'
 import { iniciarFila, observar, pararFila, pendentes } from './fila-store'
+import { religarPush } from './push'
 import { abaFila } from './views/fila'
 import { telaLogin } from './views/login'
 import { abaMais } from './views/mais'
@@ -64,6 +65,7 @@ function app (s: Sessao): void {
   mostrar()
   // A fila fica ouvindo o servidor o tempo todo: o número na aba e o aviso de pedido novo valem em qualquer aba
   iniciarFila()
+  void religarPush()
   pararDeObservar = observar(() => {
     const numero = pendentes()
     const contagem = nav.querySelector<HTMLElement>('[data-aba="fila"] .contagem')
