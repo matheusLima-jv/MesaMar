@@ -105,9 +105,32 @@ Reative a Carla (Painel → Equipe) antes de começar.
 | 43 | Celular: app do quiosque | Entrar como Carla | Abre na aba **Clientes**, com "Ninguém com comanda aberta agora." |
 | 44 | Clientes → "+ Novo cliente" | Nome `Ana`, guarda-sol 12, WhatsApp seu, **sem** marcar o consentimento → "Gerar QR" | "Confirme que o cliente concordou." e nada é criado |
 | 45 | Mesmo formulário | Marcar o consentimento → "Gerar QR", **cronometrando do toque em "Novo cliente" até o QR** | QR em tela cheia com "Ana", "Guarda-sol 12 · chegada nº 1". Meta: até 20 s |
-| 46 | Tela do QR | Ler com a câmera de **outro celular**, a uns 50 cm (de preferência no sol) | Abre o link `/c/…` (por enquanto a página do cliente diz "Em construção") |
+| 46 | Tela do QR | Ler com a câmera de **outro celular**, a uns 50 cm (de preferência no sol) | Abre o link `/c/…` (a página do cliente; veja o 3.2 abaixo) |
 | 47 | Tela do QR → "Enviar pelo WhatsApp" | Tocar | Abre o WhatsApp no seu número com a mensagem e o link |
 | 48 | "Pronto" → fazer o check-in do `Bruno` também no 12 | Conferir a lista e a grade | Ana (1) e Bruno (2) por ordem de chegada; o 12 aparece com um ponto na grade; o botão "QR" mostra o código de novo |
+
+### Página do cliente: cardápio e pedido (Fase 3 · checkpoint 3.2)
+
+Use o QR da Ana (itens 45 e 46) no **celular B**, com o cardápio já preenchido (tenha pelo menos 3 produtos, em 2 categorias).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 49 | Celular B: ler o QR da Ana, **cronometrando** | Esperar abrir | "Olá, Ana · Guarda-sol 12", o nome da barraca e o cardápio por categoria, com os preços |
+| 50 | App do quiosque, aba Cardápio | Tocar "Esgotou" num item; no celular B, abrir o link de novo | O item aparece **riscado, com "Esgotado" e sem botão**. Depois, "Voltou" no app e recarregar: o botão volta |
+| 51 | Celular B | Tocar "Adicionar" em 2 itens e "+" num deles | Aparece "−  2  +", e a barra amarela no rodapé mostra "Ver pedido · 3 itens · R$ …" com o total certo |
+| 52 | Celular B → barra "Ver pedido" | Escrever `sem gelo` na observação de um item | O total confere com os preços; a observação fica no campo |
+| 53 | Celular B → "Enviar pedido" (**cronometre do QR até aqui e conte os toques**) | Esperar | "Pedido nº 1 enviado", com os itens, a observação e o total |
+| 54 | Celular B → "Voltar ao cardápio", pedir mais um item, **ligar o modo avião**, "Enviar pedido" | Esperar uns segundos | "O pedido ainda não saiu. Sem sinal. Tentaremos de novo. Se preferir, chame um atendente." |
+| 55 | Celular B | **Desligar o modo avião** | Em poucos segundos: "Pedido nº 2 enviado". **Uma vez só** (confira no banco, abaixo) |
+| 56 | Celular B: montar um pedido; no app, marcar um dos itens como "Esgotou"; **sem recarregar a página**, "Enviar pedido" | Ler a mensagem | "Acabou ou saiu do cardápio: …". O item sai do carrinho e o resto continua |
+| 57 | Celular B, rodapé | Tocar "Política de privacidade" | Abre a política, com a seção 5 sobre os dados dos clientes |
+| 58 | Celular B | Abrir o link do QR de uma comanda que **não existe** (troque um caractere) | "Esse link não vale mais" |
+
+Conferir os pedidos direto no banco:
+
+```bash
+docker compose exec db psql -U mesamar -c "select p.numero_pedido, p.status, p.criado_em, i.linha, i.quantidade, i.nome_snapshot, i.preco_snapshot_centavos, i.observacao from pedido p join item_pedido i on i.pedido_id = p.id order by p.criado_em, i.linha;"
+```
 
 > A instalação na tela inicial (item 41) exige **HTTPS** fora do `localhost`. No celular pela rede local (`http://IP-DO-PC`), o app abre, mas o Chrome não oferece "Instalar". Para testar a instalação de verdade, use o ambiente publicado (`https://mesamar.0mega.fun/staff/`).
 
@@ -137,7 +160,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 228 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 244 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 
