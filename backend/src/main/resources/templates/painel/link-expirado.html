@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Link expirado')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: publicHeader}"></header>
+
+<main id="conteudo" class="message-page">
+  <div class="wrap">
+    <p class="kicker">Troca de senha</p>
+    <h1>Esse link já não funciona.</h1>
+    <p class="lead">Links de troca de senha valem por 1 hora e só uma vez. Se você pediu mais de um, só o último vale.</p>
+    <a class="btn btn-ink" href="/painel/esqueci-senha" th:href="@{/painel/esqueci-senha}">Pedir um link novo</a>
+  </div>
+</main>
+</body>
+</html>

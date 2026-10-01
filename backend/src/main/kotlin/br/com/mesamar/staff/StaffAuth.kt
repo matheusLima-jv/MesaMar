@@ -1,0 +1,82 @@
+package br.com.mesamar.staff
+
+import br.com.mesamar.barraca.BarracaRepository
+import br.com.mesamar.conta.UsuarioRepository
+import br.com.mesamar.equipe.AtendenteRepository
+import jakarta.servlet.FilterChain
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
+import org.springframework.security.core.GrantedAuthority
+import org.springframework.security.core.authority.SimpleGrantedAuthority
+import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository
+import org.springframework.stereotype.Component
+import org.springframework.web.filter.OncePerRequestFilter
+import java.io.Serializable
+import java.util.UUID
+
+enum class PapelStaff { DONO, ATENDENTE }
+
+/**
+ * Quem está usando o app do quiosque. A barraca vem SEMPRE daqui (da sessão), nunca da URL:
+ * todo endpoint de /api/staff trabalha só com a barraca de quem entrou.
+ */
+data class StaffPrincipal(
+    val barracaId: UUID,
+    val papel: PapelStaff,
+    val usuarioId: UUID?,
+    val atendenteId: UUID?,
+    val nome: String,
+) : Serializable {
+    val authorities: List<GrantedAuthority>
+        get() = listOf(SimpleGrantedAuthority("ROLE_STAFF"), SimpleGrantedAuthority("ROLE_STAFF_$papel"))
+}
+
+/**
+ * Sessão do app: chave própria na sessão HTTP (MESAMAR_STAFF), separada do /painel e do /admin.
+ * É a mesma instância usada pela cadeia de segurança (para ler) e pelo login (para gravar).
+ */
+@Component
+class StaffSessao {
+    val repository =
+        HttpSessionSecurityContextRepository().apply { setSpringSecurityContextKey(CHAVE) }
+
+    companion object {
+        const val CHAVE = "MESAMAR_STAFF"
+    }
+}
+
+/**
+ * A cada requisição, confere se quem está logado ainda pode estar: atendente desativado pelo dono
+ * (ou conta/barraca que mudou) perde o acesso na hora, sem esperar a sessão expirar.
+ *
+ * NÃO é um @Component de propósito: o Spring Boot registraria qualquer Filter como filtro global
+ * do servlet, e aí o OncePerRequestFilter seria pulado dentro da cadeia de segurança.
+ */
+class StaffPrincipalCheckFilter(
+    private val atendentes: AtendenteRepository,
+    private val usuarios: UsuarioRepository,
+    private val barracas: BarracaRepository,
+) : OncePerRequestFilter() {
+    override fun doFilterInternal(
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        filterChain: FilterChain,
+    ) {
+        val principal = SecurityContextHolder.getContext().authentication?.principal as? StaffPrincipal
+        if (principal != null && !valido(principal)) {
+            SecurityContextHolder.clearContext()
+            request.getSession(false)?.removeAttribute(StaffSessao.CHAVE)
+        }
+        filterChain.doFilter(request, response)
+    }
+
+    private fun valido(p: StaffPrincipal): Boolean {
+        val barracaAtiva = barracas.findById(p.barracaId).map { it.ativa }.orElse(false)
+        if (!barracaAtiva) return false
+        return when (p.papel) {
+            PapelStaff.DONO -> p.usuarioId?.let { usuarios.findById(it).orElse(null) }?.barracaId == p.barracaId
+            PapelStaff.ATENDENTE -> p.atendenteId?.let { atendentes.findByIdAndBarracaId(it, p.barracaId) }?.ativo == true
+        }
+    }
+}

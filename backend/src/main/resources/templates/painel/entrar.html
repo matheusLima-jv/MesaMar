@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Entrar')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: publicHeader}"></header>
+
+<main id="conteudo" class="auth-page">
+  <div class="wrap auth-layout">
+    <div class="auth-intro">
+      <p class="kicker">Painel da barraca</p>
+      <h1>Entrar</h1>
+      <p class="lead">Aqui você configura a barraca, a chave Pix e, em breve, o cardápio e os guarda-sóis.</p>
+    </div>
+
+    <form class="lead-form auth-card" method="post" action="/painel/entrar" th:action="@{/painel/entrar}">
+      <p class="form-alert" role="alert" th:if="${erro}">E-mail ou senha não conferem. Tente de novo.</p>
+      <p class="form-ok" role="status" th:if="${aviso}" th:text="${aviso}">Você saiu do painel.</p>
+
+      <div class="field">
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="email" autocomplete="username" inputmode="email" required
+               th:value="${email}" th:autofocus="${email.isEmpty()}">
+      </div>
+      <div class="field">
+        <label for="senha">Senha</label>
+        <input id="senha" name="senha" type="password" autocomplete="current-password" required
+               th:autofocus="${!email.isEmpty()}">
+      </div>
+      <button class="btn btn-ink btn-block" type="submit">Entrar</button>
+      <p class="form-alt"><a href="/painel/esqueci-senha" th:href="@{/painel/esqueci-senha}">Esqueci a senha</a></p>
+    </form>
+  </div>
+</main>
+</body>
+</html>

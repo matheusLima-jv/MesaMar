@@ -34,7 +34,7 @@
     <div class="table-wrap" th:unless="${leads.isEmpty()}">
       <table>
         <thead>
-          <tr><th>Data</th><th>Nome</th><th>Barraca</th><th>Praia</th><th>WhatsApp</th></tr>
+          <tr><th>Data</th><th>Nome</th><th>Barraca</th><th>Praia</th><th>WhatsApp</th><th>Acesso</th></tr>
         </thead>
         <tbody>
           <tr th:each="l : ${leads}">
@@ -43,6 +43,58 @@
             <td th:text="${l.nomeBarraca}">Barraca do Zé</td>
             <td th:text="${l.praia}">Enseada</td>
             <td><a th:href="${l.whatsappLink}" th:text="${l.whatsapp}" target="_blank" rel="noopener">(13) 99999-8888</a></td>
+            <td>
+              <form method="post" action="/admin/convites" th:action="@{/admin/convites}">
+                <input type="hidden" name="leadId" th:value="${l.id}">
+                <button class="link-button" type="submit">Gerar convite</button>
+              </form>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="admin-section" id="convites" aria-labelledby="t-convites">
+    <div class="admin-head">
+      <div>
+        <p class="kicker">Piloto · só entra quem tem convite</p>
+        <h2 id="t-convites" class="admin-title">Convites</h2>
+      </div>
+    </div>
+
+    <p class="form-alert" role="alert" th:if="${erroConvite}" th:text="${erroConvite}">Erro</p>
+
+    <div class="invite-created" role="status" th:if="${conviteGerado}">
+      <p class="invite-created-title">Convite para <strong th:text="${conviteGerado.paraQuem}">Zé · Barraca do Zé</strong></p>
+      <p class="form-hint">Copie agora: este link não aparece de novo. Vale até <span th:text="${conviteGerado.expiraEm}">10/10/2026 14:00</span> e serve para uma conta só.</p>
+      <label class="sr-only" for="link-convite">Link do convite</label>
+      <input id="link-convite" class="invite-link" type="text" readonly th:value="${conviteGerado.link}">
+      <a class="btn btn-sun" th:if="${conviteGerado.whatsappLink}" th:href="${conviteGerado.whatsappLink}" target="_blank" rel="noopener">Enviar pelo WhatsApp</a>
+    </div>
+
+    <form class="invite-form" method="post" action="/admin/convites" th:action="@{/admin/convites}">
+      <div class="field">
+        <label for="observacao">Convite avulso (para quem não está na lista)</label>
+        <input id="observacao" name="observacao" type="text" maxlength="80" placeholder="Ex.: Dona Ana, quiosque 12 da Enseada">
+      </div>
+      <button class="btn btn-line" type="submit">Gerar convite avulso</button>
+    </form>
+
+    <p class="admin-empty" th:if="${convites.isEmpty()}">Nenhum convite ainda. Gere um na lista de espera acima.</p>
+
+    <div class="table-wrap" th:unless="${convites.isEmpty()}">
+      <table>
+        <thead>
+          <tr><th>Criado</th><th>Para</th><th>Situação</th><th>Conta</th><th>Expira</th></tr>
+        </thead>
+        <tbody>
+          <tr th:each="c : ${convites}">
+            <td th:text="${c.criadoEmLocal}">27/09/2026 14:00</td>
+            <td th:text="${c.paraQuem}">Zé · Barraca do Zé</td>
+            <td><span class="pill-status" th:classappend="${c.status.name() == 'USADO'} ? 'ok' : (${c.status.name() == 'EXPIRADO'} ? 'bad' : '')" th:text="${c.status.label}">Aguardando cadastro</span></td>
+            <td th:text="${c.emailConta} ?: '—'">ze@exemplo.com</td>
+            <td th:text="${c.expiraEmLocal}">10/10/2026 14:00</td>
           </tr>
         </tbody>
       </table>

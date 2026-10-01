@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Criar conta')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: publicHeader}"></header>
+
+<main id="conteudo" class="auth-page">
+  <div class="wrap auth-layout">
+    <div class="auth-intro">
+      <p class="kicker">Convite do piloto</p>
+      <h1>Crie a sua conta</h1>
+      <p class="lead">É com ela que você entra no painel da barraca. Depois disso, são dois passos: os dados da barraca e a chave Pix.</p>
+    </div>
+
+    <form class="lead-form auth-card" method="post" action="/painel/cadastro" th:action="@{/painel/cadastro}"
+          th:object="${cadastroForm}" novalidate>
+      <input type="hidden" th:field="*{convite}">
+
+      <div class="field" th:classappend="${#fields.hasErrors('nome')} ? 'has-error'">
+        <label for="nome">Seu nome</label>
+        <input id="nome" type="text" th:field="*{nome}" autocomplete="name" maxlength="80" required
+               th:attr="aria-invalid=${#fields.hasErrors('nome')},aria-describedby=${#fields.hasErrors('nome')} ? 'nome-erro'">
+        <p class="field-error" id="nome-erro" th:if="${#fields.hasErrors('nome')}" th:text="${#fields.errors('nome')[0]}">Erro</p>
+      </div>
+
+      <div class="field" th:classappend="${#fields.hasErrors('email')} ? 'has-error'">
+        <label for="email">E-mail</label>
+        <input id="email" type="email" th:field="*{email}" autocomplete="email" inputmode="email" maxlength="254" required
+               th:attr="aria-invalid=${#fields.hasErrors('email')},aria-describedby=${#fields.hasErrors('email')} ? 'email-erro'">
+        <p class="field-error" id="email-erro" th:if="${#fields.hasErrors('email')}" th:text="${#fields.errors('email')[0]}">Erro</p>
+      </div>
+
+      <div class="field" th:classappend="${#fields.hasErrors('senha')} ? 'has-error'">
+        <label for="senha">Senha</label>
+        <!-- sem th:field de propósito: a senha nunca volta preenchida na página -->
+        <input id="senha" name="senha" type="password" autocomplete="new-password" minlength="10" maxlength="72" required
+               th:attr="aria-invalid=${#fields.hasErrors('senha')},aria-describedby=${#fields.hasErrors('senha')} ? 'senha-erro senha-dica' : 'senha-dica'">
+        <p class="field-error" id="senha-erro" th:if="${#fields.hasErrors('senha')}" th:text="${#fields.errors('senha')[0]}">Erro</p>
+        <p th:replace="~{painel/fragments :: senhaHint}"></p>
+      </div>
+
+      <button class="btn btn-sun btn-block" type="submit">Criar conta</button>
+      <p class="form-alt">Já tem conta? <a href="/painel/entrar" th:href="@{/painel/entrar}">Entrar</a></p>
+    </form>
+  </div>
+</main>
+</body>
+</html>

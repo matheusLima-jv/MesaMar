@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Trocar a senha')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: publicHeader}"></header>
+
+<main id="conteudo" class="auth-page">
+  <div class="wrap auth-layout">
+    <div class="auth-intro">
+      <p class="kicker">Painel da barraca</p>
+      <h1>Esqueci a senha</h1>
+      <p class="lead">Digite o e-mail da sua conta. A gente manda um link para você criar uma senha nova.</p>
+    </div>
+
+    <div class="lead-form auth-card" th:if="${enviado}">
+      <p class="form-ok" role="status">Pronto. Se existir uma conta com esse e-mail, o link chega em alguns minutos.</p>
+      <p class="form-hint">Não chegou? Olhe a caixa de spam. O link vale por 1 hora; depois disso, é só pedir outro.</p>
+      <a class="btn btn-line btn-block" href="/painel/entrar" th:href="@{/painel/entrar}">Voltar para entrar</a>
+    </div>
+
+    <form class="lead-form auth-card" method="post" action="/painel/esqueci-senha" th:action="@{/painel/esqueci-senha}" th:unless="${enviado}">
+      <p class="form-alert" role="alert" th:if="${limite}">Muitos pedidos seguidos. Espere uns 15 minutos e tente de novo.</p>
+      <div class="field">
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" required autofocus>
+      </div>
+      <button class="btn btn-ink btn-block" type="submit">Enviar link</button>
+      <p class="form-alt"><a href="/painel/entrar" th:href="@{/painel/entrar}">Lembrei a senha</a></p>
+    </form>
+  </div>
+</main>
+</body>
+</html>

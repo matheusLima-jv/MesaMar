@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Início')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('home')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <p class="form-ok" role="status" th:if="${ok}" th:text="${ok}">Dados salvos.</p>
+
+  <section class="app-section" aria-labelledby="t-inicio">
+    <p class="kicker" th:text="|Olá, ${#strings.substringBefore(usuario.nome + ' ', ' ')}|">Olá, Zé</p>
+    <h1 id="t-inicio" class="app-title">O que falta para abrir</h1>
+
+    <ol class="checklist">
+      <li th:each="p, it : ${passos}" th:classappend="${p.feito} ? 'done' : (${p.link} ? 'todo' : 'soon')">
+        <span class="check-mark" aria-hidden="true" th:text="${p.feito} ? '✓' : ${it.count}">1</span>
+        <div class="check-body">
+          <strong th:text="${p.titulo}">Chave Pix</strong>
+          <span th:text="${p.detalhe}">Sem ela, o cliente não consegue pagar.</span>
+        </div>
+        <a class="check-action" th:if="${p.link}" th:href="@{${p.link}}"
+           th:text="${p.feito} ? 'Editar' : 'Configurar'"
+           th:attr="aria-label=|${p.feito ? 'Editar' : 'Configurar'} ${p.titulo}|">Configurar</a>
+        <span class="check-action soon-tag" th:unless="${p.link}">Em breve</span>
+      </li>
+    </ol>
+  </section>
+
+  <section class="app-section app-grid">
+    <div class="app-card">
+      <h2>Regras</h2>
+      <dl class="kv">
+        <div th:each="r : ${resumoRegras}"><dt th:text="${r.first}">Pagamento</dt><dd th:text="${r.second}">No final</dd></div>
+      </dl>
+      <a class="link-button" href="/painel/regras" th:href="@{/painel/regras}">Mudar regras</a>
+    </div>
+
+    <div class="app-card" th:classappend="${barraca.temPix} ? '' : 'app-card-warn'">
+      <h2>Pix</h2>
+      <dl class="kv" th:if="${barraca.temPix}">
+        <div><dt>Chave</dt><dd class="mono" th:text="${pixDisplay}">123.456.789-09</dd></div>
+        <div><dt>Recebedor</dt><dd th:text="${barraca.nomeRecebedorPix}">JOSE DA SILVA</dd></div>
+        <div><dt>Cidade</dt><dd th:text="${barraca.cidadePix}">GUARUJA</dd></div>
+      </dl>
+      <p th:unless="${barraca.temPix}">Nenhuma chave cadastrada. O dinheiro vai direto para a sua conta: o MesaMar não toca no pagamento.</p>
+      <a class="link-button" href="/painel/pix" th:href="@{/painel/pix}" th:text="${barraca.temPix} ? 'Trocar chave' : 'Cadastrar chave'">Cadastrar chave</a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

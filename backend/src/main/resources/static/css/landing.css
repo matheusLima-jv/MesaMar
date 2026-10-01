@@ -363,6 +363,16 @@ h2 { font-size: clamp(2rem, 6vw, 3.4rem); max-width: 16ch; }
 .admin-details { margin-top: 1.5rem; }
 .admin-details summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
 
+/* Convites (admin) */
+.invite-created { margin: 0 0 1.5rem; padding: 1.25rem; background: #fff; border: 2px solid var(--ink); border-radius: 14px; box-shadow: 6px 6px 0 var(--sun); }
+.invite-created-title { margin: 0; font-size: 1.05rem; }
+.invite-link { width: 100%; min-height: 48px; margin: 0 0 1rem; padding: 0.6rem 0.8rem; font: 500 0.9rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; border: 2px solid var(--rule); border-radius: 10px; background: var(--paper); }
+.invite-form { display: flex; flex-wrap: wrap; align-items: end; gap: 0 1rem; margin-bottom: 1.5rem; }
+.invite-form .field { flex: 1 1 18rem; margin: 0; }
+.invite-form input { width: 100%; min-height: 52px; padding: 0.7rem 0.9rem; font: 500 1rem/1.3 var(--body); border: 2px solid var(--rule); border-radius: 10px; background: #fff; }
+.invite-form .btn { margin-top: 1rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
 /* FAQ */
 .faq .wrap { display: grid; gap: 2rem; }
 .faq-list { border-top: 2px solid var(--ink); }
