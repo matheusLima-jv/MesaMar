@@ -4,6 +4,7 @@ import br.com.mesamar.barraca.BarracaRepository
 import br.com.mesamar.comanda.AbertaPor
 import br.com.mesamar.eventos.HubEventos
 import br.com.mesamar.pedido.FilaService
+import br.com.mesamar.pedido.PausaService
 import br.com.mesamar.pedido.PedidoFila
 import br.com.mesamar.pedido.ResultadoFila
 import br.com.mesamar.pedido.StatusPedido
@@ -61,7 +62,21 @@ data class FilaView(
     /** Horário do servidor agora: o app calcula a diferença para o relógio dele e a usa nos tempos de espera. */
     val agora: String,
     val tempoAlertaMin: Int,
+    /** O quiosque está sem receber pedidos pelo celular dos clientes. */
+    val pedidosPausados: Boolean,
+    val mensagemPausa: String?,
     val pedidos: List<PedidoFilaView>,
+)
+
+data class PausaRequest(
+    val pausado: Boolean? = null,
+    /** Recado para os clientes (até 80 letras). Só vale ao pausar. */
+    val mensagem: String? = null,
+)
+
+data class PausaView(
+    val pedidosPausados: Boolean,
+    val mensagemPausa: String?,
 )
 
 /**
@@ -74,6 +89,7 @@ class StaffFilaController(
     private val fila: FilaService,
     private val barracas: BarracaRepository,
     private val hub: HubEventos,
+    private val pausa: PausaService,
     private val clock: Clock,
 ) {
     @GetMapping("/fila")
@@ -84,8 +100,24 @@ class StaffFilaController(
         return FilaView(
             agora = Instant.now(clock).toString(),
             tempoAlertaMin = barraca.tempoAlertaPedidoMin,
+            pedidosPausados = barraca.pedidosPausados,
+            mensagemPausa = barraca.mensagemPausa,
             pedidos = fila.listar(principal.barracaId).map(::view),
         )
+    }
+
+    /**
+     * "Pausar pedidos" (no pico, ou quando o estoque acaba) e "Voltar a receber". Vale na hora para todos os clientes
+     * da barraca, que são avisados em tempo real. Dono e atendentes podem usar. Repetir a mesma ação não faz mal.
+     */
+    @PostMapping("/pausa")
+    fun pausar(
+        @AuthenticationPrincipal principal: StaffPrincipal,
+        @RequestBody body: PausaRequest,
+    ): ResponseEntity<Any> {
+        val pausado = body.pausado ?: return erro(HttpStatus.BAD_REQUEST, "validacao", "Diga se é para pausar ou voltar a receber pedidos.")
+        val barraca = pausa.definir(principal.barracaId, pausado, body.mensagem)
+        return ResponseEntity.ok(PausaView(barraca.pedidosPausados, barraca.mensagemPausa))
     }
 
     /** "Em preparo" e "Entregue". Repetir a mesma ação não faz mal. */

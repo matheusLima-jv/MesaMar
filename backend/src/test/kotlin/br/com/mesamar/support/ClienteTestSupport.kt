@@ -73,8 +73,10 @@ class ClienteTestSupport(
     fun novaComanda(
         q: Quiosque,
         nome: String = "Ana",
+        guardaSolId: UUID? = null,
     ): String {
-        val resultado = checkin.checkin(q.barracaId, AbertaPor(q.usuarioId, null), CheckinRequest(nome = nome, consentimento = true))
+        val pedido = CheckinRequest(nome = nome, guardaSolId = guardaSolId, consentimento = true)
+        val resultado = checkin.checkin(q.barracaId, AbertaPor(q.usuarioId, null), pedido)
         return (resultado as ResultadoCheckin.Ok).detalhe.comanda.tokenAcesso
     }
 

@@ -173,7 +173,7 @@ class ClienteController(
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header("Retry-After", "30").build()
         }
         response.setHeader("X-Accel-Buffering", "no")
-        return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM).body(hub.assinarComanda(comanda.id))
+        return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM).body(hub.assinarComanda(comanda.id, comanda.barracaId))
     }
 
     @PostMapping("/pedidos")

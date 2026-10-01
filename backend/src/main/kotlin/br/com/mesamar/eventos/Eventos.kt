@@ -16,15 +16,75 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import javax.sql.DataSource
 
-/** O canal do PostgreSQL por onde passam os avisos de "um pedido mudou". */
+/** O canal do PostgreSQL por onde passam os avisos de tempo real. */
 const val CANAL_PEDIDOS = "mesamar_pedidos"
 
-/** Um pedido nasceu ou mudou. Leva só ids: quem recebe busca o estado novo pela API (que confere a barraca). */
-data class EventoPedido(
-    val barracaId: UUID,
-    val comandaId: UUID,
-    val pedidoId: UUID,
-)
+/**
+ * O que pode acontecer e interessa em tempo real. Os avisos levam só ids (e o número do pedido): quem recebe busca
+ * o estado pela API, que confere a barraca.
+ */
+sealed interface EventoTempoReal {
+    val barracaId: UUID
+
+    /** Um pedido nasceu ou mudou (status, item cancelado). */
+    data class PedidoMudou(
+        override val barracaId: UUID,
+        val comandaId: UUID,
+        val pedidoId: UUID,
+    ) : EventoTempoReal
+
+    /** O quiosque pausou ou voltou a receber pedidos: o app e todas as comandas da barraca precisam saber. */
+    data class PausaMudou(
+        override val barracaId: UUID,
+    ) : EventoTempoReal
+
+    /** Um pedido passou do tempo de espera configurado. */
+    data class PedidoAtrasado(
+        override val barracaId: UUID,
+        val pedidoId: UUID,
+        val numero: Int,
+    ) : EventoTempoReal
+
+    /** O mesmo texto que vai pelo `NOTIFY` (só ids e números, nunca nome ou dado pessoal). */
+    fun json(): String =
+        when (this) {
+            is PedidoMudou -> """{"t":"pedido","b":"$barracaId","c":"$comandaId","p":"$pedidoId"}"""
+            is PausaMudou -> """{"t":"pausa","b":"$barracaId"}"""
+            is PedidoAtrasado -> """{"t":"atraso","b":"$barracaId","p":"$pedidoId","n":$numero}"""
+        }
+
+    companion object {
+        private fun texto(
+            json: String,
+            campo: String,
+        ): String? = Regex(""""$campo":"([^"]+)"""").find(json)?.groupValues?.get(1)
+
+        private fun id(
+            json: String,
+            campo: String,
+        ): UUID? = texto(json, campo)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+
+        /** Lê um aviso do `NOTIFY`. `null` se não for um aviso conhecido. */
+        fun ler(json: String): EventoTempoReal? {
+            val barraca = id(json, "b") ?: return null
+            return when (texto(json, "t")) {
+                "pedido" -> PedidoMudou(barraca, id(json, "c") ?: return null, id(json, "p") ?: return null)
+                "pausa" -> PausaMudou(barraca)
+                "atraso" ->
+                    PedidoAtrasado(
+                        barraca,
+                        id(json, "p") ?: return null,
+                        Regex(""""n":(\d+)""")
+                            .find(json)
+                            ?.groupValues
+                            ?.get(1)
+                            ?.toIntOrNull() ?: return null,
+                    )
+                else -> null
+            }
+        }
+    }
+}
 
 /**
  * Publica os eventos no PostgreSQL (`NOTIFY`) em vez de falar direto com os assinantes em memória.
@@ -35,14 +95,26 @@ data class EventoPedido(
 class PublicadorEventos(
     private val jdbc: JdbcTemplate,
 ) {
+    fun publicar(evento: EventoTempoReal) {
+        jdbc.queryForList("SELECT pg_notify(?, ?)", CANAL_PEDIDOS, evento.json())
+    }
+
     fun pedidoMudou(
         barracaId: UUID,
         comandaId: UUID,
         pedidoId: UUID,
-    ) {
-        jdbc.queryForList("SELECT pg_notify(?, ?)", CANAL_PEDIDOS, """{"b":"$barracaId","c":"$comandaId","p":"$pedidoId"}""")
-    }
+    ) = publicar(EventoTempoReal.PedidoMudou(barracaId, comandaId, pedidoId))
+
+    fun pausaMudou(barracaId: UUID) = publicar(EventoTempoReal.PausaMudou(barracaId))
+
+    fun pedidoAtrasado(
+        barracaId: UUID,
+        pedidoId: UUID,
+        numero: Int,
+    ) = publicar(EventoTempoReal.PedidoAtrasado(barracaId, pedidoId, numero))
 }
+
+private typealias Registro = ConcurrentHashMap<UUID, CopyOnWriteArrayList<Assinante>>
 
 /** Quem está ouvindo (um celular). Os envios são serializados: o `SseEmitter` não aceita duas escritas ao mesmo tempo. */
 class Assinante(
@@ -63,31 +135,48 @@ class Assinante(
 }
 
 /**
- * Registro dos assinantes de tempo real (SSE), por barraca (app do quiosque) e por comanda (página do cliente).
+ * Registro dos assinantes de tempo real (SSE): o app do quiosque, por barraca, e a página do cliente, por comanda
+ * (e também por barraca, para a pausa de pedidos chegar a todas as comandas dela).
  * Um evento de uma barraca só chega aos assinantes **dela**.
  */
 @Component
 class HubEventos {
     private val log = LoggerFactory.getLogger(javaClass)
-    private val porBarraca = ConcurrentHashMap<UUID, CopyOnWriteArrayList<Assinante>>()
-    private val porComanda = ConcurrentHashMap<UUID, CopyOnWriteArrayList<Assinante>>()
+    private val quiosques = Registro()
+    private val comandas = Registro()
+    private val clientesDaBarraca = Registro()
 
     // Cada envio vai numa thread virtual: um celular lento não segura a entrega para os outros.
     private val executor = Executors.newVirtualThreadPerTaskExecutor()
 
-    fun assinarBarraca(barracaId: UUID): SseEmitter = assinar(porBarraca, barracaId, LIMITE_POR_BARRACA)
+    fun assinarBarraca(barracaId: UUID): SseEmitter = assinar(listOf(quiosques to barracaId), LIMITE_POR_BARRACA)
 
-    fun assinarComanda(comandaId: UUID): SseEmitter = assinar(porComanda, comandaId, LIMITE_POR_COMANDA)
+    fun assinarComanda(
+        comandaId: UUID,
+        barracaId: UUID,
+    ): SseEmitter = assinar(listOf(comandas to comandaId, clientesDaBarraca to barracaId), LIMITE_POR_COMANDA)
 
-    fun distribuir(e: EventoPedido) {
-        val dados = """{"pedido":"${e.pedidoId}"}"""
-        porBarraca[e.barracaId]?.let { enviarA(porBarraca, e.barracaId, it) { SseEmitter.event().name("fila").data(dados) } }
-        porComanda[e.comandaId]?.let { enviarA(porComanda, e.comandaId, it) { SseEmitter.event().name("pedido").data(dados) } }
+    fun distribuir(e: EventoTempoReal) {
+        when (e) {
+            is EventoTempoReal.PedidoMudou -> {
+                enviarA(quiosques, e.barracaId) { SseEmitter.event().name("fila").data("""{"pedido":"${e.pedidoId}"}""") }
+                enviarA(comandas, e.comandaId) { SseEmitter.event().name("pedido").data("""{"pedido":"${e.pedidoId}"}""") }
+            }
+            is EventoTempoReal.PausaMudou -> {
+                enviarA(quiosques, e.barracaId) { SseEmitter.event().name("fila").data("""{"pausa":true}""") }
+                enviarA(clientesDaBarraca, e.barracaId) { SseEmitter.event().name("pedido").data("""{"pausa":true}""") }
+            }
+            is EventoTempoReal.PedidoAtrasado ->
+                enviarA(
+                    quiosques,
+                    e.barracaId,
+                ) { SseEmitter.event().name("atraso").data("""{"pedido":"${e.pedidoId}","numero":${e.numero}}""") }
+        }
     }
 
     /** Depois de uma queda da conexão com o banco, eventos podem ter se perdido: manda todo mundo buscar o estado de novo. */
     fun ressincronizar() {
-        todos().forEach { (mapa, chave, lista) -> enviarA(mapa, chave, lista) { SseEmitter.event().name("ressincronizar").data("{}") } }
+        todos().forEach { (registro, chave) -> enviarA(registro, chave) { SseEmitter.event().name("ressincronizar").data("{}") } }
     }
 
     /**
@@ -96,32 +185,34 @@ class HubEventos {
      */
     @Scheduled(fixedDelayString = "\${mesamar.sse.batimento:PT25S}")
     fun batimento() {
-        todos().forEach { (mapa, chave, lista) -> enviarA(mapa, chave, lista) { SseEmitter.event().comment("ping") } }
+        todos().forEach { (registro, chave) -> enviarA(registro, chave) { SseEmitter.event().comment("ping") } }
     }
 
-    /** Assinantes agora, só para os testes e o diagnóstico. */
-    fun total(): Int = todos().sumOf { it.lista.size }
+    /** Assinantes agora (cada conexão conta uma vez), só para os testes e o diagnóstico. */
+    fun total(): Int = quiosques.values.sumOf { it.size } + comandas.values.sumOf { it.size }
 
-    private data class Grupo(
-        val mapa: ConcurrentHashMap<UUID, CopyOnWriteArrayList<Assinante>>,
-        val chave: UUID,
-        val lista: CopyOnWriteArrayList<Assinante>,
-    )
-
-    private fun todos(): List<Grupo> =
-        porBarraca.map { (k, v) -> Grupo(porBarraca, k, v) } + porComanda.map { (k, v) -> Grupo(porComanda, k, v) }
+    private fun todos(): List<Pair<Registro, UUID>> =
+        listOf(quiosques, comandas, clientesDaBarraca).flatMap { registro -> registro.keys.map { registro to it } }
 
     private fun assinar(
-        mapa: ConcurrentHashMap<UUID, CopyOnWriteArrayList<Assinante>>,
-        chave: UUID,
+        destinos: List<Pair<Registro, UUID>>,
         limite: Int,
     ): SseEmitter {
         val emitter = SseEmitter(TEMPO_MAXIMO_MS)
         val assinante = Assinante(emitter)
-        val lista = mapa.compute(chave) { _, atual -> (atual ?: CopyOnWriteArrayList()).also { it += assinante } }!!
+        destinos.forEach { (registro, chave) ->
+            registro.compute(chave) { _, atual -> (atual ?: CopyOnWriteArrayList()).also { it += assinante } }
+        }
         // Abas esquecidas abertas: passou do limite, a mais antiga cai (o navegador reconecta sozinho se ainda precisar)
-        while (lista.size > limite) lista.removeFirstOrNull()?.encerrar()
-        val sair = Runnable { retirar(mapa, chave, assinante) }
+        val (registroPrincipal, chavePrincipal) = destinos.first()
+        registroPrincipal[chavePrincipal]?.let { lista ->
+            while (lista.size > limite) {
+                val antigo = lista.removeFirstOrNull() ?: break
+                retirarDeTodos(antigo)
+                antigo.encerrar()
+            }
+        }
+        val sair = Runnable { retirarDeTodos(assinante) }
         emitter.onCompletion(sair)
         emitter.onError { sair.run() }
         // Fim do tempo máximo: encerra de propósito, e o EventSource do navegador reconecta sozinho
@@ -130,28 +221,27 @@ class HubEventos {
         return emitter
     }
 
-    private fun retirar(
-        mapa: ConcurrentHashMap<UUID, CopyOnWriteArrayList<Assinante>>,
-        chave: UUID,
-        assinante: Assinante,
-    ) {
-        mapa.computeIfPresent(chave) { _, lista ->
-            lista.remove(assinante)
-            if (lista.isEmpty()) null else lista
+    private fun retirarDeTodos(assinante: Assinante) {
+        listOf(quiosques, comandas, clientesDaBarraca).forEach { registro ->
+            registro.keys.forEach { chave ->
+                registro.computeIfPresent(chave) { _, lista ->
+                    lista.remove(assinante)
+                    if (lista.isEmpty()) null else lista
+                }
+            }
         }
     }
 
     private fun enviarA(
-        mapa: ConcurrentHashMap<UUID, CopyOnWriteArrayList<Assinante>>,
+        registro: Registro,
         chave: UUID,
-        lista: List<Assinante>,
         evento: () -> SseEmitter.SseEventBuilder,
     ) {
-        lista.forEach { assinante ->
+        registro[chave]?.forEach { assinante ->
             executor.execute {
                 if (!assinante.enviar(evento())) {
                     log.debug("Assinante de tempo real caiu; removendo")
-                    retirar(mapa, chave, assinante)
+                    retirarDeTodos(assinante)
                     assinante.encerrar()
                 }
             }
@@ -229,19 +319,15 @@ class ReceptorEventos(
     }
 
     private fun repassar(payload: String) {
-        val m = PADRAO.matchEntire(payload)
-        if (m == null) {
-            log.warn("Aviso de pedido ilegível: {}", payload)
+        val evento = EventoTempoReal.ler(payload)
+        if (evento == null) {
+            log.warn("Aviso de tempo real ilegível: {}", payload)
             return
         }
-        hub.distribuir(
-            EventoPedido(UUID.fromString(m.groupValues[1]), UUID.fromString(m.groupValues[2]), UUID.fromString(m.groupValues[3])),
-        )
+        hub.distribuir(evento)
     }
 
     companion object {
-        private const val UUID_RE = "[0-9a-fA-F-]{36}"
-        private val PADRAO = Regex("""\{"b":"($UUID_RE)","c":"($UUID_RE)","p":"($UUID_RE)"}""")
         private const val ESPERA_INICIAL_MS = 1_000L
         private const val ESPERA_MAXIMA_MS = 30_000L
         private const val ESPERA_AVISO_MS = 30_000

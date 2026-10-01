@@ -203,7 +203,11 @@ class PedidoService(
                 Bloqueio("comanda-fechada", "Esta comanda foi encerrada. Obrigado pela visita!")
             comanda.status == StatusComanda.CANCELADA -> Bloqueio("comanda-cancelada", "Esta comanda foi cancelada. Fale com um atendente.")
             barraca.pedidosPausados ->
-                Bloqueio("pedidos-pausados", "O quiosque pausou os pedidos por agora. Chame um atendente ou tente de novo daqui a pouco.")
+                Bloqueio(
+                    "pedidos-pausados",
+                    barraca.mensagemPausa?.let { "O quiosque pausou os pedidos: $it" }
+                        ?: "O quiosque pausou os pedidos por agora. Chame um atendente ou tente de novo daqui a pouco.",
+                )
             // Limite atingido: a conta chegou ao valor que o dono definiu, então paga uma parte antes de pedir mais
             limite != null && saldoCentavos >= limite ->
                 Bloqueio("limite-saldo", "Sua conta chegou a ${Money.format(limite)}. Para pedir mais, pague uma parte com um atendente.")
