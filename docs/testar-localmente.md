@@ -198,6 +198,26 @@ Consultar direto no banco, se quiser:
 docker compose exec db psql -U mesamar -c "select nome, nome_barraca, praia, whatsapp, criado_em from lead order by criado_em desc;"
 ```
 
+### Fechar conta e Pix (Fase 5 · checkpoint 5.1)
+
+Precisa de uma barraca com a chave Pix configurada (Painel → Pix) e de um cliente com pedidos. Para ler o QR no app do banco, use o celular do cliente **e outro aparelho** para ler a tela (o app do banco não lê a própria tela).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 86 | Celular do cliente → aba **Meus pedidos** | Olhar embaixo da lista | Botão **"Fechar conta"**, que abre a aba **Conta** |
+| 87 | Aba **Conta** | Olhar o extrato | Todos os pedidos, itens cancelados **riscados**, e **"Falta pagar"** igual ao saldo do cabeçalho. O botão "Fechar a conta" fica desligado até escolher a forma |
+| 88 | Escolher **Dinheiro**, digitar `abc` em "Vou pagar com R$", tocar em "Fechar a conta" | Olhar | Aviso "Não entendemos o valor do troco". Com `100`: **"Aguardando confirmação do quiosque"** e "Vá ao quiosque pagar R$ … em dinheiro (troco para R$ 100,00)". Valor de troco **menor que a conta** é recusado |
+| 89 | Aba **Cardápio**, depois **Conta → "Voltar e pedir mais"** | Tentar pedir antes e depois | Com a conta fechando, o cardápio avisa "Sua conta está sendo fechada…" e **não deixa pedir**. Depois de "Voltar e pedir mais", dá para pedir de novo e a escolha de forma some |
+| 90 | Escolher **Cartão** e fechar | Olhar | "Vá ao quiosque pagar … na maquininha" e "O quiosque foi avisado às HH:MM" |
+| 91 | Escolher **Pix** e fechar | Olhar a tela e **ler o QR com o app de um banco** (ou colar o código em "Pix copia e cola") | O banco mostra **o nome e a cidade da barraca e o valor da conta**. Conferir também que a **chave** é a do dono |
+| 92 | Tocar em **"Copiar código Pix"** | Colar num bloco de notas | O texto começa com `000201` e termina com `6304` e 4 letras/números. Em `http://IP-DO-PC` o navegador pode bloquear a cópia: o aviso manda abrir **"Ver o código"** e copiar à mão |
+| 93 | Tocar em **"Já paguei"** | Olhar | "Você avisou às HH:MM. O quiosque vai conferir o Pix no app do banco." O botão some |
+| 94 | **"Trocar a forma de pagamento"** → Dinheiro → "Trocar a forma de pagamento" | Olhar | Volta a "Aguardando confirmação", agora em dinheiro, **sem** o QR |
+| 95 | Painel do dono sem chave Pix, cliente fecha a conta | Olhar as formas | Só **Dinheiro** e **Cartão** aparecem |
+| 96 | Cliente com a conta zerada (nenhum pedido) | Abrir a aba Conta | "Não há nada para pagar agora" e nenhuma forma de pagamento |
+
+> No 5.1 o app do quiosque **ainda não mostra** a comanda aguardando pagamento, e o dono não é avisado: isso chega no 5.2. Hoje só dá para ver pelo celular do cliente.
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:
@@ -218,7 +238,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 303 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 323 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 
