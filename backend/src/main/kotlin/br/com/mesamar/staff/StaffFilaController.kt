@@ -51,7 +51,7 @@ data class PedidoFilaView(
     val id: UUID,
     val numero: Int,
     val status: String,
-    /** Horário do servidor (ISO). O tempo de espera sai da diferença para `FilaView.agora`, nunca do relógio do celular. */
+    /** Horário do servidor (ISO) em que o pedido entrou na fila. O tempo de espera sai da diferença para `FilaView.agora`, nunca do relógio do celular. */
     val criadoEm: String,
     val guardaSol: Int?,
     val cliente: String,
@@ -187,7 +187,7 @@ class StaffFilaController(
             id = p.pedido.id,
             numero = p.pedido.numeroPedido,
             status = p.pedido.status.name,
-            criadoEm = p.pedido.criadoEm.toString(),
+            criadoEm = (p.pedido.naFilaEm ?: p.pedido.criadoEm).toString(),
             guardaSol = p.guardaSol,
             cliente = p.cliente,
             itens = p.itens.map { ItemFilaView(it.id, it.nomeSnapshot, it.quantidade, it.observacao, it.cancelado, it.motivoCancelamento) },

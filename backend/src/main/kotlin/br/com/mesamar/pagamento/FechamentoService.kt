@@ -7,9 +7,11 @@ import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.common.BrCodePix
 import br.com.mesamar.common.Money
+import br.com.mesamar.eventos.PublicadorEventos
 import br.com.mesamar.pedido.ItemPedidoRepository
 import br.com.mesamar.pedido.PedidoDetalhe
 import br.com.mesamar.pedido.PedidoService
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -35,6 +37,18 @@ data class Extrato(
     val saldoCentavos: Long,
     /** Só quando a comanda aguarda um Pix e ainda há saldo. */
     val pix: PixParaPagar?,
+)
+
+/**
+ * O cliente avisou o quiosque que está indo pagar (dinheiro ou cartão) ou que já pagou o Pix. Quem escuta (o push) age
+ * depois do commit.
+ */
+data class PagamentoAvisado(
+    val barracaId: UUID,
+    val comandaId: UUID,
+    val metodo: MetodoPagamento,
+    val saldoCentavos: Long,
+    val trocoParaCentavos: Long?,
 )
 
 sealed interface ResultadoConta {
@@ -67,6 +81,8 @@ class FechamentoService(
     private val pedidos: PedidoService,
     private val pagamentos: PagamentoRepository,
     private val itens: ItemPedidoRepository,
+    private val tempoReal: PublicadorEventos,
+    private val spring: ApplicationEventPublisher,
     private val clock: Clock,
 ) {
     @Transactional(readOnly = true)
@@ -96,11 +112,20 @@ class FechamentoService(
             )
         }
 
+        // Repetir o mesmo toque (o celular reenviou) não avisa o quiosque de novo
+        val mudou =
+            comanda.status != StatusComanda.AGUARDANDO_PAGAMENTO ||
+                comanda.metodoPagamentoPretendido != metodo ||
+                comanda.trocoParaCentavos != troco
         comanda.status = StatusComanda.AGUARDANDO_PAGAMENTO
         comanda.metodoPagamentoPretendido = metodo
         comanda.trocoParaCentavos = troco
-        // Dinheiro e cartão: o aviso é este toque. Pix: o aviso é o "já paguei", que vem depois.
-        comanda.avisoPagamentoEm = if (metodo == MetodoPagamento.PIX) null else Instant.now(clock)
+        if (mudou) {
+            // Dinheiro e cartão: o aviso é este toque. Pix: o aviso é o "já paguei", que vem depois.
+            comanda.avisoPagamentoEm = if (metodo == MetodoPagamento.PIX) null else Instant.now(clock)
+            tempoReal.contaMudou(barraca.id, comanda.id)
+            if (metodo != MetodoPagamento.PIX) spring.publishEvent(PagamentoAvisado(barraca.id, comanda.id, metodo, saldo, troco))
+        }
         return ResultadoConta.Ok(montar(comanda, barraca))
     }
 
@@ -112,7 +137,13 @@ class FechamentoService(
         if (comanda.status != StatusComanda.AGUARDANDO_PAGAMENTO || comanda.metodoPagamentoPretendido != MetodoPagamento.PIX) {
             return ResultadoConta.Recusado("sem-pix", "Não há um Pix aguardando. Feche a conta e escolha Pix primeiro.")
         }
-        if (comanda.avisoPagamentoEm == null) comanda.avisoPagamentoEm = Instant.now(clock)
+        if (comanda.avisoPagamentoEm == null) {
+            comanda.avisoPagamentoEm = Instant.now(clock)
+            tempoReal.contaMudou(barraca.id, comanda.id)
+            spring.publishEvent(
+                PagamentoAvisado(barraca.id, comanda.id, MetodoPagamento.PIX, pedidos.saldoCentavos(comanda.id), null),
+            )
+        }
         return ResultadoConta.Ok(montar(comanda, barraca))
     }
 
@@ -134,6 +165,7 @@ class FechamentoService(
                 comanda.metodoPagamentoPretendido = null
                 comanda.trocoParaCentavos = null
                 comanda.avisoPagamentoEm = null
+                tempoReal.contaMudou(barraca.id, comanda.id)
             }
             else -> return recusaPorEstado(barraca, comanda, aceitaAguardando = false)!!
         }

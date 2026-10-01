@@ -94,6 +94,13 @@ class Comanda(
     /** Quando o cliente avisou que está indo pagar (ou que já pagou o Pix). Ordena a aba Pagamentos. */
     @Column(name = "aviso_pagamento_em")
     var avisoPagamentoEm: Instant? = null,
+    /** Conta encerrada pelo dono com saldo pendente: por quê, quanto ficou sem pagar e quem fechou (auditoria). */
+    @Column(name = "fechamento_forcado_motivo", length = 120)
+    var fechamentoForcadoMotivo: String? = null,
+    @Column(name = "saldo_perdoado_centavos")
+    var saldoPerdoadoCentavos: Long? = null,
+    @Column(name = "fechada_por_usuario_id")
+    var fechadaPorUsuarioId: UUID? = null,
 )
 
 interface ClienteRepository : JpaRepository<Cliente, UUID>

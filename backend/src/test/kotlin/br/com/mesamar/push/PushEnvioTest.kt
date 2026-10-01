@@ -5,6 +5,8 @@ import br.com.mesamar.barraca.ModoPagamento
 import br.com.mesamar.cardapio.CategoriaRepository
 import br.com.mesamar.cardapio.ProdutoRepository
 import br.com.mesamar.comanda.CheckinService
+import br.com.mesamar.comanda.ComandaRepository
+import br.com.mesamar.common.TipoChavePix
 import br.com.mesamar.conta.ConviteService
 import br.com.mesamar.conta.UsuarioRepository
 import br.com.mesamar.equipe.Atendente
@@ -47,6 +49,7 @@ class PushEnvioTest(
     produtos: ProdutoRepository,
     checkin: CheckinService,
     private val barracas: BarracaRepository,
+    private val comandas: ComandaRepository,
     private val guardaSois: GuardaSolRepository,
     private val atendentes: AtendenteRepository,
     private val subs: PushSubscriptionRepository,
@@ -170,6 +173,101 @@ class PushEnvioTest(
             pedido(apoio.novaComanda(q), Item(q.coco.id, 1))
 
             assertTrue(servidor.nada("/push/q"), "o pedido só entra na fila (e avisa) depois do pagamento")
+        }
+    }
+
+    @Test
+    fun `quando o pagamento libera o pedido para a fila, o aviso de pedido novo sai nessa hora`() {
+        FakePushServer().use { servidor ->
+            val q = apoio.quiosque("Barraca Push Libera")
+            val aparelho = inscrever(q, servidor, "/push/q")
+            val barraca = barracas.findById(q.barracaId).orElseThrow()
+            barraca.modoPagamento = ModoPagamento.POR_PEDIDO
+            barracas.save(barraca)
+            val token = apoio.novaComanda(q)
+            pedido(token, Item(q.coco.id, 1))
+            assertTrue(servidor.nada("/push/q"), "ainda aguarda o pagamento")
+            val comandaId = comandas.findByTokenAcesso(token)!!.id
+
+            val r =
+                app(q).post(
+                    "/api/staff/comandas/$comandaId/pagamentos",
+                    """{"id":"${UUID.randomUUID()}","metodo":"DINHEIRO","valorCentavos":1200}""",
+                )
+
+            assertEquals(201, r.statusCode(), r.body())
+            assertTrue(servidor.esperar("/push/q"), "o pagamento colocou o pedido na fila")
+            assertContains(aparelho.decifrar(servidor.em("/push/q").single().corpo), """"titulo":"Pedido nº 1 · Balcão"""")
+        }
+    }
+
+    @Test
+    fun `o aviso de que vai pagar leva valor, forma e troco, sem o nome do cliente, e so avisa uma vez`() {
+        FakePushServer().use { servidor ->
+            val a = apoio.quiosque("Barraca Push Pagar A")
+            val b = apoio.quiosque("Barraca Push Pagar B")
+            val aparelhoA = inscrever(a, servidor, "/push/a")
+            inscrever(b, servidor, "/push/b")
+            val guardaSol = guardaSois.save(GuardaSol(barracaId = a.barracaId, numero = 12, criadoEm = Instant.now()))
+            val token = apoio.novaComanda(a, "Ana Silva", guardaSol.id)
+            pedido(token, Item(a.coco.id, 1), Item(a.pastel.id, 1))
+            assertTrue(servidor.esperar("/push/a"), "o pedido novo avisa; este teste só olha o aviso de pagamento")
+            servidor.limpar()
+            val celular = apoio.celular()
+
+            assertEquals(
+                200,
+                celular.postJson("/api/c/$token/conta/fechar", """{"metodo":"DINHEIRO","trocoParaCentavos":5000}""").statusCode(),
+            )
+
+            assertTrue(servidor.esperar("/push/a"), "o quiosque é avisado")
+            assertTrue(servidor.nada("/push/b"), "e só ele")
+            val texto = aparelhoA.decifrar(servidor.em("/push/a").single().corpo)
+            assertContains(texto, """"titulo":"Guarda-sol 12 · indo pagar"""")
+            assertContains(texto, """"corpo":"R$ 37,00 · Dinheiro (troco para R$ 50,00)"""")
+            assertContains(texto, """"url":"/staff/#/pagamentos"""")
+            assertContains(texto, """"tipo":"INDO_PAGAR"""")
+            assertFalse(texto.contains("Ana"), "o nome do cliente não vai no aviso: $texto")
+
+            // O mesmo toque reenviado pelo celular não avisa de novo
+            assertEquals(
+                200,
+                celular.postJson("/api/c/$token/conta/fechar", """{"metodo":"DINHEIRO","trocoParaCentavos":5000}""").statusCode(),
+            )
+            Thread.sleep(1_500)
+            assertEquals(1, servidor.em("/push/a").size, "repetir não faz barulho")
+        }
+    }
+
+    @Test
+    fun `no Pix o aviso sai no ja paguei e pede para conferir no app do banco`() {
+        FakePushServer().use { servidor ->
+            val q = apoio.quiosque("Barraca Push Pix")
+            val barraca = barracas.findById(q.barracaId).orElseThrow()
+            barraca.tipoChavePix = TipoChavePix.ALEATORIA
+            barraca.chavePix = "123e4567-e12b-12d1-a456-426655440000"
+            barraca.nomeRecebedorPix = "FULANO DE TAL"
+            barraca.cidadePix = "BRASILIA"
+            barracas.save(barraca)
+            val aparelho = inscrever(q, servidor, "/push/q")
+            val token = apoio.novaComanda(q)
+            pedido(token, Item(q.pastel.id, 1))
+            assertTrue(servidor.esperar("/push/q"), "o pedido novo avisa; este teste só olha o aviso de pagamento")
+            servidor.limpar()
+            val celular = apoio.celular()
+
+            assertEquals(200, celular.postJson("/api/c/$token/conta/fechar", """{"metodo":"PIX"}""").statusCode())
+            assertTrue(servidor.nada("/push/q"), "escolher o Pix não avisa: o aviso é o já paguei")
+
+            assertEquals(200, celular.postJson("/api/c/$token/conta/pix-pago", "{}").statusCode())
+
+            assertTrue(servidor.esperar("/push/q"))
+            val texto = aparelho.decifrar(servidor.em("/push/q").single().corpo)
+            assertContains(texto, """"titulo":"Balcão · Pix enviado"""")
+            assertContains(texto, """"corpo":"R$ 25,00 · confira no app do banco"""")
+            assertEquals(200, celular.postJson("/api/c/$token/conta/pix-pago", "{}").statusCode())
+            Thread.sleep(1_500)
+            assertEquals(1, servidor.em("/push/q").size, "repetir o já paguei não avisa de novo")
         }
     }
 

@@ -47,6 +47,9 @@ class FakePushServer : AutoCloseable {
 
     fun em(caminho: String): List<Recebido> = recebidos.filter { it.caminho == caminho }
 
+    /** Esquece o que já chegou (para o teste olhar só o que vem depois de um ponto). */
+    fun limpar() = recebidos.clear()
+
     /** Espera chegarem [quantidade] envios no [caminho]. */
     fun esperar(
         caminho: String,

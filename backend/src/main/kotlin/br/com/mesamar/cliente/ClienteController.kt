@@ -3,7 +3,9 @@ package br.com.mesamar.cliente
 import br.com.mesamar.barraca.Barraca
 import br.com.mesamar.barraca.BarracaRepository
 import br.com.mesamar.comanda.ClienteRepository
+import br.com.mesamar.comanda.Comanda
 import br.com.mesamar.comanda.ComandaRepository
+import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.RateLimiter
 import br.com.mesamar.eventos.HubEventos
@@ -36,7 +38,9 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
@@ -219,13 +223,14 @@ class ClienteController(
     private val conta: FechamentoService,
     private val hub: HubEventos,
     private val rateLimiter: RateLimiter,
+    private val clock: Clock,
 ) {
     @GetMapping
     fun comanda(
         @PathVariable token: String,
         request: HttpServletRequest,
     ): ResponseEntity<Any> {
-        val comanda = comandas.findByTokenAcesso(token) ?: return recusado(request)
+        val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-geral:${comanda.id}", LIMITE_GERAL, JANELA_COMANDA)) return muitas()
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
         val cliente = clientes.findById(comanda.clienteId).orElseThrow()
@@ -250,7 +255,7 @@ class ClienteController(
         @PathVariable token: String,
         request: HttpServletRequest,
     ): ResponseEntity<Any> {
-        val comanda = comandas.findByTokenAcesso(token) ?: return recusado(request)
+        val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-geral:${comanda.id}", LIMITE_GERAL, JANELA_COMANDA)) return muitas()
         return ResponseEntity.ok(
             MeusPedidosView(
@@ -270,7 +275,7 @@ class ClienteController(
         request: HttpServletRequest,
         response: HttpServletResponse,
     ): ResponseEntity<SseEmitter> {
-        val comanda = comandas.findByTokenAcesso(token)
+        val comanda = comandaVigente(token)
         if (comanda == null) {
             val dentro = rateLimiter.tryAcquire("c-invalido:${request.remoteAddr}", LIMITE_TOKEN_INVALIDO, JANELA_TOKEN_INVALIDO)
             return ResponseEntity.status(if (dentro) HttpStatus.NOT_FOUND else HttpStatus.TOO_MANY_REQUESTS).build()
@@ -288,7 +293,7 @@ class ClienteController(
         @PathVariable token: String,
         request: HttpServletRequest,
     ): ResponseEntity<Any> {
-        val comanda = comandas.findByTokenAcesso(token) ?: return recusado(request)
+        val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-geral:${comanda.id}", LIMITE_GERAL, JANELA_COMANDA)) return muitas()
         return respostaConta(ResultadoConta.Ok(conta.extrato(comanda)))
     }
@@ -300,7 +305,7 @@ class ClienteController(
         @RequestBody body: FecharContaRequest,
         request: HttpServletRequest,
     ): ResponseEntity<Any> {
-        val comanda = comandas.findByTokenAcesso(token) ?: return recusado(request)
+        val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-conta:${comanda.id}", LIMITE_CONTA, JANELA_COMANDA)) return muitas()
         val metodo = MetodoPagamento.fromCode(body.metodo)
         if (metodo == null && body.metodo != null) {
@@ -316,7 +321,7 @@ class ClienteController(
         @PathVariable token: String,
         request: HttpServletRequest,
     ): ResponseEntity<Any> {
-        val comanda = comandas.findByTokenAcesso(token) ?: return recusado(request)
+        val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-conta:${comanda.id}", LIMITE_CONTA, JANELA_COMANDA)) return muitas()
         return respostaConta(conta.jaPaguei(comanda))
     }
@@ -327,7 +332,7 @@ class ClienteController(
         @PathVariable token: String,
         request: HttpServletRequest,
     ): ResponseEntity<Any> {
-        val comanda = comandas.findByTokenAcesso(token) ?: return recusado(request)
+        val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-conta:${comanda.id}", LIMITE_CONTA, JANELA_COMANDA)) return muitas()
         return respostaConta(conta.reabrir(comanda))
     }
@@ -349,7 +354,7 @@ class ClienteController(
         @RequestBody body: PedidoRequest,
         request: HttpServletRequest,
     ): ResponseEntity<Any> {
-        val comanda = comandas.findByTokenAcesso(token) ?: return recusado(request)
+        val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-pedido:${comanda.id}", LIMITE_PEDIDOS, JANELA_COMANDA)) return muitas()
         val resultado =
             try {
@@ -380,6 +385,22 @@ class ClienteController(
     fun jsonInvalido(): ResponseEntity<Any> =
         ResponseEntity.badRequest().body(ErroView("validacao", "Não entendemos esse pedido. Atualize a página e tente de novo."))
 
+    /**
+     * A comanda do token, ou `null` se o token não existe **ou o extrato venceu**: depois de [EXTRATO_DIAS] dias da
+     * conta paga, o link deixa de valer e dá o mesmo 404 de um token que nunca existiu.
+     */
+    private fun comandaVigente(token: String): Comanda? {
+        val comanda = comandas.findByTokenAcesso(token) ?: return null
+        val fechadaEm = comanda.fechadaEm
+        if (comanda.status == StatusComanda.FECHADA &&
+            fechadaEm != null &&
+            fechadaEm.plus(Duration.ofDays(EXTRATO_DIAS)) < Instant.now(clock)
+        ) {
+            return null
+        }
+        return comanda
+    }
+
     /** Token que não existe: 404 igual para qualquer valor, e quem insiste de um mesmo IP é freado. */
     private fun recusado(request: HttpServletRequest): ResponseEntity<Any> {
         if (!rateLimiter.tryAcquire("c-invalido:${request.remoteAddr}", LIMITE_TOKEN_INVALIDO, JANELA_TOKEN_INVALIDO)) return muitas()
@@ -403,6 +424,9 @@ class ClienteController(
         const val LIMITE_GERAL = 90
         const val LIMITE_PEDIDOS = 20
         const val LIMITE_CONTA = 20
+
+        /** Por quantos dias, depois de paga, a conta continua abrindo para o cliente rever o extrato. */
+        const val EXTRATO_DIAS = 7L
         const val LIMITE_EVENTOS = 30
         const val LIMITE_TOKEN_INVALIDO = 30
         val JANELA_COMANDA: Duration = Duration.ofMinutes(1)

@@ -39,7 +39,7 @@ class AlertaAtrasoService(
             jdbc.query(
                 """
                 SELECT p.id, p.barraca_id, p.numero_pedido, g.numero AS guarda_sol,
-                       floor(extract(epoch FROM (now() - p.criado_em)) / 60)::int AS minutos
+                       floor(extract(epoch FROM (now() - COALESCE(p.na_fila_em, p.criado_em))) / 60)::int AS minutos
                 FROM pedido p
                 JOIN barraca b ON b.id = p.barraca_id
                 JOIN comanda c ON c.id = p.comanda_id
@@ -47,8 +47,8 @@ class AlertaAtrasoService(
                 WHERE p.status IN ('RECEBIDO', 'EM_PREPARO')
                   AND p.alerta_atraso_em IS NULL
                   AND b.ativa
-                  AND p.criado_em <= now() - make_interval(mins => b.tempo_alerta_pedido_min)
-                ORDER BY p.criado_em
+                  AND COALESCE(p.na_fila_em, p.criado_em) <= now() - make_interval(mins => b.tempo_alerta_pedido_min)
+                ORDER BY COALESCE(p.na_fila_em, p.criado_em)
                 LIMIT 100
                 FOR UPDATE OF p SKIP LOCKED
                 """.trimIndent(),

@@ -38,6 +38,12 @@ sealed interface EventoTempoReal {
         override val barracaId: UUID,
     ) : EventoTempoReal
 
+    /** A conta de uma comanda mudou (fechou, avisou que vai pagar, recebeu pagamento, foi bloqueada…). */
+    data class ContaMudou(
+        override val barracaId: UUID,
+        val comandaId: UUID,
+    ) : EventoTempoReal
+
     /** Um pedido passou do tempo de espera configurado. */
     data class PedidoAtrasado(
         override val barracaId: UUID,
@@ -50,6 +56,7 @@ sealed interface EventoTempoReal {
         when (this) {
             is PedidoMudou -> """{"t":"pedido","b":"$barracaId","c":"$comandaId","p":"$pedidoId"}"""
             is PausaMudou -> """{"t":"pausa","b":"$barracaId"}"""
+            is ContaMudou -> """{"t":"conta","b":"$barracaId","c":"$comandaId"}"""
             is PedidoAtrasado -> """{"t":"atraso","b":"$barracaId","p":"$pedidoId","n":$numero}"""
         }
 
@@ -70,6 +77,7 @@ sealed interface EventoTempoReal {
             return when (texto(json, "t")) {
                 "pedido" -> PedidoMudou(barraca, id(json, "c") ?: return null, id(json, "p") ?: return null)
                 "pausa" -> PausaMudou(barraca)
+                "conta" -> ContaMudou(barraca, id(json, "c") ?: return null)
                 "atraso" ->
                     PedidoAtrasado(
                         barraca,
@@ -106,6 +114,11 @@ class PublicadorEventos(
     ) = publicar(EventoTempoReal.PedidoMudou(barracaId, comandaId, pedidoId))
 
     fun pausaMudou(barracaId: UUID) = publicar(EventoTempoReal.PausaMudou(barracaId))
+
+    fun contaMudou(
+        barracaId: UUID,
+        comandaId: UUID,
+    ) = publicar(EventoTempoReal.ContaMudou(barracaId, comandaId))
 
     fun pedidoAtrasado(
         barracaId: UUID,
@@ -161,6 +174,10 @@ class HubEventos {
             is EventoTempoReal.PedidoMudou -> {
                 enviarA(quiosques, e.barracaId) { SseEmitter.event().name("fila").data("""{"pedido":"${e.pedidoId}"}""") }
                 enviarA(comandas, e.comandaId) { SseEmitter.event().name("pedido").data("""{"pedido":"${e.pedidoId}"}""") }
+            }
+            is EventoTempoReal.ContaMudou -> {
+                enviarA(quiosques, e.barracaId) { SseEmitter.event().name("conta").data("""{"comanda":"${e.comandaId}"}""") }
+                enviarA(comandas, e.comandaId) { SseEmitter.event().name("conta").data("""{"comanda":"${e.comandaId}"}""") }
             }
             is EventoTempoReal.PausaMudou -> {
                 enviarA(quiosques, e.barracaId) { SseEmitter.event().name("fila").data("""{"pausa":true}""") }

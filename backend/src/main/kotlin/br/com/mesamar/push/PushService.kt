@@ -87,7 +87,7 @@ data class MensagemPush(
     val url: String,
     /** Avisos com a mesma etiqueta se substituem na tela (um pedido, um aviso). */
     val tag: String,
-    /** `NOVO_PEDIDO` ou `PEDIDO_ATRASADO`. */
+    /** `NOVO_PEDIDO`, `PEDIDO_ATRASADO` ou `INDO_PAGAR`. */
     val tipo: String,
     /** Quanto tempo o serviço de push guarda o aviso se o aparelho estiver sem sinal. Depois disso ele perde o sentido. */
     val validadeSegundos: Int,

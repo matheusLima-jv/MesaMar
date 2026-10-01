@@ -73,6 +73,9 @@ class Pedido(
     /** Horário do servidor: define a ordem da fila. */
     @Column(name = "criado_em", nullable = false)
     val criadoEm: Instant,
+    /** Só nos pedidos que esperaram o pagamento: quando ele liberou o pedido para a fila. */
+    @Column(name = "na_fila_em")
+    var naFilaEm: Instant? = null,
     @Column(name = "em_preparo_em")
     var emPreparoEm: Instant? = null,
     @Column(name = "entregue_em")
@@ -136,7 +139,9 @@ interface PedidoRepository : JpaRepository<Pedido, UUID> {
     ): Pedido?
 
     /** A fila: ordem de chegada pelo horário do SERVIDOR; no empate, o número do pedido. */
-    @Query("select p from Pedido p where p.barracaId = :barracaId and p.status in :status order by p.criadoEm, p.numeroPedido")
+    @Query(
+        "select p from Pedido p where p.barracaId = :barracaId and p.status in :status order by coalesce(p.naFilaEm, p.criadoEm), p.numeroPedido",
+    )
     fun findFila(
         @Param("barracaId") barracaId: UUID,
         @Param("status") status: Collection<StatusPedido>,
