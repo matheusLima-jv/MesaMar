@@ -2,6 +2,7 @@ package br.com.mesamar
 
 import br.com.mesamar.support.HttpTestClient
 import br.com.mesamar.support.IntegrationTest
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.springframework.beans.factory.annotation.Value
@@ -29,6 +30,23 @@ class FrontendBundleTest(
 
         assertEquals(200, response.statusCode(), "GET $route")
         assertContains(response.body(), "data-app=\"$appName\"")
+    }
+
+    @Test
+    fun `link do QR do cliente abre a pagina do cliente`() {
+        val response = http.get("/c/AbCdEfGhIjKlMnOpQrStUv")
+
+        assertEquals(200, response.statusCode())
+        assertContains(response.body(), "data-app=\"web-customer\"")
+    }
+
+    @Test
+    fun `service worker da pagina do cliente fica em c para controlar o link do QR`() {
+        val response = http.get("/c/sw.js")
+
+        assertEquals(200, response.statusCode())
+        assertContains(response.body(), "mesamar-cliente")
+        assertContains(response.headers().firstValue("Content-Type").orElse(""), "javascript")
     }
 
     @ParameterizedTest(name = "{0} referencia um JS que existe")

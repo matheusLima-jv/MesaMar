@@ -5,14 +5,17 @@ import java.security.SecureRandom
 import java.util.Base64
 
 /**
- * Tokens de uso único (convite, troca de senha): 256 bits aleatórios em Base64 URL-safe.
- * No banco vai só o SHA-256 do token; o token em si só existe no link enviado.
+ * Tokens aleatórios em Base64 URL-safe, de um SecureRandom.
+ *
+ * - Convite e troca de senha: 256 bits (padrão). No banco vai só o SHA-256 do token.
+ * - Token da comanda (QR do cliente): 128 bits, guardado em claro (ver ADR 0007).
  */
 object SecureTokens {
     private val random = SecureRandom()
 
-    fun generate(): String {
-        val bytes = ByteArray(32)
+    fun generate(bytesCount: Int = 32): String {
+        require(bytesCount >= 16) { "token com menos de 128 bits" }
+        val bytes = ByteArray(bytesCount)
         random.nextBytes(bytes)
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }

@@ -94,6 +94,67 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 41 | Aba Mais | Seguir o passo a passo de instalação (Android: Chrome; iPhone: Safari) | Ícone do MesaMar na tela inicial; abre sem barra do navegador |
 | 42 | Painel → Equipe → desativar a Carla; tocar em qualquer coisa no app | — | O app volta para a tela de entrada |
 
+### Check-in e QR (Fase 3 · checkpoint 3.1)
+
+Reative a Carla (Painel → Equipe) antes de começar.
+
+> O link do QR usa a URL pública do `.env`. Para o QR abrir em outro celular na rede local, coloque `MESAMAR_PUBLIC_URL=http://IP-DO-PC:8080` no `.env` e rode `docker compose up -d` de novo (com `localhost`, o outro celular não acha o servidor).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 43 | Celular: app do quiosque | Entrar como Carla | Abre na aba **Clientes**, com "Ninguém com comanda aberta agora." |
+| 44 | Clientes → "+ Novo cliente" | Nome `Ana`, guarda-sol 12, WhatsApp seu, **sem** marcar o consentimento → "Gerar QR" | "Confirme que o cliente concordou." e nada é criado |
+| 45 | Mesmo formulário | Marcar o consentimento → "Gerar QR", **cronometrando do toque em "Novo cliente" até o QR** | QR em tela cheia com "Ana", "Guarda-sol 12 · chegada nº 1". Meta: até 20 s |
+| 46 | Tela do QR | Ler com a câmera de **outro celular**, a uns 50 cm (de preferência no sol) | Abre o link `/c/…` (a página do cliente; veja o 3.2 abaixo) |
+| 47 | Tela do QR → "Enviar pelo WhatsApp" | Tocar | Abre o WhatsApp no seu número com a mensagem e o link |
+| 48 | "Pronto" → fazer o check-in do `Bruno` também no 12 | Conferir a lista e a grade | Ana (1) e Bruno (2) por ordem de chegada; o 12 aparece com um ponto na grade; o botão "QR" mostra o código de novo |
+
+### Página do cliente: cardápio e pedido (Fase 3 · checkpoint 3.2)
+
+Use o QR da Ana (itens 45 e 46) no **celular B**, com o cardápio já preenchido (tenha pelo menos 3 produtos, em 2 categorias).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 49 | Celular B: ler o QR da Ana, **cronometrando** | Esperar abrir | "Olá, Ana · Guarda-sol 12", o nome da barraca e o cardápio por categoria, com os preços |
+| 50 | App do quiosque, aba Cardápio | Tocar "Esgotou" num item; no celular B, abrir o link de novo | O item aparece **riscado, com "Esgotado" e sem botão**. Depois, "Voltou" no app e recarregar: o botão volta |
+| 51 | Celular B | Tocar "Adicionar" em 2 itens e "+" num deles | Aparece "−  2  +", e a barra amarela no rodapé mostra "Ver pedido · 3 itens · R$ …" com o total certo |
+| 52 | Celular B → barra "Ver pedido" | Escrever `sem gelo` na observação de um item | O total confere com os preços; a observação fica no campo |
+| 53 | Celular B → "Enviar pedido" (**cronometre do QR até aqui e conte os toques**) | Esperar | "Pedido nº 1 enviado", com os itens, a observação e o total |
+| 54 | Celular B → "Voltar ao cardápio", pedir mais um item, **ligar o modo avião**, "Enviar pedido" | Esperar uns segundos | "O pedido ainda não saiu. Sem sinal. Tentaremos de novo. Se preferir, chame um atendente." |
+| 55 | Celular B | **Desligar o modo avião** | Em poucos segundos: "Pedido nº 2 enviado". **Uma vez só** (confira no banco, abaixo) |
+| 56 | Celular B: montar um pedido; no app, marcar um dos itens como "Esgotou"; **sem recarregar a página**, "Enviar pedido" | Ler a mensagem | "Acabou ou saiu do cardápio: …". O item sai do carrinho e o resto continua |
+| 57 | Celular B, rodapé | Tocar "Política de privacidade" | Abre a política, com a seção 5 sobre os dados dos clientes |
+| 58 | Celular B | Abrir o link do QR de uma comanda que **não existe** (troque um caractere) | "Esse link não vale mais" |
+
+Conferir os pedidos direto no banco:
+
+```bash
+docker compose exec db psql -U mesamar -c "select p.numero_pedido, p.status, p.criado_em, i.linha, i.quantidade, i.nome_snapshot, i.preco_snapshot_centavos, i.observacao from pedido p join item_pedido i on i.pedido_id = p.id order by p.criado_em, i.linha;"
+```
+
+### Meus pedidos, saldo e regras (Fase 3 · checkpoint 3.3)
+
+Continue no **celular B**, com a Ana. Como o app do quiosque ainda não tem a fila (Fase 4), os itens 60, 61 e 66 mudam o banco direto, só para você ver a página reagir.
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 59 | Celular B | Olhar o topo da página e abrir a aba **Meus pedidos** | "Sua conta: R$ …" no topo, igual à soma dos pedidos. Os pedidos aparecem do mais novo para o mais antigo, com "Recebido", itens, observação e total |
+| 60 | Deixar "Meus pedidos" aberta; no computador, rodar o 1º comando abaixo | Esperar até 15 s, **sem recarregar** | O pedido nº 1 passa a "Em preparo" |
+| 61 | No computador, rodar o 2º comando abaixo (cancela o último item pedido) | Esperar até 15 s | O item aparece riscado com "Cancelado" e **a conta baixa** |
+| 62 | Painel → Regras → "Limite de conta aberta" `50` → Salvar. No celular B, pedir até a conta chegar a R$ 50 ou mais | Voltar ao cardápio | Aviso vermelho "Sua conta chegou a R$ 50,00…", **sem botões** de adicionar. O último pedido, o que cruzou o limite, passou |
+| 63 | Com o limite atingido, cancelar itens (como no 61) até a conta ficar abaixo de R$ 50. No celular B, tocar em "Cardápio" depois de 10 s | Esperar a página atualizar | O aviso some e os botões voltam. Dá para pedir de novo |
+| 64 | Painel → Regras → "A cada pedido" → Salvar (e tirar o limite). Celular B: abrir o cardápio e pedir | Conferir | Cardápio: "Neste quiosque você paga a cada pedido". Confirmação: "Para o pedido entrar na fila, pague R$ … a um atendente". Em Meus pedidos: **"Aguardando pagamento"** |
+| 65 | Painel → Regras → "No final" → Salvar. Celular B: pedir de novo | Conferir | O novo pedido nasce "Recebido" |
+| 66 | No computador, rodar o 3º comando abaixo. Celular B: recarregar e tentar pedir | Conferir | "O quiosque pausou os pedidos por agora…". Depois, trocar `true` por `false` no comando e voltar ao normal |
+
+Comandos para os itens 60, 61 e 66 (o app do quiosque ainda não faz isso; chega na Fase 4):
+
+```bash
+docker compose exec db psql -U mesamar -c "update pedido set status='EM_PREPARO' where numero_pedido = 1 and dia = current_date;"
+docker compose exec db psql -U mesamar -c "update item_pedido set cancelado = true, motivo_cancelamento = 'teste' where id = (select i.id from item_pedido i join pedido p on p.id = i.pedido_id order by p.criado_em desc, i.linha limit 1);"
+docker compose exec db psql -U mesamar -c "update barraca set pedidos_pausados = true;"
+```
+
 > A instalação na tela inicial (item 41) exige **HTTPS** fora do `localhost`. No celular pela rede local (`http://IP-DO-PC`), o app abre, mas o Chrome não oferece "Instalar". Para testar a instalação de verdade, use o ambiente publicado (`https://mesamar.0mega.fun/staff/`).
 
 Consultar direto no banco, se quiser:
@@ -114,7 +175,7 @@ E2E_ADMIN_PASSWORD=uma-senha-sua npx playwright test    # no Windows (PowerShell
 npx playwright show-report
 ```
 
-Esperado: **9 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o E2E logo depois de subir o app, porque os testes enviam o formulário e contam no limite de envios por aparelho.
+Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o E2E logo depois de subir o app, porque os testes enviam o formulário e contam no limite de envios por aparelho.
 
 ## 6. Testes de backend (opcional; o CI já roda)
 
@@ -122,7 +183,7 @@ Esperado: **9 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o 
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 98 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 252 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 

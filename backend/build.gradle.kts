@@ -108,6 +108,7 @@ val copyFrontendTasks =
                 workingDir = frontDir.asFile
                 commandLine(npmCommand, "run", "build")
                 inputs.dir(frontDir.dir("src"))
+                inputs.dir(frontDir.dir("public"))
                 inputs.files(
                     frontDir.file("index.html"),
                     frontDir.file("package.json"),

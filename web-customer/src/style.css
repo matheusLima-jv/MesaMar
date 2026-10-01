@@ -1,30 +1,169 @@
+/* Página do cliente: mesma identidade do app do quiosque (papel, tinta, sol), feita para usar com uma
+   mão, no sol e com 4G fraco: alvos de 48px ou mais, contraste alto, pouca coisa na tela. */
+
+@font-face {
+  font-family: 'Bricolage';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-latin-wght.woff2') format('woff2');
+}
+
 :root {
+  --paper: #f6f1e7;
+  --paper-2: #efe7d6;
+  --ink: #101b1e;
+  --ink-2: #44535a;
+  --ocean: #0d4555;
+  --sun: #ffc233;
+  --sun-2: #f2ad00;
+  --rule: #d9cdb5;
+  --ok: #17703c;
+  --late: #b3261e;
+  --display: 'Bricolage', 'Arial Narrow', system-ui, sans-serif;
+  --body: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --bar-h: 72px;
   color-scheme: light;
-  --bg: #fffdf7;
-  --fg: #0b1f26;
-  --accent: #0b3d4f;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 18px;
-  line-height: 1.5;
 }
 
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body { margin: 0; min-height: 100%; }
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
+  font: 400 1.0625rem/1.5 var(--body);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+h1, h2 { font-family: var(--display); letter-spacing: -0.03em; line-height: 1.1; margin: 0; }
+p { margin: 0; }
+button, input { font: inherit; }
+:focus-visible { outline: 3px solid var(--sun-2); outline-offset: 3px; border-radius: 4px; }
+
+.boot { padding: 2rem 1rem; color: var(--ink-2); }
+.hint { color: var(--ink-2); font-size: 0.95rem; margin-top: 0.75rem; }
+
+/* ---------- Cabeçalho, página e rodapé ---------- */
+.top {
+  padding: max(1rem, env(safe-area-inset-top)) 1rem 1rem;
+  background: var(--ink); color: var(--paper);
+}
+.top > * { max-width: 36rem; margin-left: auto; margin-right: auto; }
+.shop { font-weight: 700; color: #c9d6d9; overflow-wrap: anywhere; }
+.top h1 { font-size: 1.9rem; margin-top: 0.15rem; overflow-wrap: anywhere; }
+
+.page {
+  max-width: 36rem; margin: 0 auto;
+  padding: 1rem 1rem calc(var(--bar-h) + 2rem + env(safe-area-inset-bottom));
+}
+.foot { max-width: 36rem; margin: 0 auto; padding: 0 1rem calc(var(--bar-h) + 1.5rem + env(safe-area-inset-bottom)); font-size: 0.95rem; }
+.foot a { color: var(--ink-2); min-height: 44px; display: inline-flex; align-items: center; }
+.screen-title { font-size: 1.7rem; margin: 0.5rem 0 1rem; }
+.back { display: inline-flex; align-items: center; min-height: 48px; color: var(--ink); font-weight: 700; }
+
+/* ---------- Botões ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  min-height: 52px; padding: 0 1.25rem; border-radius: 999px; border: 2px solid transparent;
+  font: 700 1.05rem/1.2 var(--body); cursor: pointer; text-decoration: none;
+}
+.btn-block { width: 100%; }
+.btn-big { min-height: 60px; font-size: 1.15rem; }
+.btn-sun { background: var(--sun); color: var(--ink); border-color: var(--ink); }
+.btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+.alert { margin: 0 0 1rem; padding: 0.75rem 1rem; border: 2px solid var(--late); border-radius: 12px; color: var(--late); background: #fff; font-weight: 600; }
+
+/* ---------- Cardápio ---------- */
+.menu-sec { margin-bottom: 1.5rem; }
+.menu-sec h2 { font-size: 1.35rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--ink); }
+.menu-list, .cart-list { list-style: none; margin: 0; padding: 0; }
+.menu-list > li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.85rem 0; border-bottom: 1px solid var(--rule); }
+.menu-main { min-width: 0; }
+.menu-main strong { display: block; font-size: 1.1rem; overflow-wrap: anywhere; }
+.desc { display: block; color: var(--ink-2); font-size: 0.95rem; overflow-wrap: anywhere; }
+.price { display: block; font-family: var(--display); font-weight: 750; color: var(--ink-2); }
+.is-sold strong, .is-sold .price { color: var(--ink-2); text-decoration: line-through; }
+.tag { display: inline-block; margin: 0.15rem 0; padding: 0.1rem 0.45rem; border-radius: 6px; background: var(--late); color: #fff; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.qty { flex: none; }
+.add { min-width: 7.5rem; }
+
+/* Quantidade: − 2 + */
+.stepper { display: inline-flex; align-items: center; gap: 0.25rem; }
+.step {
+  width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--ink); background: #fff;
+  color: var(--ink); font: 800 1.5rem/1 var(--body); cursor: pointer; padding: 0;
+}
+.step[disabled] { opacity: 0.4; cursor: not-allowed; }
+.qty-n { min-width: 2rem; text-align: center; font: 800 1.25rem/1 var(--display); }
+
+/* Barra do pedido, sempre à mão no rodapé */
+.cart-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: center;
+  min-height: var(--bar-h); padding: 0 1rem env(safe-area-inset-bottom);
+  background: var(--sun); color: var(--ink); border-top: 2px solid var(--ink);
+  font: 800 1.15rem/1.2 var(--body); text-decoration: none; text-align: center;
 }
 
-main {
-  max-width: 32rem;
-  margin: 0 auto;
-  padding: 2rem 1rem;
+/* ---------- Carrinho ---------- */
+.cart-line { padding: 0.9rem 0; border-bottom: 1px solid var(--rule); }
+.cart-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.field { margin-top: 0.6rem; }
+.field label { display: block; font-weight: 700; margin-bottom: 0.3rem; overflow-wrap: anywhere; }
+.opt { font-weight: 400; color: var(--ink-2); }
+.field input {
+  width: 100%; min-height: 52px; padding: 0.6rem 0.9rem; color: var(--ink);
+  background: #fff; border: 2px solid var(--rule); border-radius: 12px;
 }
+.field input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--sun); }
+.total { display: flex; justify-content: space-between; align-items: baseline; margin: 1.25rem 0 1rem; font-size: 1.2rem; font-weight: 700; }
+.total-valor { font: 800 1.8rem/1 var(--display); }
 
-h1 {
-  color: var(--accent);
-  font-size: 1.6rem;
-}
+.empty { padding: 1.5rem 0; }
+.empty h1, .empty h2 { font-size: 1.6rem; margin-bottom: 0.5rem; }
+.empty .btn { margin-top: 1rem; }
 
-.status {
-  font-weight: 600;
+/* ---------- Envio e confirmação ---------- */
+.sending, .done { padding: 1rem 0 1.25rem; }
+.sending h2, .done h2 { font-size: 1.7rem; margin-bottom: 0.5rem; }
+.sending { border-bottom: 2px solid var(--ink); margin-bottom: 1rem; }
+.done { text-align: center; }
+.done-mark {
+  display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; margin-bottom: 0.5rem;
+  border-radius: 50%; background: var(--ok); color: #fff; font-size: 2.2rem; font-weight: 800;
 }
+.cart-list.plain > li { padding: 0.7rem 0; border-bottom: 1px solid var(--rule); }
+
+/* ---------- Conta, abas e Meus pedidos ---------- */
+.conta { margin-top: 0.25rem; color: #c9d6d9; font-weight: 600; }
+.conta strong { color: var(--sun); font: 800 1.15rem/1 var(--display); }
+
+.abas { display: grid; grid-template-columns: 1fr 1fr; background: #fff; border-bottom: 2px solid var(--ink); }
+.abas a {
+  display: flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 0.5rem;
+  color: var(--ink-2); font-weight: 700; text-decoration: none; border-bottom: 4px solid transparent;
+}
+.abas a.on { color: var(--ink); border-bottom-color: var(--sun); }
+
+.info { margin: 0 0 1rem; padding: 0.6rem 0.9rem; border: 2px solid var(--rule); border-radius: 12px; background: #fff; font-weight: 600; }
+.btn-line { background: transparent; color: var(--ink); border-color: var(--ink); }
+.btn-gap { margin-top: 0.75rem; }
+
+.orders { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.order { padding: 0.9rem 1rem; background: #fff; border: 2px solid var(--ink); border-radius: 16px; }
+.order-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.order-head strong { font-size: 1.1rem; }
+.order-hora { font-weight: 400; color: var(--ink-2); }
+.badge { padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--paper-2); border: 2px solid var(--ink); font-size: 0.85rem; font-weight: 800; }
+.st-recebido .badge { background: var(--sun); }
+.st-em_preparo .badge { background: var(--ocean); color: #fff; border-color: var(--ocean); }
+.st-entregue .badge { background: var(--ok); color: #fff; border-color: var(--ok); }
+.st-cancelado .badge { background: var(--late); color: #fff; border-color: var(--late); }
+.st-aguardando_pagamento .badge { background: #fff; }
+.order-items { list-style: none; margin: 0.6rem 0 0; padding: 0; }
+.order-items li { padding: 0.35rem 0; border-top: 1px solid var(--rule); }
+.order-items li:first-child { border-top: 0; }
+.order-total { margin-top: 0.5rem; text-align: right; color: var(--ink-2); }
+.order-total strong { color: var(--ink); font-family: var(--display); font-size: 1.15rem; }

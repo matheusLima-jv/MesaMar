@@ -125,6 +125,52 @@ button { font: inherit; }
 }
 .sold.on { background: var(--ink); color: var(--sun); }
 
+/* ---------- Clientes (check-in) ---------- */
+.btn-big { min-height: 60px; font-size: 1.15rem; }
+.center { text-align: center; }
+.center-block { display: block; margin: 0.75rem auto 0; }
+.tab-head + .btn-big { margin-bottom: 1rem; }
+.people { list-style: none; margin: 0; padding: 0; }
+.people li { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 0; border-bottom: 1px solid var(--rule); }
+.arrival {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 2.6rem; height: 2.6rem; padding: 0 0.4rem;
+  border-radius: 999px; background: var(--ink); color: var(--sun); font-family: var(--display); font-weight: 800; font-size: 1.1rem;
+}
+.person { flex: 1; min-width: 0; }
+.person strong { display: block; font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person .hint { margin: 0; }
+
+.checkin .label { font-weight: 700; margin-bottom: 0.35rem; }
+.checkin .label:focus { outline: none; }
+.opt { font-weight: 400; color: var(--ink-2); }
+.umbrellas { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr)); gap: 0.4rem; }
+.umbrella {
+  position: relative; min-height: 52px; border: 2px solid var(--rule); border-radius: 12px; background: #fff;
+  color: var(--ink); font: 800 1.15rem/1 var(--body); cursor: pointer;
+}
+.umbrella.wide { grid-column: 1 / -1; font-size: 1rem; }
+.umbrella.busy::after { content: ''; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--ocean); }
+.umbrella.on { border-color: var(--ink); background: var(--ink); color: var(--sun); }
+.umbrella.on.busy::after { background: var(--sun); }
+.consent { display: flex; gap: 0.75rem; align-items: flex-start; margin: 0.5rem 0 1.25rem; padding: 0.9rem; border: 2px solid var(--rule); border-radius: 12px; background: #fff; }
+.consent input { flex: none; width: 28px; height: 28px; margin: 0; accent-color: var(--ink); }
+.consent label { font-weight: 600; }
+.field-err { margin: 0.4rem 0 0; color: var(--late); font-weight: 700; }
+.consent + .field-err { margin: -0.75rem 0 1rem; }
+
+/* QR em tela cheia: fundo branco puro e o maior quadrado que couber, para ler no sol */
+.qr-screen {
+  position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom)); background: #fff; overflow-y: auto;
+}
+.qr-head { text-align: center; }
+.qr-head h2 { font-size: 2rem; overflow-wrap: anywhere; }
+.qr-head p { color: var(--ink-2); font-weight: 600; }
+.qr-box { width: min(100%, 62vh, 30rem); }
+.qr { display: block; width: 100%; height: auto; }
+.qr-tip { text-align: center; color: var(--ink-2); }
+.qr-actions { display: grid; gap: 0.5rem; width: 100%; max-width: 30rem; margin-top: auto; }
+
 .steps { margin: 0.75rem 0 0; padding-left: 1.25rem; }
 .steps li { margin-bottom: 0.5rem; }
 

@@ -21,6 +21,7 @@ import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.ProviderManager
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.crypto.factory.PasswordEncoderFactories
@@ -44,10 +45,12 @@ data class AdminProperties(
 )
 
 /**
- * Três áreas com regras próprias:
- *  1. /admin  — dono da plataforma (usuário único do .env)
- *  2. /painel — donos de barraca (contas no banco)
- *  3. resto   — site público, sem login e sem cookies
+ * Áreas com regras próprias:
+ *  1. /admin     — dono da plataforma (usuário único do .env)
+ *  2. /painel    — donos de barraca (contas no banco)
+ *  3. /api/staff — app do quiosque (dono ou atendente, sessão por JSON)
+ *  4. /api/c     — página do cliente (sem login: o token do QR na URL é a credencial)
+ *  5. resto      — site público, sem login e sem cookies
  * Cada área tem o seu próprio login: a senha do admin não entra no painel e vice-versa.
  */
 @Configuration
@@ -168,8 +171,28 @@ class SecurityConfig {
         return http.build()
     }
 
+    /**
+     * API da página do cliente (/api/c/{token}/…). Sem login, sem sessão e sem cookies: o token de
+     * 128 bits no caminho é a credencial. Por isso não há CSRF: um site mal-intencionado só conseguiria
+     * agir em nome do cliente se já conhecesse o token, e aí o CSRF não ajudaria em nada.
+     */
     @Bean
     @Order(4)
+    fun clienteChain(http: HttpSecurity): SecurityFilterChain {
+        http
+            .securityMatcher("/api/c/**")
+            .authorizeHttpRequests { it.anyRequest().permitAll() }
+            .csrf { it.disable() }
+            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .requestCache { it.disable() }
+            .formLogin { it.disable() }
+            .httpBasic { it.disable() }
+        applyHeaders(http)
+        return http.build()
+    }
+
+    @Bean
+    @Order(5)
     fun publicChain(http: HttpSecurity): SecurityFilterChain {
         http
             .authorizeHttpRequests { it.anyRequest().permitAll() }

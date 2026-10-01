@@ -15,6 +15,10 @@ class FrontendRoutesConfig : WebMvcConfigurer {
             registry.addViewController("/$route").setViewName("redirect:/$route/")
             registry.addViewController("/$route/").setViewName("forward:/$route/index.html")
         }
+        // Link do QR do cliente: a página do cliente lê o token da própria URL.
+        registry.addViewController("/c/{token}").setViewName("forward:/cliente/index.html")
+        // O service worker fica em /c/ para controlar essa página (o escopo de um SW é a pasta dele).
+        registry.addViewController("/c/sw.js").setViewName("forward:/cliente/sw.js")
     }
 
     companion object {

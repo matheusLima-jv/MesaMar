@@ -26,12 +26,37 @@ export interface Secao {
 
 export interface AtendenteOpcao { id: string, nome: string }
 
+/** Comanda de um cliente que fez check-in. `link` é o que vai no QR. */
+export interface Comanda {
+  id: string
+  numeroChegada: number
+  nome: string
+  guardaSol: number | null
+  whatsapp: string | null
+  whatsappExibicao: string | null
+  link: string
+  hora: string
+  status: string
+}
+
+export interface GuardaSolOpcao { id: string, numero: number, clientes: number }
+
+export interface NovoCliente {
+  id: string
+  nome: string
+  guardaSolId: string | null
+  whatsapp: string
+  consentimento: boolean
+}
+
 export class ApiError extends Error {
   constructor (
     readonly status: number,
     readonly codigo: string,
     mensagem: string,
-    readonly tentativasRestantes?: number
+    readonly tentativasRestantes?: number,
+    /** Erros por campo (400 de validação): { nome: 'Digite o nome…' } */
+    readonly campos: Record<string, string> = {}
   ) {
     super(mensagem)
   }
@@ -44,8 +69,8 @@ export const eventos = new EventTarget()
 
 async function lerErro (res: Response): Promise<ApiError> {
   try {
-    const body = await res.json() as { erro?: string, mensagem?: string, tentativasRestantes?: number }
-    return new ApiError(res.status, body.erro ?? 'erro', body.mensagem ?? 'Algo deu errado. Tente de novo.', body.tentativasRestantes)
+    const body = await res.json() as { erro?: string, mensagem?: string, tentativasRestantes?: number, campos?: Record<string, string> }
+    return new ApiError(res.status, body.erro ?? 'erro', body.mensagem ?? 'Algo deu errado. Tente de novo.', body.tentativasRestantes, body.campos)
   } catch {
     return new ApiError(res.status, 'erro', 'Algo deu errado. Tente de novo.')
   }
@@ -112,4 +137,37 @@ export async function cardapio (): Promise<Secao[]> {
 
 export async function definirEsgotado (produtoId: string, esgotado: boolean): Promise<Produto> {
   return await chamar<Produto>('POST', `/produtos/${produtoId}/esgotado`, { esgotado })
+}
+
+export async function clientes (): Promise<Comanda[]> {
+  return await chamar<Comanda[]>('GET', '/clientes')
+}
+
+export async function guardaSois (): Promise<GuardaSolOpcao[]> {
+  return await chamar<GuardaSolOpcao[]>('GET', '/guarda-sois')
+}
+
+/**
+ * Check-in. O `id` nasce no celular: se a rede cair no meio, reenviar o mesmo id devolve a mesma
+ * comanda em vez de criar outra. Sem rede, tenta de novo sozinho mais 2 vezes antes de desistir.
+ */
+export async function novoCliente (c: NovoCliente): Promise<Comanda> {
+  for (const espera of [1000, 3000]) {
+    try {
+      return await chamar<Comanda>('POST', '/clientes', c)
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.status !== 0) throw e
+      await new Promise((resolve) => setTimeout(resolve, espera))
+    }
+  }
+  return await chamar<Comanda>('POST', '/clientes', c)
+}
+
+/** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */
+export function novoId (): string {
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  const hex = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
