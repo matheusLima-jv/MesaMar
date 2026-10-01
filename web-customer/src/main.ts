@@ -231,10 +231,7 @@ function agendarSincronia (): void {
   timerSincronia = window.setTimeout(() => { void sincronizar() }, 250)
 }
 
-/**
- * Enquanto "Meus pedidos" ou "Conta" está aberta: carrega agora e de novo a cada 15 s. "Meus pedidos" só consulta sem o
- * tempo real; a conta consulta sempre (o aviso em tempo real dela chega com o checkpoint 5.2).
- */
+/** Enquanto "Meus pedidos" ou "Conta" está aberta: carrega agora e, sem o tempo real, de novo a cada 15 s. */
 function acompanharPedidos (): void {
   window.clearTimeout(timerPedidos)
   const aba = location.hash
@@ -242,10 +239,7 @@ function acompanharPedidos (): void {
   void (aba === '#conta' ? carregarConta() : carregarPedidos())
   const volta = (): void => {
     if (location.hash !== aba) return
-    if (document.visibilityState === 'visible') {
-      if (aba === '#conta') void carregarConta()
-      else if (!tempoReal) void carregarPedidos()
-    }
+    if (document.visibilityState === 'visible' && !tempoReal) void (aba === '#conta' ? carregarConta() : carregarPedidos())
     timerPedidos = window.setTimeout(volta, ATUALIZAR_PEDIDOS_MS)
   }
   timerPedidos = window.setTimeout(volta, ATUALIZAR_PEDIDOS_MS)

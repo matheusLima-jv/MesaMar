@@ -44,6 +44,15 @@ export function avisarAtraso (): void {
   try { navigator.vibrate?.([400, 150, 400]) } catch { /* sem vibração */ }
 }
 
+/** O cliente está indo pagar: três notas subindo, para não confundir com pedido novo (duas notas) nem atraso (graves). */
+export function avisarPagamento (): void {
+  if (!somLigado()) return
+  bip(0, 740)
+  bip(0.22, 932)
+  bip(0.44, 1245)
+  try { navigator.vibrate?.([150, 80, 150, 80, 150]) } catch { /* sem vibração */ }
+}
+
 /** Pedido novo na fila: som (se estiver ligado) e vibração. */
 export function avisarPedidoNovo (): void {
   if (!somLigado()) return

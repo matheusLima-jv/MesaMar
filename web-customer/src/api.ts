@@ -195,7 +195,7 @@ export async function reabrirConta (token: string): Promise<Conta> {
 }
 
 /**
- * Tempo real: o servidor avisa quando um pedido da comanda muda (status, item cancelado) e a página busca de novo.
+ * Tempo real: o servidor avisa quando um pedido ou a conta da comanda muda (status, item cancelado, pagamento) e a página busca de novo.
  * `aoMudar` roda a cada aviso; `aoEstado(true)` quando conectou e `aoEstado(false)` quando caiu (o navegador reconecta sozinho).
  * Devolve a função que encerra a conexão.
  */
@@ -208,6 +208,8 @@ export function ouvirComanda (token: string, aoMudar: () => void, aoEstado: (con
     es = new EventSource(`/api/c/${encodeURIComponent(token)}/eventos`)
     es.onopen = () => { aoEstado(true) }
     es.addEventListener('pedido', aoMudar)
+    // A conta mudou (o quiosque recebeu um pagamento, bloqueou a comanda…)
+    es.addEventListener('conta', aoMudar)
     es.addEventListener('ressincronizar', aoMudar)
     es.onerror = () => {
       aoEstado(false)

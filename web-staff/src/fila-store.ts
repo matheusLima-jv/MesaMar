@@ -5,6 +5,7 @@
 // o que o servidor tem, e se um aviso se perder a próxima busca corrige. Sem conexão, busca a cada 15 s.
 import { ApiError, fila, type Fila, type PedidoFila } from './api'
 import { avisarAtraso, avisarPedidoNovo } from './som'
+import { agendarBusca as agendarPagamentos } from './pagamentos-store'
 import { avisar } from './toast'
 
 type Ouvinte = () => void
@@ -84,9 +85,12 @@ function conectar (): void {
     conectado = true
     // Pode ter perdido avisos enquanto estava fora do ar
     void recarregar()
+    agendarPagamentos()
   }
   es.addEventListener('fila', agendarBusca)
-  es.addEventListener('ressincronizar', agendarBusca)
+  es.addEventListener('ressincronizar', () => { agendarBusca(); agendarPagamentos() })
+  // Uma conta mudou (o cliente fechou ou avisou que vai pagar, alguém recebeu): a aba Pagamentos busca de novo
+  es.addEventListener('conta', agendarPagamentos)
   // Um pedido passou do tempo de espera da barraca: alerta no app aberto (o push cobre o app fechado)
   es.addEventListener('atraso', (ev) => {
     try {
