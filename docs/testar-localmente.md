@@ -94,6 +94,21 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 41 | Aba Mais | Seguir o passo a passo de instalação (Android: Chrome; iPhone: Safari) | Ícone do MesaMar na tela inicial; abre sem barra do navegador |
 | 42 | Painel → Equipe → desativar a Carla; tocar em qualquer coisa no app | — | O app volta para a tela de entrada |
 
+### Check-in e QR (Fase 3 · checkpoint 3.1)
+
+Reative a Carla (Painel → Equipe) antes de começar.
+
+> O link do QR usa a URL pública do `.env`. Para o QR abrir em outro celular na rede local, coloque `MESAMAR_PUBLIC_URL=http://IP-DO-PC:8080` no `.env` e rode `docker compose up -d` de novo (com `localhost`, o outro celular não acha o servidor).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 43 | Celular: app do quiosque | Entrar como Carla | Abre na aba **Clientes**, com "Ninguém com comanda aberta agora." |
+| 44 | Clientes → "+ Novo cliente" | Nome `Ana`, guarda-sol 12, WhatsApp seu, **sem** marcar o consentimento → "Gerar QR" | "Confirme que o cliente concordou." e nada é criado |
+| 45 | Mesmo formulário | Marcar o consentimento → "Gerar QR", **cronometrando do toque em "Novo cliente" até o QR** | QR em tela cheia com "Ana", "Guarda-sol 12 · chegada nº 1". Meta: até 20 s |
+| 46 | Tela do QR | Ler com a câmera de **outro celular**, a uns 50 cm (de preferência no sol) | Abre o link `/c/…` (por enquanto a página do cliente diz "Em construção") |
+| 47 | Tela do QR → "Enviar pelo WhatsApp" | Tocar | Abre o WhatsApp no seu número com a mensagem e o link |
+| 48 | "Pronto" → fazer o check-in do `Bruno` também no 12 | Conferir a lista e a grade | Ana (1) e Bruno (2) por ordem de chegada; o 12 aparece com um ponto na grade; o botão "QR" mostra o código de novo |
+
 > A instalação na tela inicial (item 41) exige **HTTPS** fora do `localhost`. No celular pela rede local (`http://IP-DO-PC`), o app abre, mas o Chrome não oferece "Instalar". Para testar a instalação de verdade, use o ambiente publicado (`https://mesamar.0mega.fun/staff/`).
 
 Consultar direto no banco, se quiser:
@@ -114,7 +129,7 @@ E2E_ADMIN_PASSWORD=uma-senha-sua npx playwright test    # no Windows (PowerShell
 npx playwright show-report
 ```
 
-Esperado: **9 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o E2E logo depois de subir o app, porque os testes enviam o formulário e contam no limite de envios por aparelho.
+Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o E2E logo depois de subir o app, porque os testes enviam o formulário e contam no limite de envios por aparelho.
 
 ## 6. Testes de backend (opcional; o CI já roda)
 
@@ -122,7 +137,7 @@ Esperado: **9 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o 
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 98 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 228 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 
