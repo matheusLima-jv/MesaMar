@@ -1,14 +1,14 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-09-30**, checkpoint **2.4** com CI verde, **aguardando o "aprovado 2.4"**.
+> Última atualização: **2026-09-30**, **Fase 2 aprovada e mergeada na `main`** (PR #3). Próximo: **checkpoint 3.1**.
 
 ---
 
 ## 0. Primeiro passo (antes de escrever qualquer código)
 
-1. **Se o Matheus ainda não aprovou o 2.4:** apresente o relatório (`docs/relatorios/fase-2.md`, seção "Checkpoint 2.4") e peça o "aprovado 2.4". Esse checkpoint fecha a Fase 2.
-2. **Depois da aprovação:** marque o 2.4 no relatório, tire o PR #3 do rascunho (o Matheus decide o merge) e comece o **checkpoint 3.1** (seção 7).
+1. Confirme que a `main` do GitHub tem o merge da Fase 2 (`git log --oneline origin/main | head -3` mostra `Merge pull request #3…`).
+2. Crie a branch `fase-3-cliente` a partir da `main` e comece o **checkpoint 3.1** (seção 7), abrindo o PR da Fase 3 em rascunho.
 
 Os 8 commits que tinham ficado fora do GitHub já estão na `fase-2-contas`; o `mesamar-pendente.bundle` não é mais necessário.
 
@@ -40,7 +40,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | 0 — Fundação | ✅ Na `main` |
 | 1 — Landing + lista de espera + teste de sinal + /admin + deploy | ✅ Na `main` (PR #2). Deploy em `mesamar.0mega.fun` **ainda não feito** pelo Matheus |
 | Portão A (validação em campo + medição de sinal) | ⏳ O Matheus faz **em paralelo** (decisão dele). Não bloqueia o código |
-| **2 — Contas, barraca, equipe, guarda-sóis, cardápio, app** | 🔶 Branch `fase-2-contas`, **PR #3 (rascunho)** |
+| 2 — Contas, barraca, equipe, guarda-sóis, cardápio, app | ✅ Na `main` (PR #3) |
 | 3 — Check-in, QR e pedido pelo cliente | ⬜ |
 | 4 — Fila + tempo real + Web Push | ⬜ |
 | 5 — Fechar conta, Pix, pagamentos, relatório | ⬜ |
@@ -54,7 +54,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | 2.1 | Convites no /admin, cadastro/login/troca de senha do dono, painel com barraca, regras e Pix | ✅ verde (170 testes) | ✅ aprovado |
 | 2.2 | Equipe (atendentes com PIN, bloqueio, desbloqueio) e guarda-sóis em lote com limite | ✅ verde (201 testes) | ✅ aprovado |
 | 2.3 | Cardápio: categorias, produtos, ordem, esgotado com um toque, tirar do cardápio | ✅ verde (com o 2.4) | ✅ aprovado |
-| **2.4** | **App do quiosque (PWA) em `/staff/` + API `/api/staff`** | ✅ verde (218 testes, 10 E2E) | ⏳ pendente |
+| 2.4 | App do quiosque (PWA) em `/staff/` + API `/api/staff` | ✅ verde (218 testes, 10 E2E) | ✅ aprovado |
 
 **Sobre o 2.3:**
 - O CI do commit `ed43ee5` falhou em 3 testes de `CardapioTest`. **Não era bug do app:** o cliente HTTP dos testes não segue redirecionamentos, então a mensagem "flash" de um passo de preparação ficava na sessão e aparecia no lugar da mensagem do passo testado.
@@ -198,7 +198,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0006, relatorios/fase-0.
 > Cada item abaixo é um checkpoint: implementar, testar (inclusive isolamento), CI verde, relatório e **parar para aprovação**. Detalhes de escopo em `docs/MESAMAR_PROMPT.md`.
 
 ### Fase 2 (fechamento)
-- **2.4:** CI verde e relatório atualizado → **aprovação** → **tirar o PR #3 do rascunho e o Matheus decide o merge.**
+- ✅ Concluída: 2.4 aprovado e PR #3 mergeado na `main`.
 
 ### Fase 3: check-in, QR e pedido pelo cliente (núcleo)
 
