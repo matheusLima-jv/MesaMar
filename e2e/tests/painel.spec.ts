@@ -291,6 +291,25 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(cartoes).toHaveCount(2)
   await expectNoHorizontalScroll(app)
 
+  // 10) Avisos de pedido (4.2): sem as chaves VAPID no servidor, o app diz o que falta em vez de mostrar um botão que não funciona
+  await app.getByRole('link', { name: 'Mais' }).click()
+  await expect(app.getByRole('heading', { name: 'Avisos de pedido' })).toBeVisible()
+  await expect(app.getByText('ainda não foram configurados no servidor')).toBeVisible()
+  await expectNoHorizontalScroll(app)
+
+  // 11) "Pausar pedidos": a Ana, que está em "Meus pedidos", vê o recado na hora, e ao voltar ele some
+  await app.getByRole('link', { name: /^Fila/ }).click()
+  await app.getByRole('button', { name: 'Pausar pedidos' }).click()
+  const dialogoPausa = app.getByRole('dialog', { name: 'Pausar pedidos' })
+  await dialogoPausa.getByLabel(/Recado para os clientes/).fill('Voltamos em 10 minutos')
+  await dialogoPausa.getByRole('button', { name: 'Pausar pedidos' }).click()
+  await expect(app.getByText('Pedidos pausados.', { exact: true })).toBeVisible()
+  await expect(cliente.getByText('O quiosque pausou os pedidos: Voltamos em 10 minutos')).toBeVisible()
+  await app.getByRole('button', { name: 'Voltar a receber pedidos' }).click()
+  await expect(cliente.getByText('O quiosque pausou os pedidos')).toBeHidden()
+  await expect(app.getByRole('button', { name: 'Pausar pedidos' })).toBeVisible()
+  await expectNoHorizontalScroll(app)
+
   await dono.reload()
   await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
   await dono.goto('/painel/cardapio')
