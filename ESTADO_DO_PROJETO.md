@@ -1,28 +1,18 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-09-30**, no fim do checkpoint **2.4** (construído, **ainda sem CI**).
+> Última atualização: **2026-09-30**, checkpoint **2.4** com CI verde, **aguardando o "aprovado 2.4"**.
 
 ---
 
-## 0. Primeiro passo obrigatório (antes de escrever qualquer código)
+## 0. Primeiro passo (antes de escrever qualquer código)
 
-A sessão anterior terminou com **8 commits que não chegaram ao GitHub** (este arquivo incluído) (o push foi recusado com 403 pela credencial daquela sessão). Eles foram entregues ao Matheus num **git bundle** (`mesamar-pendente.bundle`), ou já foram empurrados por ele.
+1. **Se o Matheus ainda não aprovou o 2.4:** apresente o relatório (`docs/relatorios/fase-2.md`, seção "Checkpoint 2.4") e peça o "aprovado 2.4". Esse checkpoint fecha a Fase 2.
+2. **Depois da aprovação:** marque o 2.4 no relatório, tire o PR #3 do rascunho (o Matheus decide o merge) e comece o **checkpoint 3.1** (seção 7).
 
-1. **Confirme que a branch `fase-2-contas` tem os commits até este arquivo:**
-   ```bash
-   git fetch origin && git log --oneline origin/fase-2-contas | head -12
-   ```
-   Tem que aparecer, de cima para baixo: `docs: estado do projeto…`, `docs: ADR 0006…`, `fix(web-staff): manifest.json…`, `feat(web-staff): app do quiosque…`, `feat(staff): API do app…`, `docs: relatório do checkpoint 2.3…`, `test(e2e): guarda-sóis e cardápio…`, `test(cardapio): passos de preparação…`, e então `ed43ee5 feat(cardapio)…`.
-   Se não aparecerem, aplique o bundle:
-   ```bash
-   git checkout -f fase-2-contas   # o -f descarta o "gradlew.bat modificado" que aparece num clone novo da main (só finais de linha)
-   git fetch ./mesamar-pendente.bundle fase-2-contas:fase-2-contas-pendente
-   git merge --ff-only fase-2-contas-pendente
-   git push origin fase-2-contas
-   ```
-2. **Rode o CI** (o push dispara o workflow no PR #3) e **faça o CI ficar verde**. Veja a seção 4 para o que pode quebrar e por quê.
-3. **Só depois do CI verde**, apresente o relatório do checkpoint 2.4 ao Matheus e peça a aprovação ("aprovado 2.4"). Esse checkpoint fecha a Fase 2.
+Os 8 commits que tinham ficado fora do GitHub já estão na `fase-2-contas`; o `mesamar-pendente.bundle` não é mais necessário.
+
+**Dica para o Windows do Matheus:** a porta 5432 pode estar ocupada ou reservada pelo sistema. Para subir o compose, troque o mapeamento do banco para `127.0.0.1:5433:5432` (o app não usa essa porta).
 
 ---
 
@@ -63,13 +53,12 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 |---|---|---|---|
 | 2.1 | Convites no /admin, cadastro/login/troca de senha do dono, painel com barraca, regras e Pix | ✅ verde (170 testes) | ✅ aprovado |
 | 2.2 | Equipe (atendentes com PIN, bloqueio, desbloqueio) e guarda-sóis em lote com limite | ✅ verde (201 testes) | ✅ aprovado |
-| 2.3 | Cardápio: categorias, produtos, ordem, esgotado com um toque, tirar do cardápio | ⚠️ ver abaixo | ✅ aprovado |
-| **2.4** | **App do quiosque (PWA) em `/staff/` + API `/api/staff`** | ❌ **nunca rodou** | ⏳ pendente |
+| 2.3 | Cardápio: categorias, produtos, ordem, esgotado com um toque, tirar do cardápio | ✅ verde (com o 2.4) | ✅ aprovado |
+| **2.4** | **App do quiosque (PWA) em `/staff/` + API `/api/staff`** | ✅ verde (218 testes, 10 E2E) | ⏳ pendente |
 
 **Sobre o 2.3:**
 - O CI do commit `ed43ee5` falhou em 3 testes de `CardapioTest`. **Não era bug do app:** o cliente HTTP dos testes não segue redirecionamentos, então a mensagem "flash" de um passo de preparação ficava na sessão e aparecia no lugar da mensagem do passo testado.
-- A correção está no commit `test(cardapio): passos de preparação seguem o redirect…`, que ainda não rodou no CI.
-- O E2E com guarda-sóis e cardápio também ainda não rodou.
+- A correção está no commit `test(cardapio): passos de preparação seguem o redirect…`, já verde, assim como o E2E com guarda-sóis e cardápio.
 
 **Sobre os ✗ vermelhos no histórico do PR #3:**
 
@@ -78,9 +67,9 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | `98be114` | Smoke test do compose falhou: o indicador de saúde do e-mail derrubava `/actuator/health` (compose passa `SPRING_MAIL_HOST` vazio) | Corrigido em `f0e99d6` (verde depois) |
 | `80eef57` | E2E travou ao clicar no tipo de chave Pix (rádio transparente sobre o texto) | Corrigido em `aab7dc5` (verde depois) |
 | `e430cea` | **Cancelado**, não falhou: o push seguinte cancela o CI anterior (`concurrency: cancel-in-progress`) | Normal |
-| `ed43ee5` | Os 3 testes do cardápio descritos acima | Correção pendente de CI |
+| `ed43ee5` | Os 3 testes do cardápio descritos acima | Corrigido em `5f76a10` (verde depois) |
 
-Nada fora do esperado: todos os problemas foram entendidos e corrigidos. Só falta confirmar no CI.
+Nada fora do esperado: todos os problemas foram entendidos e corrigidos.
 
 ---
 
@@ -116,9 +105,9 @@ cd e2e && npm ci && E2E_BASE_URL=http://localhost:8080 E2E_ADMIN_PASSWORD=<a do 
 
 ---
 
-## 4. Checkpoint 2.4: o que foi escrito e ainda não foi compilado
+## 4. Checkpoint 2.4: o que foi feito
 
-O backend do 2.4 foi escrito numa sessão **sem acesso ao Maven**, então **nunca compilou**. O front foi compilado e testado num Chromium contra uma simulação da API com o mesmo contrato e a mesma CSP (13 passos passaram).
+O backend do 2.4 foi escrito numa sessão **sem acesso ao Maven**. Na sessão seguinte, ele compilou sem nenhum ajuste e passou em tudo: ktlint, 218 testes, smoke e 10 E2E.
 
 **Arquivos novos ou alterados no backend:**
 - `staff/StaffAuth.kt`:
@@ -140,14 +129,14 @@ O backend do 2.4 foi escrito numa sessão **sem acesso ao Maven**, então **nunc
 - `cardapio/CardapioService.kt`: `definirEsgotado`.
 - Testes: `staff/StaffApiTest.kt` (9 testes) e `support/HttpTestClient.postJson(…, headers)`.
 
-**Pontos com maior chance de erro de compilação ou de teste** (confira primeiro se o CI falhar):
+**Pontos mais delicados** (confira primeiro se algo quebrar ao mexer aqui):
 1. `StaffController`: parâmetro `csrf: CsrfToken` nos handlers (resolvido pelo `CsrfTokenArgumentResolver` do Spring Security).
 2. `StaffLoginService.entrarDono`: `catch (e: AuthenticationException)` com `e` sem uso (só deve gerar aviso).
 3. `SecurityConfig.staffChain`: nomes e pacotes de `CsrfTokenRequestAttributeHandler`, `HttpSessionCsrfTokenRepository` e `AnonymousAuthenticationFilter` no Spring Security 7, e os lambdas de `authenticationEntryPoint`/`accessDeniedHandler`.
 4. `gravarSessao()` no controller: `request.changeSessionId()` + `staffSessao.repository.saveContext(...)`. Se o login "não pegar" (401 logo depois do 200), o problema está aqui.
 5. `StaffApiTest.barracaPronta()` depende de HTML do painel (regex do código da barraca `<span class="mono">…</span>` e do link `produtos/novo?categoria=`).
 
-**Também sem CI:** o E2E novo em `e2e/tests/painel.spec.ts`, passo 8 (a atendente entra no app em outro "celular" e devolve a água de coco ao cardápio).
+**E2E:** `e2e/tests/painel.spec.ts`, passo 8 (a atendente entra no app em outro "celular" e devolve a água de coco ao cardápio). Passou.
 
 ---
 
@@ -209,7 +198,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0006, relatorios/fase-0.
 > Cada item abaixo é um checkpoint: implementar, testar (inclusive isolamento), CI verde, relatório e **parar para aprovação**. Detalhes de escopo em `docs/MESAMAR_PROMPT.md`.
 
 ### Fase 2 (fechamento)
-- **2.4:** fazer o CI ficar verde (seção 4) → relatório já escrito em `docs/relatorios/fase-2.md` (atualizar a linha do CI com os números) → aprovação → **tirar o PR #3 do rascunho e o Matheus decide o merge.**
+- **2.4:** CI verde e relatório atualizado → **aprovação** → **tirar o PR #3 do rascunho e o Matheus decide o merge.**
 
 ### Fase 3: check-in, QR e pedido pelo cliente (núcleo)
 
