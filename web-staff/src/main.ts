@@ -3,6 +3,7 @@ import './install'
 import { ApiError, eventos, sessao, type Sessao } from './api'
 import { h, mount } from './dom'
 import { abaCardapio } from './views/cardapio'
+import { abaClientes } from './views/clientes'
 import { abaEmBreve } from './views/embreve'
 import { telaLogin } from './views/login'
 import { abaMais } from './views/mais'
@@ -22,7 +23,8 @@ let atual: Sessao | null = null
 
 function abaDaUrl (): Aba {
   const id = location.hash.replace('#/', '') as Aba
-  return ABAS.some((a) => a.id === id) ? id : 'cardapio'
+  // Clientes é a aba padrão: o check-in é a ação mais comum do dia.
+  return ABAS.some((a) => a.id === id) ? id : 'clientes'
 }
 
 function app (s: Sessao): void {
@@ -38,8 +40,8 @@ function app (s: Sessao): void {
     conteudo.scrollTop = 0
     limparAviso()
     switch (aba) {
-      case 'clientes': abaEmBreve(conteudo, 'Clientes', 'Aqui vai o check-in: nome, guarda-sol e o QR do cliente em tela cheia. Chega na próxima etapa.'); break
-      case 'fila': abaEmBreve(conteudo, 'Fila', 'Aqui vão os pedidos por ordem de chegada, com aviso de pedido novo. Chega depois do check-in.'); break
+      case 'clientes': abaClientes(conteudo, s); break
+      case 'fila': abaEmBreve(conteudo, 'Fila', 'Aqui vão os pedidos por ordem de chegada, com aviso de pedido novo. Chega numa próxima etapa.'); break
       case 'cardapio': abaCardapio(conteudo); break
       case 'mais': abaMais(conteudo, s, voltarAoLogin); break
     }

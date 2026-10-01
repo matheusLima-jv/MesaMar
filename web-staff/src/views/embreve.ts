@@ -6,7 +6,7 @@ export function abaEmBreve (root: HTMLElement, titulo: string, texto: string): v
     h('header', { class: 'tab-head' }, h('h1', {}, titulo)),
     h('div', { class: 'empty' },
       h('p', {}, texto),
-      h('p', { class: 'hint' }, 'Enquanto isso, a aba Cardápio já funciona.')
+      h('p', { class: 'hint' }, 'Enquanto isso, as abas Clientes e Cardápio já funcionam.')
     )
   )
 }

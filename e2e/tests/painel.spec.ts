@@ -95,9 +95,41 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await app.getByRole('button', { name: 'Carla' }).click()
   await app.getByLabel('Seu PIN').fill('2580')
   await app.getByRole('button', { name: 'Entrar' }).click()
-  await expect(app.getByRole('heading', { name: 'Cardápio' })).toBeVisible()
+  await expect(app.getByRole('heading', { name: 'Clientes' })).toBeVisible()
   await expectNoHorizontalScroll(app)
+
+  // 8b) Check-in da Ana no guarda-sol 12: QR em tela cheia, WhatsApp e lista por ordem de chegada
+  await app.getByRole('button', { name: '+ Novo cliente' }).click()
+  await app.getByLabel('Nome do cliente').fill('Ana')
+  await app.getByRole('button', { name: 'Guarda-sol 12', exact: true }).click()
+  await app.getByLabel(/^WhatsApp/).fill('(13) 99999-8888')
+  await app.getByRole('button', { name: 'Gerar QR' }).click()
+  await expect(app.getByText('Confirme que o cliente concordou.')).toBeVisible()
+  await app.getByLabel(/O cliente concorda/).check()
+  await expectNoHorizontalScroll(app)
+  await app.getByRole('button', { name: 'Gerar QR' }).click()
+  const qr = app.getByRole('dialog', { name: 'Ana' })
+  await expect(qr.getByRole('img', { name: 'QR da comanda de Ana' })).toBeVisible()
+  await expect(qr.getByText('Guarda-sol 12 · chegada nº 1')).toBeVisible()
+  const whatsapp = await qr.getByRole('link', { name: /Enviar pelo WhatsApp/ }).getAttribute('href') ?? ''
+  expect(whatsapp).toContain('https://wa.me/5513999998888?text=')
+  const linkCliente = /https?:\/\/\S+\/c\/[A-Za-z0-9_-]{22}/.exec(decodeURIComponent(whatsapp))?.[0] ?? ''
+  expect(linkCliente).not.toBe('')
+  await expectNoHorizontalScroll(app)
+  await qr.getByRole('button', { name: 'Pronto' }).click()
+  await expect(app.getByText('Guarda-sol 12 ·')).toBeVisible()
+  await app.getByRole('button', { name: 'Mostrar o QR de Ana' }).click()
+  await expect(app.getByRole('img', { name: 'QR da comanda de Ana' })).toBeVisible()
+  await app.getByRole('button', { name: 'Pronto' }).click()
+
+  // O link do QR abre a página do cliente em outro celular
+  const cliente = await novoAparelho()
+  await cliente.goto(caminho(linkCliente))
+  await expect(cliente.locator('body[data-app="web-customer"]')).toBeAttached()
+
   // A água de coco ficou esgotada no passo 7: a atendente devolve ao cardápio com um toque.
+  await app.getByRole('link', { name: 'Cardápio' }).click()
+  await expect(app.getByRole('heading', { name: 'Cardápio' })).toBeVisible()
   await app.getByRole('button', { name: 'Voltar a vender Água de coco' }).click()
   await expect(app.getByText('Água de coco voltou.')).toBeVisible()
   await dono.reload()
