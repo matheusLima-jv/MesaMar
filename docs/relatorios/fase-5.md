@@ -65,7 +65,7 @@ Itens 86 a 96 de [`docs/testar-localmente.md`](../testar-localmente.md). Os mais
 ## Checkpoint 5.2 — Receber pagamentos, aviso "indo pagar" e fechar a conta
 
 - **Data:** 2026-10-01
-- **Verificado localmente:** ktlint, **347 testes de backend** (323 do 5.1 + 24 novos), build dos dois fronts e **10 E2E** (o do painel ganhou o passo do 5.2), com a imagem Docker construída do zero. **O CI do GitHub ainda não rodou para o 5.2** (os commits ainda não foram enviados).
+- **CI:** ✅ verde no GitHub (PR #5): ktlint, **347 testes de backend** (323 do 5.1 + 24 novos), imagem Docker, smoke do compose e **10 E2E** no tamanho de celular (o do painel ganhou o passo do 5.2).
 
 ### 1. O que foi feito
 
@@ -118,4 +118,4 @@ Itens 97 a 110 de [`docs/testar-localmente.md`](../testar-localmente.md). Os mai
 
 ### 6. Antes de aprovar
 
-- O 5.2 está na `fase-4-fila`, no PR #5 (rascunho). Os commits do 5.2 ainda são locais.
+- O 5.2 está na `fase-4-fila`, no PR #5 (rascunho, não mergeado).
