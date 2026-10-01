@@ -1,7 +1,7 @@
 # Relatório — Fase 2: painel do dono
 
-- **Branch / PR:** `fase-2-contas` → [PR #3](https://github.com/matheusLima-jv/MesaMar/pull/3) (Fase 2 completa)
-- A Fase 2 foi dividida em 4 checkpoints, aprovados um por vez (os testes manuais ficam para a entrega final, a pedido do Matheus):
+- **Branch / PR:** `fase-2-contas` → [PR #3](https://github.com/matheusLima-jv/MesaMar/pull/3), **mergeado na `main` em 2026-09-30**
+- **Fase 2 concluída.** Foi dividida em 4 checkpoints, aprovados um por vez (os testes manuais ficam para a entrega final, a pedido do Matheus):
   - [x] **2.1 — Contas do dono, barraca, regras e Pix** (aprovado)
   - [x] **2.2 — Equipe (PIN) e guarda-sóis** (aprovado)
   - [x] **2.3 — Cardápio** (aprovado)
@@ -131,7 +131,7 @@ Itens 26 a 31 de [`docs/testar-localmente.md`](../testar-localmente.md).
 ## Checkpoint 2.3 — Cardápio
 
 - **Data:** 2026-09-30
-- **CI:** ✅ verde junto com o 2.4. A primeira rodada (`ed43ee5`) falhou em 3 testes do `CardapioTest`, mas não por bug do app: o cliente HTTP dos testes não segue redirect, e a mensagem de um passo de preparação aparecia no lugar da do passo testado. Os passos de preparação agora seguem o redirect como o navegador (`5f76a10`)
+- **CI:** ✅ verde (junto com o 2.4, commit `e00c042`), com `CardapioTest` 8/8. A primeira rodada (`ed43ee5`) teve 3 falhas de teste, e não do app: a mensagem flash de um passo de preparação sobrava na sessão. Corrigido.
 
 ### 1. O que foi feito
 
@@ -180,7 +180,7 @@ Itens 32 a 36 de [`docs/testar-localmente.md`](../testar-localmente.md).
 ## Checkpoint 2.4 — App do quiosque
 
 - **Data:** 2026-09-30
-- **CI:** ✅ verde na primeira tentativa: ktlint, **218 testes de backend** (+17 no 2.3 e no 2.4), imagem Docker, smoke do compose e **10 E2E** no tamanho de celular (landing em 361 ms no 4G simulado). O backend deste checkpoint foi escrito numa sessão sem acesso ao compilador e compilou sem nenhum ajuste
+- **CI:** ✅ verde na primeira rodada (commit `e00c042`): **218 testes de backend** (+17 desde o 2.2), imagem Docker, smoke do compose (inclui `/staff/`) e **10 E2E**, entre eles o fluxo do dono ponta a ponta com a atendente entrando no app. Landing a 358 ms no 4G simulado.
 
 ### 1. O que foi feito
 
@@ -219,7 +219,7 @@ Itens 32 a 36 de [`docs/testar-localmente.md`](../testar-localmente.md).
   - o app da barraca B não mexe no produto de A, e o PIN de A com o código de B não entra;
   - a sessão do painel não vale no app;
   - "sair" encerra a sessão.
-- **E2E (celular):** o fluxo do dono agora cadastra a Carla. Um terceiro "celular" abre o app, entra como Carla e devolve a água de coco ao cardápio, e o painel do dono mostra a mudança. Tudo sem erro no console e sem rolagem lateral.
+- **E2E (celular, no CI):** o fluxo do dono agora cadastra a Carla. Um terceiro "celular" abre o app, entra como Carla e devolve a água de coco ao cardápio, e o painel do dono mostra a mudança. Tudo sem erro no console e sem rolagem lateral.
 - **Feito aqui, antes do CI:** o app compilado rodou num Chromium em tamanho de celular (Pixel 7) contra uma simulação da API com o **mesmo contrato e a mesma CSP** do servidor. Passaram 13 passos:
   - código errado, PIN errado com tentativas restantes, entrada;
   - esgotado otimista e confirmado; falha do servidor desfaz e avisa;

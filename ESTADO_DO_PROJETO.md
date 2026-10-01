@@ -7,8 +7,8 @@
 
 ## 0. Primeiro passo (antes de escrever qualquer código)
 
-1. **Confirme que tudo chegou ao GitHub.** O merge da Fase 2 na `main` e a `fase-3-cliente` foram feitos localmente, mas o push depende do login do Matheus (`git push origin fase-2-contas main fase-3-cliente`). Confira com `git status -sb` (não pode estar "ahead").
-2. **Abra o PR da Fase 3 em rascunho** (`fase-3-cliente` → `main`), se ainda não existir, e confira o CI.
+1. **A `main` e a `fase-3-cliente` já estão no GitHub** (a `fase-3-cliente` foi enviada em 2026-09-30, com a `main` do GitHub mesclada nela). Confira com `git status -sb` (não pode estar "ahead").
+2. **O PR da Fase 3 está aberto em rascunho** (`fase-3-cliente` → `main`). Confira o CI dele com `gh pr checks`. (O `CLAUDE.md` cita a branch `fase-3-pedidos`, mas a branch real é `fase-3-cliente`.)
 3. **Se o 3.1 ainda não foi aprovado:** apresente o relatório (`docs/relatorios/fase-3.md`) e peça o "aprovado 3.1". Depois, siga para o **3.2** (seção 7).
 
 **Dica para o Windows do Matheus:** a porta 5432 pode estar ocupada ou reservada pelo sistema. Para subir o compose, troque o mapeamento do banco para `127.0.0.1:5433:5432` (o app não usa essa porta).
@@ -59,7 +59,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 
 | Checkpoint | Conteúdo | CI | Aprovação |
 |---|---|---|---|
-| **3.1** | **Check-in no app (aba Clientes), QR em tela cheia, `/api/staff/clientes`** | ✅ local (228 testes, 10 E2E); GitHub depende do push | ⏳ pendente |
+| **3.1** | **Check-in no app (aba Clientes), QR em tela cheia, `/api/staff/clientes`** | ✅ local (228 testes, 10 E2E); CI do GitHub rodando no PR | ⏳ pendente |
 | 3.2 | Página do cliente: cardápio, carrinho, pedido idempotente | — | — |
 | 3.3 | Meus pedidos, saldo, bloqueios, E2E multi-contexto | — | — |
 

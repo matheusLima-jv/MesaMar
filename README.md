@@ -2,7 +2,7 @@
 
 Comanda digital para quiosques e carrinhos de praia. O cliente faz um cadastro rápido no quiosque, recebe um QR pessoal, pede pelo celular e fecha a conta sem chamar garçom. O dono recebe os pedidos numa fila por ordem de chegada.
 
-> **Status:** Fase 2 em andamento (branch `fase-2-contas`, PR #3). Onde paramos e o que falta: [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md). Plano completo: [`docs/MESAMAR_PROMPT.md`](docs/MESAMAR_PROMPT.md).
+> **Status:** Fases 0, 1 e 2 concluídas (landing, lista de espera, painel do dono, equipe, guarda-sóis, cardápio e app do quiosque). Próxima: Fase 3 (check-in e pedido pelo cliente). Onde paramos e o que falta: [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md). Plano completo: [`docs/MESAMAR_PROMPT.md`](docs/MESAMAR_PROMPT.md).
 
 ## Stack
 

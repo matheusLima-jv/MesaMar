@@ -5,7 +5,7 @@
 Resumo das regras (detalhes no `ESTADO_DO_PROJETO.md`, seção 1, e no `docs/MESAMAR_PROMPT.md`):
 
 - Trabalhe **um checkpoint por vez**. Ao terminar: CI verde, relatório em `docs/relatorios/fase-N.md` e roteiro manual em `docs/testar-localmente.md`. Depois **pare e peça aprovação ao Matheus**.
-- Não faça merge na `main` sem ele pedir. A Fase 2 está na branch `fase-2-contas` (PR #3).
+- Não faça merge na `main` sem ele pedir. Fases 0 a 2 já estão na `main`; a próxima é a Fase 3 (branch `fase-3-pedidos`).
 - Interface e documentação em português do Brasil. Commits em Conventional Commits.
 - Isolamento entre barracas: nenhuma URL traz id de barraca, e todo endpoint novo ganha teste de isolamento.
 - Dinheiro em centavos (`Long`). Segredos só no `.env`. Não mexa em firewall, SSH nem Cloudflare.
