@@ -82,6 +82,13 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(dono.getByRole('button', { name: 'Voltar a vender Água de coco' })).toHaveAttribute('aria-pressed', 'true')
   await expectNoHorizontalScroll(dono)
 
+  // 7b) Regras: limite de conta aberta de R$ 90 (vale para o cliente, mais abaixo)
+  await dono.getByRole('link', { name: 'Regras', exact: true }).click()
+  await dono.getByLabel('Limite de conta aberta (R$)').fill('90')
+  await dono.getByRole('button', { name: 'Salvar regras' }).click()
+  await expect(dono.getByText('Regras salvas.')).toBeVisible()
+  await expectNoHorizontalScroll(dono)
+
   // 8) Equipe + app do quiosque em outro celular: atendente entra com código, nome e PIN
   await dono.getByRole('link', { name: 'Equipe', exact: true }).click()
   await dono.getByLabel('Nome ou apelido').fill('Carla')
@@ -138,6 +145,7 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(cliente.getByText('Esgotado', { exact: true })).toBeVisible()
   await expect(cliente.getByRole('button', { name: 'Adicionar Água de coco' })).toHaveCount(0)
   await expect(cliente.getByRole('link', { name: /Ver pedido/ })).toBeHidden()
+  await expect(cliente.getByText('Sua conta: R$ 0,00')).toBeVisible()
   await expectNoHorizontalScroll(cliente)
 
   // A atendente devolve a água de coco ao cardápio com um toque.
@@ -160,6 +168,7 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(cliente.getByRole('heading', { name: 'Pedido nº 1 enviado' })).toBeVisible()
   await expect(cliente.getByText('2× Água de coco')).toBeVisible()
   await expect(cliente.getByText('sem gelo')).toBeVisible()
+  await expect(cliente.getByText('Sua conta: R$ 49,00')).toBeVisible()
   await expectNoHorizontalScroll(cliente)
   checkCliente()
 
@@ -177,6 +186,23 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await cliente.getByRole('link', { name: /Ver pedido/ }).click()
   await cliente.getByRole('button', { name: 'Enviar pedido' }).click()
   await expect(cliente.getByRole('heading', { name: 'Pedido nº 3 enviado' })).toBeVisible()
+
+  // 8e) A conta chegou a R$ 99, acima do limite de R$ 90: o cardápio avisa e não deixa pedir mais.
+  // "Meus pedidos" mostra os 3 pedidos, do mais novo para o mais antigo, com o saldo.
+  await expect(cliente.getByText('Sua conta: R$ 99,00')).toBeVisible()
+  await cliente.getByRole('button', { name: 'Voltar ao cardápio' }).click()
+  await expect(cliente.getByText('Sua conta chegou a R$ 90,00. Para pedir mais, pague uma parte com um atendente.')).toBeVisible()
+  await expect(cliente.getByRole('button', { name: /^Adicionar / })).toHaveCount(0)
+  await expect(cliente.getByRole('link', { name: /Ver pedido/ })).toBeHidden()
+  await cliente.getByRole('link', { name: 'Meus pedidos' }).click()
+  await expect(cliente.getByRole('heading', { name: 'Meus pedidos' })).toBeVisible()
+  await expect(cliente.locator('.order')).toHaveCount(3)
+  await expect(cliente.locator('.order').first()).toContainText('Pedido nº 3')
+  await expect(cliente.locator('.order').last()).toContainText('Pedido nº 1')
+  await expect(cliente.locator('.order').last()).toContainText('2× Água de coco')
+  await expect(cliente.locator('.order').last()).toContainText('Recebido')
+  await expect(cliente.getByText('Total da conta R$ 99,00')).toBeVisible()
+  await expectNoHorizontalScroll(cliente)
 
   await dono.reload()
   await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
