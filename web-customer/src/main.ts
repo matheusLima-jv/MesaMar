@@ -1,5 +1,8 @@
 import './style.css'
-import { ApiError, comanda, enviarPedido, meusPedidos, novoId, ouvirComanda, tokenDaUrl, type Comanda, type Pedido, type Produto } from './api'
+import {
+  ApiError, comanda, conta, enviarPedido, fecharConta, lerReais, meusPedidos, novoId, ouvirComanda, pixPago, reabrirConta, tokenDaUrl,
+  type Comanda, type Conta, type Metodo, type Pedido, type Produto
+} from './api'
 import { Carrinho, pendente } from './carrinho'
 import { h, lembrar, mount } from './dom'
 import { type Contexto } from './views/casca'
@@ -7,6 +10,7 @@ import { telaCardapio } from './views/cardapio'
 import { telaCarrinho } from './views/carrinho'
 import { telaConfirmacao, telaEnvio } from './views/envio'
 import { telaPedidos } from './views/pedidos'
+import { telaConta, type AcoesConta, type EstadoConta } from './views/conta'
 
 const root = document.getElementById('app') as HTMLElement
 const ATUALIZAR_APOS_MS = 30_000
@@ -32,6 +36,8 @@ let timerSincronia: number | undefined
 /** Cancelamentos que o cliente já leu (ids de pedido e de item), guardados no navegador. */
 let avisados = new Set<string>()
 let idsDosAvisos: string[] = []
+/** A tela "Conta": o extrato, a forma escolhida e o que o cliente digitou. */
+const estadoConta: EstadoConta = { conta: null, semSinal: false, erro: null, ocupado: false, metodo: null, troco: '', trocando: false, copiado: false }
 
 function indexar (dados: Comanda): Map<string, Produto> {
   return new Map(dados.cardapio.flatMap((s) => s.produtos).map((p) => [p.id, p]))
@@ -54,6 +60,8 @@ function desenhar (topo = true): void {
     mount(root, ...telaCarrinho(ctx, erroCarrinho, () => { void enviar() }, () => { desenhar() }))
   } else if (location.hash === '#pedidos') {
     mount(root, ...telaPedidos(ctx, meus, meusSemSinal))
+  } else if (location.hash === '#conta') {
+    mount(root, ...telaConta(ctx, estadoConta, acoesConta))
   } else if (location.hash === '#pedido' && confirmado !== null) {
     mount(root, ...telaConfirmacao(ctx, confirmado, () => { location.hash = '' }))
   } else {
@@ -113,11 +121,108 @@ async function carregarPedidos (): Promise<void> {
   redesenharSeLivre()
 }
 
+/** Busca o extrato da conta e redesenha a tela só se algo mudou (para não atrapalhar quem está digitando o troco). */
+async function carregarConta (): Promise<void> {
+  const eraSemSinal = estadoConta.semSinal
+  const antes = JSON.stringify(estadoConta.conta)
+  try {
+    aplicarConta(await conta(token))
+  } catch {
+    estadoConta.semSinal = true
+  }
+  if (location.hash === '#conta' && (eraSemSinal !== estadoConta.semSinal || antes !== JSON.stringify(estadoConta.conta))) desenhar(false)
+}
+
+/** Guarda a conta nova e acerta o que depende dela: o saldo do cabeçalho e a forma já escolhida. */
+function aplicarConta (nova: Conta): void {
+  estadoConta.conta = nova
+  estadoConta.semSinal = false
+  ctx.dados.saldoCentavos = nova.saldoCentavos
+  if (nova.status !== 'AGUARDANDO_PAGAMENTO') estadoConta.trocando = false
+  // Conta já fechada em outro momento (ou em outro celular): a forma escolhida volta a aparecer marcada
+  if (estadoConta.metodo === null || (nova.metodo !== null && !estadoConta.trocando)) estadoConta.metodo = nova.metodo ?? estadoConta.metodo
+}
+
+/** Uma ação da conta por vez: os botões ficam desligados enquanto ela viaja, e a recusa do servidor vira aviso na tela. */
+async function agir (acao: () => Promise<Conta>): Promise<void> {
+  if (estadoConta.ocupado) return
+  estadoConta.ocupado = true
+  estadoConta.erro = null
+  desenhar(false)
+  try {
+    aplicarConta(await acao())
+    estadoConta.trocando = false
+  } catch (e) {
+    estadoConta.erro = e instanceof ApiError ? e.message : 'Algo deu errado. Tente de novo.'
+    // 409: a situação da conta mudou (outro celular, o quiosque): mostra a conta como está agora
+    if (e instanceof ApiError && e.status === 409) await carregarConta().catch(() => undefined)
+  } finally {
+    estadoConta.ocupado = false
+  }
+  // O cardápio passa a avisar (ou deixa de avisar) que a conta está sendo fechada
+  await atualizar(false)
+  if (location.hash === '#conta') desenhar(false)
+}
+
+async function copiarCodigo (codigo: string): Promise<void> {
+  let ok = false
+  try {
+    await navigator.clipboard.writeText(codigo)
+    ok = true
+  } catch {
+    // Sem permissão ou sem HTTPS: tenta o jeito antigo, com um campo escondido
+    const campo = document.createElement('textarea')
+    campo.value = codigo
+    campo.setAttribute('readonly', '')
+    campo.className = 'fora-da-tela'
+    document.body.append(campo)
+    campo.select()
+    try { ok = document.execCommand('copy') } catch { ok = false }
+    campo.remove()
+  }
+  estadoConta.erro = ok ? null : 'Não deu para copiar. Abra "Ver o código" abaixo do QR e copie à mão.'
+  estadoConta.copiado = ok
+  desenhar(false)
+  if (ok) window.setTimeout(() => { estadoConta.copiado = false; if (location.hash === '#conta') desenhar(false) }, 3_000)
+}
+
+const acoesConta: AcoesConta = {
+  escolher: (m: Metodo) => {
+    estadoConta.metodo = m
+    estadoConta.erro = null
+    desenhar(false)
+  },
+  digitarTroco: (texto: string) => { estadoConta.troco = texto },
+  fechar: () => {
+    const metodo = estadoConta.metodo
+    if (metodo === null) return
+    let troco: number | null = null
+    if (metodo === 'DINHEIRO' && estadoConta.troco.trim() !== '') {
+      troco = lerReais(estadoConta.troco)
+      if (troco === null || troco <= 0) {
+        estadoConta.erro = 'Não entendemos o valor do troco. Digite em reais, por exemplo: 100 ou 50,00.'
+        desenhar(false)
+        return
+      }
+    }
+    void agir(async () => await fecharConta(token, metodo, troco))
+  },
+  jaPaguei: () => { void agir(async () => await pixPago(token)) },
+  reabrir: () => { void agir(async () => await reabrirConta(token)) },
+  trocar: () => {
+    estadoConta.trocando = !estadoConta.trocando
+    estadoConta.erro = null
+    desenhar(false)
+  },
+  copiar: (codigo: string) => { void copiarCodigo(codigo) }
+}
+
 /** Algo mudou no quiosque (status, item cancelado, conta): busca tudo de novo. */
 async function sincronizar (): Promise<void> {
   if (enviando) return
   await atualizar(false)
   await carregarPedidos()
+  if (location.hash === '#conta') await carregarConta()
 }
 
 /** Vários avisos seguidos viram uma busca só. */
@@ -126,14 +231,21 @@ function agendarSincronia (): void {
   timerSincronia = window.setTimeout(() => { void sincronizar() }, 250)
 }
 
-/** Enquanto "Meus pedidos" está aberta: carrega agora e, sem o tempo real, de novo a cada 15 s. */
+/**
+ * Enquanto "Meus pedidos" ou "Conta" está aberta: carrega agora e de novo a cada 15 s. "Meus pedidos" só consulta sem o
+ * tempo real; a conta consulta sempre (o aviso em tempo real dela chega com o checkpoint 5.2).
+ */
 function acompanharPedidos (): void {
   window.clearTimeout(timerPedidos)
-  if (location.hash !== '#pedidos') return
-  void carregarPedidos()
+  const aba = location.hash
+  if (aba !== '#pedidos' && aba !== '#conta') return
+  void (aba === '#conta' ? carregarConta() : carregarPedidos())
   const volta = (): void => {
-    if (location.hash !== '#pedidos') return
-    if (document.visibilityState === 'visible' && !tempoReal) void carregarPedidos()
+    if (location.hash !== aba) return
+    if (document.visibilityState === 'visible') {
+      if (aba === '#conta') void carregarConta()
+      else if (!tempoReal) void carregarPedidos()
+    }
     timerPedidos = window.setTimeout(volta, ATUALIZAR_PEDIDOS_MS)
   }
   timerPedidos = window.setTimeout(volta, ATUALIZAR_PEDIDOS_MS)
@@ -278,7 +390,7 @@ async function iniciar (): Promise<void> {
 
 // Voltou para a página depois de um tempo (trocou de app, bloqueou a tela): confere se algo acabou
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && ctx !== undefined && location.hash === '#pedidos') acompanharPedidos()
+  if (document.visibilityState === 'visible' && ctx !== undefined && (location.hash === '#pedidos' || location.hash === '#conta')) acompanharPedidos()
   if (document.visibilityState === 'visible' && ctx !== undefined && !enviando && Date.now() - atualizadoEm > ATUALIZAR_APOS_MS) {
     // Só redesenha o cardápio e o carrinho: a confirmação do pedido fica como está
     void atualizar(location.hash === '#carrinho' || location.hash === '')

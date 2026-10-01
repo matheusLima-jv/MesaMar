@@ -37,6 +37,7 @@ export function telaPedidos (ctx: Contexto, pedidos: Pedido[] | null, semSinal: 
     semSinal ? h('p', { class: 'alert', role: 'status' }, aviso) : '',
     corpo,
     h('p', { class: 'total' }, 'Total da conta ', h('strong', { class: 'total-valor' }, reais(ctx.dados.saldoCentavos))),
+    pedidos !== null && pedidos.length > 0 ? h('a', { href: '#conta', class: 'btn btn-sun btn-big btn-block' }, 'Fechar conta') : '',
     h('p', { class: 'hint' }, 'Esta lista se atualiza sozinha a cada 15 segundos.')
   )
 }

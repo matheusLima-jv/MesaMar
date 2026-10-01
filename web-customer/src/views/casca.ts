@@ -13,10 +13,10 @@ export interface Contexto {
   dispensarAvisos: () => void
 }
 
-export type Aba = 'cardapio' | 'pedidos' | null
+export type Aba = 'cardapio' | 'pedidos' | 'conta' | null
 
 /**
- * Cabeçalho ("Olá, Ana · Guarda-sol 12" e a conta de agora), as abas Cardápio e Meus pedidos, o
+ * Cabeçalho ("Olá, Ana · Guarda-sol 12" e a conta de agora), as abas Cardápio, Meus pedidos e Conta, o
  * conteúdo da tela e o rodapé com a política de privacidade.
  */
 export function casca (ctx: Contexto, aba: Aba, ...conteudo: Array<Node | string>): Node[] {
@@ -31,7 +31,8 @@ export function casca (ctx: Contexto, aba: Aba, ...conteudo: Array<Node | string
     ),
     h('nav', { class: 'abas', 'aria-label': 'Seções da sua comanda' },
       link('cardapio', '#', 'Cardápio'),
-      link('pedidos', '#pedidos', 'Meus pedidos')
+      link('pedidos', '#pedidos', 'Meus pedidos'),
+      link('conta', '#conta', 'Conta')
     ),
     h('main', { id: 'conteudo', class: 'page' },
       ctx.avisos.length > 0

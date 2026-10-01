@@ -75,6 +75,42 @@ export interface MeusPedidos {
   pedidos: Pedido[]
 }
 
+export type Metodo = 'PIX' | 'DINHEIRO' | 'CARTAO'
+
+export interface Pix {
+  /** O "copia e cola" do Pix; o mesmo texto vira o QR. */
+  codigo: string
+  chave: string
+  nomeRecebedor: string
+  cidade: string
+  valorCentavos: number
+}
+
+export interface PagamentoFeito {
+  metodo: Metodo
+  rotulo: string
+  valorCentavos: number
+  /** Dinheiro: quanto o cliente entregou, para mostrar o troco. */
+  valorRecebidoCentavos: number | null
+  hora: string
+}
+
+/** O extrato da conta e em que ponto do fechamento ela está. */
+export interface Conta {
+  status: 'ABERTA' | 'AGUARDANDO_PAGAMENTO' | 'FECHADA' | 'CANCELADA' | 'BLOQUEADA'
+  pedidoCentavos: number
+  pagoCentavos: number
+  saldoCentavos: number
+  metodo: Metodo | null
+  trocoParaCentavos: number | null
+  /** Hora em que o cliente avisou o quiosque (dinheiro e cartão: ao fechar; Pix: no "já paguei"). */
+  avisadoEm: string | null
+  pix: Pix | null
+  aceitaPix: boolean
+  pedidos: Pedido[]
+  pagamentos: PagamentoFeito[]
+}
+
 export class ApiError extends Error {
   constructor (
     readonly status: number,
@@ -138,6 +174,26 @@ export async function enviarPedido (token: string, pedido: PedidoEnvio): Promise
   return await chamar<Pedido>('POST', token, '/pedidos', pedido)
 }
 
+/** O extrato e o ponto do fechamento da conta. */
+export async function conta (token: string): Promise<Conta> {
+  return await chamar<Conta>('GET', token, '/conta')
+}
+
+/** "Fechar conta": a comanda passa a aguardar o pagamento. Repetir troca a forma de pagamento. */
+export async function fecharConta (token: string, metodo: Metodo, trocoParaCentavos: number | null): Promise<Conta> {
+  return await chamar<Conta>('POST', token, '/conta/fechar', { metodo, trocoParaCentavos })
+}
+
+/** Pix: "já paguei". */
+export async function pixPago (token: string): Promise<Conta> {
+  return await chamar<Conta>('POST', token, '/conta/pix-pago', {})
+}
+
+/** "Voltar e pedir mais": só enquanto nenhum pagamento foi confirmado. */
+export async function reabrirConta (token: string): Promise<Conta> {
+  return await chamar<Conta>('POST', token, '/conta/reabrir', {})
+}
+
 /**
  * Tempo real: o servidor avisa quando um pedido da comanda muda (status, item cancelado) e a página busca de novo.
  * `aoMudar` roda a cada aviso; `aoEstado(true)` quando conectou e `aoEstado(false)` quando caiu (o navegador reconecta sozinho).
@@ -183,4 +239,12 @@ export function novoId (): string {
 export function reais (centavos: number): string {
   const inteiro = String(Math.floor(centavos / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
   return `R$ ${inteiro},${String(centavos % 100).padStart(2, '0')}`
+}
+
+/** "100", "100,50" ou "R$ 1.250,00" → centavos. `null` se não for um valor em reais. */
+export function lerReais (texto: string): number | null {
+  const limpo = texto.replace(/R\$/g, '').replace(/\s/g, '')
+  const m = /^(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,2}))?$/.exec(limpo)
+  if (m === null) return null
+  return Number(m[1].replace(/\./g, '')) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
 }
