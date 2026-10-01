@@ -6,6 +6,7 @@ import br.com.mesamar.comanda.ClienteRepository
 import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.RateLimiter
+import br.com.mesamar.eventos.HubEventos
 import br.com.mesamar.guardasol.GuardaSolRepository
 import br.com.mesamar.pedido.Bloqueio
 import br.com.mesamar.pedido.PedidoDetalhe
@@ -17,8 +18,10 @@ import br.com.mesamar.staff.ErroView
 import br.com.mesamar.staff.ProdutoView
 import br.com.mesamar.staff.SecaoView
 import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -28,6 +31,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.Duration
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -62,6 +66,8 @@ data class MeusPedidosView(
 )
 
 data class ItemPedidoView(
+    /** Identifica a linha na página (para o aviso de cancelamento aparecer uma vez só). */
+    val id: UUID,
     val produtoId: UUID,
     val nome: String,
     val precoCentavos: Long,
@@ -70,6 +76,8 @@ data class ItemPedidoView(
     val subtotalCentavos: Long,
     /** Item que o quiosque cancelou: continua na lista, mas não entra no total nem no saldo. */
     val cancelado: Boolean,
+    /** Por que o quiosque cancelou (ex.: "Esgotou"). */
+    val motivoCancelamento: String?,
 )
 
 data class PedidoView(
@@ -79,6 +87,8 @@ data class PedidoView(
     val hora: String,
     val itens: List<ItemPedidoView>,
     val totalCentavos: Long,
+    /** Quando o pedido todo foi cancelado, por quê. */
+    val motivoCancelamento: String?,
 )
 
 /** Erro de pedido com a lista de produtos que não dá para pedir (a página tira do carrinho). */
@@ -101,6 +111,7 @@ class ClienteController(
     private val guardaSois: GuardaSolRepository,
     private val barracas: BarracaRepository,
     private val pedidos: PedidoService,
+    private val hub: HubEventos,
     private val rateLimiter: RateLimiter,
 ) {
     @GetMapping
@@ -141,6 +152,28 @@ class ClienteController(
                 pedidos = pedidos.meusPedidos(comanda).reversed().map(::view),
             ),
         )
+    }
+
+    /**
+     * Tempo real da comanda: avisa (evento `pedido`) quando um pedido dela muda de status ou tem item cancelado, e a
+     * página busca "Meus pedidos" de novo. Token inexistente ou uso demais: sem corpo, para o navegador parar de insistir.
+     */
+    @GetMapping("/eventos")
+    fun eventos(
+        @PathVariable token: String,
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+    ): ResponseEntity<SseEmitter> {
+        val comanda = comandas.findByTokenAcesso(token)
+        if (comanda == null) {
+            val dentro = rateLimiter.tryAcquire("c-invalido:${request.remoteAddr}", LIMITE_TOKEN_INVALIDO, JANELA_TOKEN_INVALIDO)
+            return ResponseEntity.status(if (dentro) HttpStatus.NOT_FOUND else HttpStatus.TOO_MANY_REQUESTS).build()
+        }
+        if (!rateLimiter.tryAcquire("c-eventos:${comanda.id}", LIMITE_EVENTOS, JANELA_COMANDA)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header("Retry-After", "30").build()
+        }
+        response.setHeader("X-Accel-Buffering", "no")
+        return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM).body(hub.assinarComanda(comanda.id))
     }
 
     @PostMapping("/pedidos")
@@ -208,6 +241,7 @@ class ClienteController(
             itens =
                 d.itens.map {
                     ItemPedidoView(
+                        it.id,
                         it.produtoId,
                         it.nomeSnapshot,
                         it.precoSnapshotCentavos,
@@ -215,14 +249,17 @@ class ClienteController(
                         it.observacao,
                         it.subtotalCentavos,
                         it.cancelado,
+                        it.motivoCancelamento,
                     )
                 },
             totalCentavos = d.totalCentavos,
+            motivoCancelamento = d.pedido.motivoCancelamento,
         )
 
     companion object {
         const val LIMITE_GERAL = 90
         const val LIMITE_PEDIDOS = 20
+        const val LIMITE_EVENTOS = 30
         const val LIMITE_TOKEN_INVALIDO = 30
         val JANELA_COMANDA: Duration = Duration.ofMinutes(1)
         val JANELA_TOKEN_INVALIDO: Duration = Duration.ofMinutes(10)

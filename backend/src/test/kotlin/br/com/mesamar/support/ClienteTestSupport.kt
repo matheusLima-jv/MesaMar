@@ -18,6 +18,8 @@ import kotlin.test.assertNotNull
 class Quiosque(
     val barracaId: UUID,
     val usuarioId: UUID,
+    /** E-mail do dono (a senha é `PainelTestSupport.SENHA`), para entrar no app do quiosque. */
+    val email: String,
     val coco: Produto,
     val pastel: Produto,
 )
@@ -64,7 +66,7 @@ class ClienteTestSupport(
                 atualizadoEm = agora,
             ),
         )
-        return Quiosque(barracaId, dono.id, produto("Água de coco", 1200, 1), produto("Pastel", 2500, 2))
+        return Quiosque(barracaId, dono.id, email, produto("Água de coco", 1200, 1), produto("Pastel", 2500, 2))
     }
 
     /** Faz o check-in e devolve o token do QR (o que o cliente tem no celular). */

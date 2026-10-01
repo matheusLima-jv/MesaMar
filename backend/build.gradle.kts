@@ -31,7 +31,7 @@ dependencies {
     implementation(libs.flyway.database.postgresql)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.kotlin.reflect)
-    runtimeOnly(libs.postgresql)
+    implementation(libs.postgresql)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.spring.boot.starter.webmvc.test)

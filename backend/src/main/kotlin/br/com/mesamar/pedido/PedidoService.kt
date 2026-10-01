@@ -13,6 +13,7 @@ import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.comanda.TipoContador
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.Money
+import br.com.mesamar.eventos.PublicadorEventos
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -86,6 +87,7 @@ class PedidoService(
     private val cardapio: CardapioService,
     private val contador: ContadorDiario,
     private val eventos: ApplicationEventPublisher,
+    private val tempoReal: PublicadorEventos,
     private val clock: Clock,
 ) {
     @Transactional
@@ -162,6 +164,8 @@ class PedidoService(
                     )
                 },
             )
+        // Avisa o app do quiosque (fila) e a página do cliente. O NOTIFY só sai se esta transação der commit.
+        tempoReal.pedidoMudou(barraca.id, comanda.id, pedido.id)
         eventos.publishEvent(PedidoCriado(pedido.id, barraca.id, comanda.id, pedido.numeroPedido, pedido.status))
         return ResultadoPedido.Ok(PedidoDetalhe(pedido, gravados), nova = true)
     }

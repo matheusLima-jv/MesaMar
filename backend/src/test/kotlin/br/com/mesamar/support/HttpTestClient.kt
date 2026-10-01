@@ -8,6 +8,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import java.util.stream.Stream
 
 /**
  * Cliente HTTP mínimo para chamar a aplicação real nos testes de integração.
@@ -31,6 +32,10 @@ class HttpTestClient(
             .build()
 
     fun get(path: String): HttpResponse<String> = client.send(request(path).GET().build(), HttpResponse.BodyHandlers.ofString())
+
+    /** GET que fica aberto (SSE): devolve a resposta assim que os cabeçalhos chegam, com o corpo em linhas. */
+    fun stream(path: String): HttpResponse<Stream<String>> =
+        client.send(request(path).header("Accept", "text/event-stream").GET().build(), HttpResponse.BodyHandlers.ofLines())
 
     fun getBytes(path: String): HttpResponse<ByteArray> = client.send(request(path).GET().build(), HttpResponse.BodyHandlers.ofByteArray())
 
