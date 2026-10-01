@@ -48,7 +48,17 @@ data class ComandaClienteView(
     val guardaSol: Int?,
     /** `null` quando a comanda aceita pedidos. */
     val bloqueio: BloqueioView?,
+    /** Quanto a conta já soma (itens não cancelados), em centavos. */
+    val saldoCentavos: Long,
+    /** `FINAL` (paga ao fechar a conta) ou `POR_PEDIDO` (o pedido só entra na fila depois de pago). */
+    val modoPagamento: String,
     val cardapio: List<SecaoView>,
+)
+
+/** "Meus pedidos": do mais novo para o mais antigo, com o saldo atual da conta. */
+data class MeusPedidosView(
+    val saldoCentavos: Long,
+    val pedidos: List<PedidoView>,
 )
 
 data class ItemPedidoView(
@@ -58,6 +68,8 @@ data class ItemPedidoView(
     val quantidade: Int,
     val observacao: String?,
     val subtotalCentavos: Long,
+    /** Item que o quiosque cancelou: continua na lista, mas não entra no total nem no saldo. */
+    val cancelado: Boolean,
 )
 
 data class PedidoView(
@@ -101,13 +113,32 @@ class ClienteController(
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
         val cliente = clientes.findById(comanda.clienteId).orElseThrow()
         val guardaSol = comanda.guardaSolId?.let { guardaSois.findById(it).orElse(null) }
+        val saldo = pedidos.saldoCentavos(comanda.id)
         return ResponseEntity.ok(
             ComandaClienteView(
                 barraca = barraca.nome,
                 nome = cliente.nome,
                 guardaSol = guardaSol?.numero,
-                bloqueio = pedidos.bloqueio(barraca, comanda)?.let(BloqueioView::of),
+                bloqueio = pedidos.bloqueio(barraca, comanda, saldo)?.let(BloqueioView::of),
+                saldoCentavos = saldo,
+                modoPagamento = barraca.modoPagamento.name,
                 cardapio = secoes(barraca),
+            ),
+        )
+    }
+
+    /** Os pedidos da comanda do token e o saldo. A página consulta isto a cada 15 s na tela "Meus pedidos". */
+    @GetMapping("/pedidos")
+    fun meusPedidos(
+        @PathVariable token: String,
+        request: HttpServletRequest,
+    ): ResponseEntity<Any> {
+        val comanda = comandas.findByTokenAcesso(token) ?: return recusado(request)
+        if (!rateLimiter.tryAcquire("c-geral:${comanda.id}", LIMITE_GERAL, JANELA_COMANDA)) return muitas()
+        return ResponseEntity.ok(
+            MeusPedidosView(
+                saldoCentavos = pedidos.saldoCentavos(comanda.id),
+                pedidos = pedidos.meusPedidos(comanda).reversed().map(::view),
             ),
         )
     }
@@ -183,6 +214,7 @@ class ClienteController(
                         it.quantidade,
                         it.observacao,
                         it.subtotalCentavos,
+                        it.cancelado,
                     )
                 },
             totalCentavos = d.totalCentavos,

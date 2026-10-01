@@ -7,13 +7,19 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
 enum class OrigemPedido { CLIENTE, ATENDENTE }
 
-enum class StatusPedido { RECEBIDO, EM_PREPARO, ENTREGUE, CANCELADO }
+/**
+ * `AGUARDANDO_PAGAMENTO` só existe no modo "pagar a cada pedido": o pedido ainda não está na fila,
+ * e passa a `RECEBIDO` quando o dono confirma o pagamento (Fase 5).
+ */
+enum class StatusPedido { AGUARDANDO_PAGAMENTO, RECEBIDO, EM_PREPARO, ENTREGUE, CANCELADO }
 
 /**
  * Um pedido da comanda. O `id` nasce no celular de quem pede: é isso que torna o envio idempotente
@@ -36,7 +42,7 @@ class Pedido(
     @Column(nullable = false, length = 10)
     val origem: OrigemPedido = OrigemPedido.CLIENTE,
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 12)
+    @Column(nullable = false, length = 20)
     var status: StatusPedido = StatusPedido.RECEBIDO,
     /** Horário do servidor: define a ordem da fila. */
     @Column(name = "criado_em", nullable = false)
@@ -81,6 +87,18 @@ interface PedidoRepository : JpaRepository<Pedido, UUID> {
 
 interface ItemPedidoRepository : JpaRepository<ItemPedido, UUID> {
     fun findAllByPedidoIdOrderByLinha(pedidoId: UUID): List<ItemPedido>
+
+    fun findAllByPedidoIdInOrderByPedidoIdAscLinhaAsc(pedidoIds: Collection<UUID>): List<ItemPedido>
+
+    /** O que a comanda já pediu e ainda não pagou: soma dos itens não cancelados dos pedidos não cancelados. */
+    @Query(
+        "select coalesce(sum(i.precoSnapshotCentavos * i.quantidade), 0L) from ItemPedido i " +
+            "where i.cancelado = false and i.pedidoId in " +
+            "(select p.id from Pedido p where p.comandaId = :comandaId and p.status <> br.com.mesamar.pedido.StatusPedido.CANCELADO)",
+    )
+    fun totalCentavos(
+        @Param("comandaId") comandaId: UUID,
+    ): Long
 }
 
 /** Avisa o resto do sistema que entrou um pedido (a fila e as notificações da Fase 4 escutam isto). */
@@ -89,4 +107,6 @@ data class PedidoCriado(
     val barracaId: UUID,
     val comandaId: UUID,
     val numeroPedido: Int,
+    /** `AGUARDANDO_PAGAMENTO`: ainda não entra na fila nem avisa o dono. */
+    val status: StatusPedido,
 )

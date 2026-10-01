@@ -5,8 +5,10 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
+import jakarta.persistence.LockModeType
 import jakarta.persistence.Table
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.jdbc.core.JdbcTemplate
@@ -92,6 +94,17 @@ interface ComandaRepository : JpaRepository<Comanda, UUID> {
     ): Comanda?
 
     fun findByTokenAcesso(tokenAcesso: String): Comanda?
+
+    /**
+     * Trava a linha da comanda até o fim da transação: dois pedidos da mesma comanda ao mesmo tempo
+     * entram um por vez, então o limite de saldo nunca é furado por uma corrida. Devolve também o
+     * status mais recente (a comanda lida antes pode ter mudado).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Comanda c where c.id = :id")
+    fun travar(
+        @Param("id") id: UUID,
+    ): Comanda?
 
     /** Ordem de chegada: horário do servidor; no empate, o número de chegada. */
     @Query(

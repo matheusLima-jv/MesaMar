@@ -2,14 +2,17 @@ package br.com.mesamar.pedido
 
 import br.com.mesamar.barraca.Barraca
 import br.com.mesamar.barraca.BarracaRepository
+import br.com.mesamar.barraca.ModoPagamento
 import br.com.mesamar.cardapio.CardapioService
 import br.com.mesamar.cardapio.ProdutoRepository
 import br.com.mesamar.cardapio.SecaoCardapio
 import br.com.mesamar.comanda.Comanda
+import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.comanda.ContadorDiario
 import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.comanda.TipoContador
 import br.com.mesamar.common.Fuso
+import br.com.mesamar.common.Money
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -79,6 +82,7 @@ class PedidoService(
     private val itens: ItemPedidoRepository,
     private val produtos: ProdutoRepository,
     private val barracas: BarracaRepository,
+    private val comandas: ComandaRepository,
     private val cardapio: CardapioService,
     private val contador: ContadorDiario,
     private val eventos: ApplicationEventPublisher,
@@ -86,7 +90,7 @@ class PedidoService(
 ) {
     @Transactional
     fun criar(
-        comanda: Comanda,
+        comandaLida: Comanda,
         req: PedidoRequest,
     ): ResultadoPedido {
         val id =
@@ -94,13 +98,17 @@ class PedidoService(
                 ResultadoPedido.Invalido(it, mapOf("id" to it))
             }
 
+        // Um pedido por vez em cada comanda: status e saldo são conferidos com a comanda travada, então
+        // dois pedidos ao mesmo tempo nunca furam o limite de saldo. A comanda lida pelo token pode estar velha.
+        val comanda = comandas.travar(comandaLida.id) ?: return ResultadoPedido.Conflito
+
         // Reenvio do mesmo pedido: devolve o que já existe, mesmo que a comanda tenha mudado desde então.
         pedidos.findById(id).orElse(null)?.let { existente ->
             return if (existente.comandaId == comanda.id) ResultadoPedido.Ok(detalhe(existente), nova = false) else ResultadoPedido.Conflito
         }
 
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
-        bloqueio(barraca, comanda)?.let { return ResultadoPedido.Bloqueado(it) }
+        bloqueio(barraca, comanda, saldoCentavos(comanda.id))?.let { return ResultadoPedido.Bloqueado(it) }
 
         val linhas =
             when (val v = validarLinhas(req.itens)) {
@@ -132,6 +140,9 @@ class PedidoService(
                     comandaId = comanda.id,
                     dia = dia,
                     numeroPedido = contador.proximo(barraca.id, dia, TipoContador.PEDIDO),
+                    // "Pagar a cada pedido": só entra na fila depois que o dono confirmar o pagamento (Fase 5)
+                    status =
+                        if (barraca.modoPagamento == ModoPagamento.POR_PEDIDO) StatusPedido.AGUARDANDO_PAGAMENTO else StatusPedido.RECEBIDO,
                     criadoEm = agora,
                 ),
             )
@@ -151,7 +162,7 @@ class PedidoService(
                     )
                 },
             )
-        eventos.publishEvent(PedidoCriado(pedido.id, barraca.id, comanda.id, pedido.numeroPedido))
+        eventos.publishEvent(PedidoCriado(pedido.id, barraca.id, comanda.id, pedido.numeroPedido, pedido.status))
         return ResultadoPedido.Ok(PedidoDetalhe(pedido, gravados), nova = true)
     }
 
@@ -159,12 +170,26 @@ class PedidoService(
     @Transactional(readOnly = true)
     fun cardapioDoCliente(barraca: Barraca): List<SecaoCardapio> = cardapio.secoes(barraca).filter { it.noCardapio.isNotEmpty() }
 
+    /** Quanto a comanda já pediu (itens não cancelados). Ainda sem pagamentos: eles chegam na Fase 5. */
+    @Transactional(readOnly = true)
+    fun saldoCentavos(comandaId: UUID): Long = itens.totalCentavos(comandaId)
+
+    /** Os pedidos da comanda, do mais antigo para o mais novo, com os itens. */
+    @Transactional(readOnly = true)
+    fun meusPedidos(comanda: Comanda): List<PedidoDetalhe> {
+        val lista = pedidos.findAllByComandaIdOrderByCriadoEmAscNumeroPedidoAsc(comanda.id)
+        val itensPorPedido = itens.findAllByPedidoIdInOrderByPedidoIdAscLinhaAsc(lista.map { it.id }).groupBy { it.pedidoId }
+        return lista.map { PedidoDetalhe(it, itensPorPedido[it.id].orEmpty()) }
+    }
+
     /** Por que esta comanda não aceita pedido agora (ou `null`, se aceita). */
     fun bloqueio(
         barraca: Barraca,
         comanda: Comanda,
-    ): Bloqueio? =
-        when {
+        saldoCentavos: Long,
+    ): Bloqueio? {
+        val limite = barraca.limiteSaldoAbertoCentavos
+        return when {
             !barraca.ativa -> Bloqueio("barraca-inativa", "Esta barraca não está atendendo pelo MesaMar agora. Fale com um atendente.")
             comanda.status == StatusComanda.AGUARDANDO_PAGAMENTO ->
                 Bloqueio("aguardando-pagamento", "Sua conta está sendo fechada. Para pedir mais, fale com um atendente.")
@@ -175,8 +200,12 @@ class PedidoService(
             comanda.status == StatusComanda.CANCELADA -> Bloqueio("comanda-cancelada", "Esta comanda foi cancelada. Fale com um atendente.")
             barraca.pedidosPausados ->
                 Bloqueio("pedidos-pausados", "O quiosque pausou os pedidos por agora. Chame um atendente ou tente de novo daqui a pouco.")
+            // Limite atingido: a conta chegou ao valor que o dono definiu, então paga uma parte antes de pedir mais
+            limite != null && saldoCentavos >= limite ->
+                Bloqueio("limite-saldo", "Sua conta chegou a ${Money.format(limite)}. Para pedir mais, pague uma parte com um atendente.")
             else -> null
         }
+    }
 
     private fun detalhe(p: Pedido) = PedidoDetalhe(p, itens.findAllByPedidoIdOrderByLinha(p.id))
 

@@ -1,15 +1,10 @@
 package br.com.mesamar.cliente
 
 import br.com.mesamar.barraca.BarracaRepository
-import br.com.mesamar.cardapio.Categoria
 import br.com.mesamar.cardapio.CategoriaRepository
-import br.com.mesamar.cardapio.Produto
 import br.com.mesamar.cardapio.ProdutoRepository
-import br.com.mesamar.comanda.AbertaPor
-import br.com.mesamar.comanda.CheckinRequest
 import br.com.mesamar.comanda.CheckinService
 import br.com.mesamar.comanda.ComandaRepository
-import br.com.mesamar.comanda.ResultadoCheckin
 import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.conta.ConviteService
 import br.com.mesamar.conta.UsuarioRepository
@@ -17,16 +12,17 @@ import br.com.mesamar.pedido.ItemPedidoRepository
 import br.com.mesamar.pedido.OrigemPedido
 import br.com.mesamar.pedido.PedidoRepository
 import br.com.mesamar.pedido.StatusPedido
+import br.com.mesamar.support.ClienteTestSupport
 import br.com.mesamar.support.HttpTestClient
 import br.com.mesamar.support.IntegrationTest
+import br.com.mesamar.support.Item
 import br.com.mesamar.support.PainelTestSupport
-import br.com.mesamar.support.TestIps
+import br.com.mesamar.support.Quiosque
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 import java.net.http.HttpResponse
-import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -42,89 +38,40 @@ import kotlin.test.assertTrue
 class PedidoClienteApiTest(
     @Value("\${local.server.port}") private val port: Int,
     convites: ConviteService,
-    private val usuarios: UsuarioRepository,
+    usuarios: UsuarioRepository,
     private val barracas: BarracaRepository,
-    private val categorias: CategoriaRepository,
+    categorias: CategoriaRepository,
     private val produtos: ProdutoRepository,
     private val comandas: ComandaRepository,
-    private val checkin: CheckinService,
+    checkin: CheckinService,
     private val pedidos: PedidoRepository,
     private val itens: ItemPedidoRepository,
     private val jdbc: JdbcTemplate,
 ) {
-    private val painel = PainelTestSupport(port, convites)
+    private val apoio = ClienteTestSupport(port, PainelTestSupport(port, convites), usuarios, categorias, produtos, checkin)
 
-    /** Uma barraca com a categoria "Bebidas" e dois produtos: Água de coco (R$ 12,00) e Pastel (R$ 25,00). */
-    private inner class Quiosque(
-        val barracaId: UUID,
-        val usuarioId: UUID,
-        val coco: Produto,
-        val pastel: Produto,
-    )
+    private fun celular() = apoio.celular()
 
-    private fun quiosque(nome: String): Quiosque {
-        val email = painel.novoEmail("pedido")
-        painel.donoComBarraca(nomeBarraca = nome, email = email)
-        val dono = assertNotNull(usuarios.findByEmailIgnoreCase(email))
-        val barracaId = assertNotNull(dono.barracaId)
-        val agora = Instant.now()
-        val categoria = categorias.save(Categoria(barracaId = barracaId, nome = "Bebidas", ordem = 1, criadaEm = agora))
+    private fun quiosque(nome: String) = apoio.quiosque(nome)
 
-        fun produto(
-            nomeProduto: String,
-            centavos: Long,
-            ordem: Int,
-        ) = produtos.save(
-            Produto(
-                barracaId = barracaId,
-                categoriaId = categoria.id,
-                nome = nomeProduto,
-                precoCentavos = centavos,
-                ordem = ordem,
-                criadoEm = agora,
-                atualizadoEm = agora,
-            ),
-        )
-        return Quiosque(barracaId, dono.id, produto("Água de coco", 1200, 1), produto("Pastel", 2500, 2))
-    }
-
-    /** Faz o check-in e devolve o token do QR (o que o cliente tem no celular). */
     private fun novaComanda(
         q: Quiosque,
         nome: String = "Ana",
-    ): String {
-        val resultado = checkin.checkin(q.barracaId, AbertaPor(q.usuarioId, null), CheckinRequest(nome = nome, consentimento = true))
-        return (resultado as ResultadoCheckin.Ok).detalhe.comanda.tokenAcesso
-    }
-
-    private fun celular() = HttpTestClient(port, TestIps.next())
-
-    private class Item(
-        val produtoId: UUID,
-        val quantidade: Int,
-        val observacao: String? = null,
-    )
+    ) = apoio.novaComanda(q, nome)
 
     private fun corpo(
         id: UUID?,
         vararg linhas: Item,
-    ): String {
-        val itensJson =
-            linhas.joinToString(",", "[", "]") {
-                val obs = it.observacao?.let { o -> ",\"observacao\":\"$o\"" }.orEmpty()
-                """{"produtoId":"${it.produtoId}","quantidade":${it.quantidade}$obs}"""
-            }
-        return "{" + listOfNotNull(id?.let { "\"id\":\"$it\"" }, "\"itens\":$itensJson").joinToString(",") + "}"
-    }
+    ) = apoio.corpo(id, *linhas)
 
     private fun pedir(
         http: HttpTestClient,
         token: String,
         id: UUID?,
         vararg linhas: Item,
-    ): HttpResponse<String> = http.postJson("/api/c/$token/pedidos", corpo(id, *linhas))
+    ) = apoio.pedir(http, token, id, *linhas)
 
-    private fun numero(body: String): Int = assertNotNull(Regex(""""numero":(\d+)""").find(body)).groupValues[1].toInt()
+    private fun numero(body: String) = apoio.numero(body)
 
     private fun mudarStatus(
         token: String,
