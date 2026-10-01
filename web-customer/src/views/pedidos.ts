@@ -51,6 +51,9 @@ function cartao (p: Pedido): HTMLElement {
     p.status === 'AGUARDANDO_PAGAMENTO'
       ? h('p', { class: 'hint' }, `Pague ${reais(p.totalCentavos)} a um atendente para o pedido entrar na fila.`)
       : null,
+    p.status === 'CANCELADO' && p.motivoCancelamento !== null
+      ? h('p', { class: 'hint' }, `Cancelado pelo quiosque: ${p.motivoCancelamento}.`)
+      : null,
     h('p', { class: 'order-total' }, 'Total ', h('strong', {}, reais(p.totalCentavos)))
   )
 }
@@ -58,7 +61,7 @@ function cartao (p: Pedido): HTMLElement {
 function linha (i: ItemPedido): HTMLElement {
   return h('li', { class: i.cancelado ? 'is-sold' : '' },
     h('strong', {}, `${i.quantidade}× ${i.nome}`),
-    i.cancelado ? h('span', { class: 'tag' }, 'Cancelado') : null,
+    i.cancelado ? h('span', { class: 'tag' }, i.motivoCancelamento !== null ? `Cancelado: ${i.motivoCancelamento}` : 'Cancelado') : null,
     i.observacao !== null ? h('span', { class: 'desc' }, i.observacao) : null
   )
 }

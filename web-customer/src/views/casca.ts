@@ -8,6 +8,9 @@ export interface Contexto {
   carrinho: Carrinho
   /** O cardápio por id, para achar nome e preço de uma linha do carrinho. */
   produtos: Map<string, Produto>
+  /** Avisos do quiosque que o cliente ainda não leu (ex.: "O quiosque cancelou 1× Pastel do pedido nº 3: Esgotou."). */
+  avisos: string[]
+  dispensarAvisos: () => void
 }
 
 export type Aba = 'cardapio' | 'pedidos' | null
@@ -30,7 +33,13 @@ export function casca (ctx: Contexto, aba: Aba, ...conteudo: Array<Node | string
       link('cardapio', '#', 'Cardápio'),
       link('pedidos', '#pedidos', 'Meus pedidos')
     ),
-    h('main', { id: 'conteudo', class: 'page' }, ...conteudo),
+    h('main', { id: 'conteudo', class: 'page' },
+      ctx.avisos.length > 0
+        ? h('section', { class: 'avisos', role: 'status', 'aria-label': 'Avisos do quiosque' },
+          ...ctx.avisos.map((t) => h('p', {}, t)),
+          h('button', { type: 'button', class: 'btn btn-line', onclick: ctx.dispensarAvisos }, 'Entendi'))
+        : '',
+      ...conteudo),
     h('footer', { class: 'foot' },
       h('a', { href: '/privacidade', target: '_blank', rel: 'noopener' }, 'Política de privacidade')
     )

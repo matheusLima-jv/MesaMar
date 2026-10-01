@@ -46,6 +46,7 @@ export interface PedidoEnvio {
 }
 
 export interface ItemPedido {
+  id: string
   produtoId: string
   nome: string
   precoCentavos: number
@@ -54,6 +55,8 @@ export interface ItemPedido {
   subtotalCentavos: number
   /** Item que o quiosque cancelou: continua na lista, mas não entra no total. */
   cancelado: boolean
+  /** Por que o quiosque cancelou (ex.: "Esgotou"). */
+  motivoCancelamento: string | null
 }
 
 export interface Pedido {
@@ -63,6 +66,8 @@ export interface Pedido {
   hora: string
   itens: ItemPedido[]
   totalCentavos: number
+  /** Quando o pedido todo foi cancelado, por quê. */
+  motivoCancelamento: string | null
 }
 
 export interface MeusPedidos {
@@ -131,6 +136,38 @@ export async function meusPedidos (token: string): Promise<MeusPedidos> {
 /** Uma tentativa de envio. Quem chama repete com o MESMO `id` até dar certo: o servidor não duplica. */
 export async function enviarPedido (token: string, pedido: PedidoEnvio): Promise<Pedido> {
   return await chamar<Pedido>('POST', token, '/pedidos', pedido)
+}
+
+/**
+ * Tempo real: o servidor avisa quando um pedido da comanda muda (status, item cancelado) e a página busca de novo.
+ * `aoMudar` roda a cada aviso; `aoEstado(true)` quando conectou e `aoEstado(false)` quando caiu (o navegador reconecta sozinho).
+ * Devolve a função que encerra a conexão.
+ */
+export function ouvirComanda (token: string, aoMudar: () => void, aoEstado: (conectado: boolean) => void): () => void {
+  let es: EventSource | null = null
+  let timer: number | undefined
+  let fechado = false
+  const abrir = (): void => {
+    if (fechado) return
+    es = new EventSource(`/api/c/${encodeURIComponent(token)}/eventos`)
+    es.onopen = () => { aoEstado(true) }
+    es.addEventListener('pedido', aoMudar)
+    es.addEventListener('ressincronizar', aoMudar)
+    es.onerror = () => {
+      aoEstado(false)
+      // Recusada de vez (muito uso, link inválido): o navegador não tenta mais. Tenta de novo daqui a pouco.
+      if (es?.readyState === EventSource.CLOSED) {
+        es = null
+        timer = window.setTimeout(abrir, 30_000)
+      }
+    }
+  }
+  abrir()
+  return () => {
+    fechado = true
+    window.clearTimeout(timer)
+    es?.close()
+  }
 }
 
 /** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */

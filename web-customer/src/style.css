@@ -167,3 +167,8 @@ button, input { font: inherit; }
 .order-items li:first-child { border-top: 0; }
 .order-total { margin-top: 0.5rem; text-align: right; color: var(--ink-2); }
 .order-total strong { color: var(--ink); font-family: var(--display); font-size: 1.15rem; }
+
+/* ---------- Avisos do quiosque (cancelamentos) ---------- */
+.avisos { margin: 0 0 1rem; padding: 0.9rem 1rem; background: #fff; border: 2px solid var(--late); border-radius: 14px; }
+.avisos p { margin: 0 0 0.6rem; font-weight: 700; color: var(--late); }
+.avisos .btn { min-height: 48px; }
