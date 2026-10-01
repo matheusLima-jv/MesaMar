@@ -1,16 +1,18 @@
 import './style.css'
-import { ApiError, comanda, enviarPedido, novoId, tokenDaUrl, type Comanda, type Pedido, type Produto } from './api'
+import { ApiError, comanda, enviarPedido, meusPedidos, novoId, tokenDaUrl, type Comanda, type Pedido, type Produto } from './api'
 import { Carrinho, pendente } from './carrinho'
 import { h, mount } from './dom'
 import { type Contexto } from './views/casca'
 import { telaCardapio } from './views/cardapio'
 import { telaCarrinho } from './views/carrinho'
 import { telaConfirmacao, telaEnvio } from './views/envio'
+import { telaPedidos } from './views/pedidos'
 
 const root = document.getElementById('app') as HTMLElement
 const ATUALIZAR_APOS_MS = 30_000
 const ESPERA_INICIAL_MS = 2_000
 const ESPERA_MAXIMA_MS = 15_000
+const ATUALIZAR_PEDIDOS_MS = 15_000
 
 let token = ''
 let ctx!: Contexto
@@ -20,6 +22,10 @@ let erroCarrinho: string | null = null
 let semSinal = false
 let enviando = false
 let atualizadoEm = 0
+/** Lista de "Meus pedidos" (`null` até a primeira resposta) e se a última tentativa de atualizar falhou. */
+let meus: Pedido[] | null = null
+let meusSemSinal = false
+let timerPedidos: number | undefined
 
 function indexar (dados: Comanda): Map<string, Produto> {
   return new Map(dados.cardapio.flatMap((s) => s.produtos).map((p) => [p.id, p]))
@@ -30,20 +36,58 @@ function usar (dados: Comanda): void {
   atualizadoEm = Date.now()
 }
 
-/** Desenha a tela que combina com a situação: pedido em envio, carrinho, confirmação ou cardápio. */
-function desenhar (): void {
+/**
+ * Desenha a tela que combina com a situação: pedido em envio, carrinho, confirmação, meus pedidos ou
+ * cardápio. `topo` leva a página ao início (as atualizações automáticas não mexem na rolagem).
+ */
+function desenhar (topo = true): void {
   const emEnvio = pendente.ler(token)
   if (emEnvio !== null) {
     mount(root, ...telaEnvio(ctx, emEnvio, semSinal))
   } else if (location.hash === '#carrinho') {
-    mount(root, ...telaCarrinho(ctx, erroCarrinho, () => { void enviar() }, desenhar))
+    mount(root, ...telaCarrinho(ctx, erroCarrinho, () => { void enviar() }, () => { desenhar() }))
+  } else if (location.hash === '#pedidos') {
+    mount(root, ...telaPedidos(ctx, meus, meusSemSinal))
   } else if (location.hash === '#pedido' && confirmado !== null) {
     mount(root, ...telaConfirmacao(ctx, confirmado, () => { location.hash = '' }))
   } else {
     erroCarrinho = null
     mount(root, ...telaCardapio(ctx))
   }
-  window.scrollTo(0, 0)
+  if (topo) window.scrollTo(0, 0)
+}
+
+/** Atualiza a lista de pedidos e o saldo. Se falhar (sem sinal), segue com a última lista que a página tem. */
+async function carregarPedidos (): Promise<void> {
+  try {
+    const r = await meusPedidos(token)
+    meus = r.pedidos
+    meusSemSinal = false
+    ctx.dados.saldoCentavos = r.saldoCentavos
+  } catch {
+    meusSemSinal = true
+  }
+  if (location.hash === '#pedidos' && pendente.ler(token) === null) desenhar(false)
+}
+
+/** Enquanto "Meus pedidos" está aberta: carrega agora e de novo a cada 15 s (o SSE vem na Fase 4). */
+function acompanharPedidos (): void {
+  window.clearTimeout(timerPedidos)
+  if (location.hash !== '#pedidos') return
+  void carregarPedidos()
+  const volta = (): void => {
+    if (location.hash !== '#pedidos') return
+    if (document.visibilityState === 'visible') void carregarPedidos()
+    timerPedidos = window.setTimeout(volta, ATUALIZAR_PEDIDOS_MS)
+  }
+  timerPedidos = window.setTimeout(volta, ATUALIZAR_PEDIDOS_MS)
+}
+
+function trocouDeTela (): void {
+  desenhar()
+  acompanharPedidos()
+  // Voltando ao cardápio depois de um tempo: confere se algo acabou ou se o limite da conta mudou
+  if (location.hash === '' && Date.now() - atualizadoEm > 10_000) void atualizar(true)
 }
 
 /** O cliente tocou em "Enviar pedido": o pedido ganha o seu id (uma vez só) e começam as tentativas. */
@@ -88,6 +132,9 @@ async function tentarEnviar (): Promise<void> {
         ctx.carrinho.limpar()
         confirmado = feito
         semSinal = false
+        meus = null
+        // Saldo e bloqueios novos (a conta pode ter chegado ao limite com este pedido)
+        await atualizar(false)
         if (location.hash === '#pedido') desenhar()
         else location.hash = '#pedido'
         return
@@ -156,14 +203,16 @@ async function iniciar (): Promise<void> {
     else telaErro('Sem sinal', 'Não deu para abrir a sua comanda. Confira a internet e tente de novo.', true)
     return
   }
-  window.onhashchange = desenhar
+  window.onhashchange = trocouDeTela
   desenhar()
+  acompanharPedidos()
   // Pedido que não chegou antes de a página fechar: continua de onde parou
   if (pendente.ler(token) !== null) void tentarEnviar()
 }
 
 // Voltou para a página depois de um tempo (trocou de app, bloqueou a tela): confere se algo acabou
 document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && ctx !== undefined && location.hash === '#pedidos') acompanharPedidos()
   if (document.visibilityState === 'visible' && ctx !== undefined && !enviando && Date.now() - atualizadoEm > ATUALIZAR_APOS_MS) {
     // Só redesenha o cardápio e o carrinho: a confirmação do pedido fica como está
     void atualizar(location.hash === '#carrinho' || location.hash === '')

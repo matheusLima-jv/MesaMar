@@ -25,8 +25,10 @@ export function telaCardapio (ctx: Contexto): Node[] {
   atualizarBarra()
   return [
     ...casca(
-      dados,
+      ctx,
+      'cardapio',
       avisoBloqueio(dados) ?? '',
+      dados.modoPagamento === 'POR_PEDIDO' ? h('p', { class: 'info' }, 'Neste quiosque você paga a cada pedido.') : '',
       ...(secoes.length > 0
         ? secoes
         : [h('div', { class: 'empty' }, h('h2', {}, 'O cardápio está sendo montado'), h('p', {}, 'Chame um atendente para pedir.'))])

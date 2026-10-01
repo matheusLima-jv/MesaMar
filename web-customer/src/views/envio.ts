@@ -15,7 +15,8 @@ export function telaEnvio (ctx: Contexto, pedido: PedidoEnvio, semSinal: boolean
     )
   })
   return casca(
-    ctx.dados,
+    ctx,
+    null,
     h('div', { class: 'sending', role: 'status' },
       h('h2', {}, semSinal ? 'O pedido ainda não saiu' : 'Enviando o seu pedido…'),
       h('p', {}, semSinal
@@ -32,12 +33,17 @@ export function telaEnvio (ctx: Contexto, pedido: PedidoEnvio, semSinal: boolean
 export function telaConfirmacao (ctx: Contexto, pedido: Pedido, aoVoltar: () => void): Node[] {
   const voltar = h('button', { type: 'button', class: 'btn btn-sun btn-big btn-block' }, 'Voltar ao cardápio')
   voltar.addEventListener('click', aoVoltar)
+  // No modo "pagar a cada pedido" o pedido ainda não entrou na fila: falta pagar
+  const aguarda = pedido.status === 'AGUARDANDO_PAGAMENTO'
   return casca(
-    ctx.dados,
+    ctx,
+    null,
     h('div', { class: 'done', role: 'status' },
       h('p', { class: 'done-mark', 'aria-hidden': 'true' }, '✓'),
       h('h2', {}, `Pedido nº ${pedido.numero} enviado`),
-      h('p', {}, 'O quiosque já recebeu o seu pedido.')
+      h('p', {}, aguarda
+        ? `Para o pedido entrar na fila, pague ${reais(pedido.totalCentavos)} a um atendente.`
+        : 'O quiosque já recebeu o seu pedido.')
     ),
     h('ul', { class: 'cart-list plain' }, ...pedido.itens.map((i) =>
       h('li', {},
@@ -47,6 +53,7 @@ export function telaConfirmacao (ctx: Contexto, pedido: Pedido, aoVoltar: () => 
       )
     )),
     h('p', { class: 'total' }, 'Total do pedido ', h('strong', { class: 'total-valor' }, reais(pedido.totalCentavos))),
-    voltar
+    voltar,
+    h('a', { href: '#pedidos', class: 'btn btn-line btn-block btn-gap' }, 'Ver meus pedidos')
   )
 }

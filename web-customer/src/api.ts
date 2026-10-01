@@ -27,6 +27,10 @@ export interface Comanda {
   nome: string
   guardaSol: number | null
   bloqueio: Bloqueio | null
+  /** Quanto a conta já soma (itens não cancelados), em centavos. */
+  saldoCentavos: number
+  /** FINAL: paga ao fechar a conta. POR_PEDIDO: o pedido só entra na fila depois de pago. */
+  modoPagamento: 'FINAL' | 'POR_PEDIDO'
   cardapio: Secao[]
 }
 
@@ -48,6 +52,8 @@ export interface ItemPedido {
   quantidade: number
   observacao: string | null
   subtotalCentavos: number
+  /** Item que o quiosque cancelou: continua na lista, mas não entra no total. */
+  cancelado: boolean
 }
 
 export interface Pedido {
@@ -57,6 +63,11 @@ export interface Pedido {
   hora: string
   itens: ItemPedido[]
   totalCentavos: number
+}
+
+export interface MeusPedidos {
+  saldoCentavos: number
+  pedidos: Pedido[]
 }
 
 export class ApiError extends Error {
@@ -110,6 +121,11 @@ async function chamar<T> (method: 'GET' | 'POST', token: string, caminho: string
 
 export async function comanda (token: string): Promise<Comanda> {
   return await chamar<Comanda>('GET', token, '')
+}
+
+/** Os pedidos da comanda (do mais novo para o mais antigo) e o saldo. */
+export async function meusPedidos (token: string): Promise<MeusPedidos> {
+  return await chamar<MeusPedidos>('GET', token, '/pedidos')
 }
 
 /** Uma tentativa de envio. Quem chama repete com o MESMO `id` até dar certo: o servidor não duplica. */

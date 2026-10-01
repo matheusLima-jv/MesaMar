@@ -13,7 +13,8 @@ export function telaCarrinho (ctx: Contexto, erro: string | null, aoEnviar: () =
 
   if (carrinho.linhas.length === 0) {
     return casca(
-      dados,
+      ctx,
+      null,
       voltar,
       h('div', { class: 'empty' },
         h('h2', {}, 'Seu pedido está vazio'),
@@ -34,7 +35,9 @@ export function telaCarrinho (ctx: Contexto, erro: string | null, aoEnviar: () =
     enviar.disabled = !aberto || acabou.length > 0
     aviso.textContent = acabou.length > 0
       ? 'Tire os itens que acabaram para poder enviar o pedido.'
-      : 'O pedido vai direto para o quiosque.'
+      : dados.modoPagamento === 'POR_PEDIDO'
+        ? 'Neste quiosque você paga a cada pedido: ele entra na fila depois que o quiosque confirmar o pagamento.'
+        : 'O pedido vai direto para o quiosque.'
   }
   enviar.addEventListener('click', aoEnviar)
 
@@ -42,7 +45,8 @@ export function telaCarrinho (ctx: Contexto, erro: string | null, aoEnviar: () =
   sincronizar()
 
   return casca(
-    dados,
+    ctx,
+    null,
     voltar,
     h('h2', { class: 'screen-title' }, 'Seu pedido'),
     avisoBloqueio(dados) ?? '',
