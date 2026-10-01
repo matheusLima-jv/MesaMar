@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { expectNoHorizontalScroll, failOnConsoleErrors } from './helpers'
+import { expectNoHorizontalScroll, failOnConsoleErrors, randomWhatsapp } from './helpers'
 
 const password = process.env.E2E_ADMIN_PASSWORD ?? ''
 
@@ -203,6 +203,93 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(cliente.locator('.order').last()).toContainText('Recebido')
   await expect(cliente.getByText('Total da conta R$ 99,00')).toBeVisible()
   await expectNoHorizontalScroll(cliente)
+
+  // 9) Fila do quiosque (Fase 4): o Bruno faz check-in e pede, e a fila da atendente se atualiza sozinha
+  await app.getByRole('link', { name: 'Clientes' }).click()
+  await app.getByRole('button', { name: '+ Novo cliente' }).click()
+  await app.getByLabel('Nome do cliente').fill('Bruno')
+  await app.getByRole('button', { name: 'Guarda-sol 5', exact: true }).click()
+  await app.getByLabel(/^WhatsApp/).fill(randomWhatsapp())
+  await app.getByLabel(/O cliente concorda/).check()
+  await app.getByRole('button', { name: 'Gerar QR' }).click()
+  const qrBruno = app.getByRole('dialog', { name: 'Bruno' })
+  const zapBruno = await qrBruno.getByRole('link', { name: /Enviar pelo WhatsApp/ }).getAttribute('href') ?? ''
+  const linkBruno = /https?:\/\/\S+\/c\/[A-Za-z0-9_-]{22}/.exec(decodeURIComponent(zapBruno))?.[0] ?? ''
+  expect(linkBruno).not.toBe('')
+  await qrBruno.getByRole('button', { name: 'Pronto' }).click()
+
+  // A fila mostra os 3 pedidos da Ana por ordem de chegada, com o guarda-sol em destaque
+  await app.getByRole('link', { name: /^Fila/ }).click()
+  await expect(app.getByRole('heading', { name: 'Fila' })).toBeVisible()
+  await expect(app.getByText('Ao vivo')).toBeVisible()
+  const cartoes = app.locator('.pedido')
+  await expect(cartoes).toHaveCount(3)
+  await expect(cartoes.first()).toContainText('#1')
+  await expect(cartoes.first()).toContainText('Guarda-sol 12')
+  await expect(cartoes.first()).toContainText('2× Água de coco')
+  await expect(cartoes.first()).toContainText('sem gelo')
+  await expect(cartoes.last()).toContainText('#3')
+  await expectNoHorizontalScroll(app)
+
+  // O Bruno pede em outro celular: o pedido aparece no fim da fila, sem recarregar nada
+  const bruno = await novoAparelho()
+  await bruno.goto(caminho(linkBruno))
+  await expect(bruno.getByRole('heading', { name: 'Olá, Bruno · Guarda-sol 5' })).toBeVisible()
+  await bruno.getByRole('button', { name: 'Adicionar Pastel' }).click()
+  await bruno.getByRole('link', { name: /Ver pedido/ }).click()
+  await bruno.getByRole('button', { name: 'Enviar pedido' }).click()
+  await expect(bruno.getByRole('heading', { name: 'Pedido nº 4 enviado' })).toBeVisible()
+  await expect(cartoes).toHaveCount(4)
+  await expect(cartoes.last()).toContainText('Bruno')
+  await expect(cartoes.last()).toContainText('Guarda-sol 5')
+  await expect(cartoes.last()).toContainText('Novo')
+  await expect(app.getByRole('link', { name: /^Fila/ })).toContainText('4')
+
+  // Filtro por guarda-sol
+  await app.locator('#filtro-gs').selectOption({ label: 'Guarda-sol 5' })
+  await expect(cartoes).toHaveCount(1)
+  await app.locator('#filtro-gs').selectOption({ label: 'Todos' })
+  await expect(cartoes).toHaveCount(4)
+
+  // "Em preparo": a Ana, em outro celular, vê na hora e sem recarregar (tempo real, não os 15 s do plano B)
+  await app.getByRole('button', { name: 'Em preparo: pedido 1' }).click()
+  await expect(cliente.locator('.order').last()).toContainText('Em preparo')
+  await app.getByRole('button', { name: 'Pendentes (3)' }).click()
+  await expect(cartoes).toHaveCount(3)
+  await app.getByRole('button', { name: 'Todos (4)' }).click()
+
+  // Cancelar um item exige motivo. A Ana recebe o aviso com o motivo, a conta baixa de R$ 99 para R$ 74
+  // e o limite de R$ 90 deixa de bloquear
+  await app.getByRole('button', { name: 'Cancelar: pedido 1' }).click()
+  const dialogo = app.getByRole('dialog', { name: /Cancelar o pedido nº 1/ })
+  await dialogo.getByLabel('1× Pastel').check()
+  await dialogo.getByRole('button', { name: 'Confirmar cancelamento' }).click()
+  await expect(dialogo.getByText('Escolha o motivo do cancelamento.')).toBeVisible()
+  await dialogo.getByLabel('Esgotou').check()
+  await dialogo.getByRole('button', { name: 'Confirmar cancelamento' }).click()
+  await expect(app.getByText('Item cancelado no pedido nº 1.')).toBeVisible()
+  await expect(cliente.getByText('O quiosque cancelou 1× Pastel do pedido nº 1: Esgotou.')).toBeVisible()
+  await expect(cliente.getByText('Sua conta: R$ 74,00')).toBeVisible()
+  await expect(cliente.getByText('Sua conta chegou a R$ 90,00')).toBeHidden()
+  await expect(cliente.locator('.order').last()).toContainText('Cancelado: Esgotou')
+  await cliente.getByRole('button', { name: 'Entendi' }).click()
+  await expect(cliente.getByText('O quiosque cancelou 1× Pastel')).toBeHidden()
+
+  // Entregue: sai da fila e a Ana vê
+  await app.getByRole('button', { name: 'Entregue: pedido 1' }).click()
+  await expect(cliente.locator('.order').last()).toContainText('Entregue')
+  await expect(cartoes).toHaveCount(3)
+
+  // Cancelar o pedido inteiro, com "Outro" e um detalhe
+  await app.getByRole('button', { name: 'Cancelar: pedido 3' }).click()
+  const dialogo3 = app.getByRole('dialog', { name: /Cancelar o pedido nº 3/ })
+  await dialogo3.getByLabel('Outro').check()
+  await dialogo3.getByLabel('Detalhe').fill('cliente foi embora')
+  await dialogo3.getByRole('button', { name: 'Confirmar cancelamento' }).click()
+  await expect(cliente.getByText('O quiosque cancelou o pedido nº 3: Outro: cliente foi embora.')).toBeVisible()
+  await expect(cliente.getByText('Sua conta: R$ 49,00')).toBeVisible()
+  await expect(cartoes).toHaveCount(2)
+  await expectNoHorizontalScroll(app)
 
   await dono.reload()
   await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
