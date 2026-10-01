@@ -1,7 +1,7 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-10-01**. **Fase 3 concluída e mergeada na `main`** ([PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4)). Checkpoint **4.1 (fila, ações e tempo real por SSE)** pronto na branch `fase-4-fila`, com tudo verde localmente, **aguardando o "aprovado 4.1"**.
+> Última atualização: **2026-10-01**. **Fase 3 mergeada na `main`** ([PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4)). Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **4.1 aprovado** (CI verde) e **4.2 (Web Push, alerta de atraso, pausar pedidos) pronto**, com tudo verde localmente, **aguardando o "aprovado 4.2"**. **A Fase 4 fica completa com o 4.2.**
 
 ---
 
@@ -9,7 +9,7 @@
 
 1. **A `main` tem tudo até a Fase 3** (PR #4 mergeado em 2026-10-01, CI verde: 244 testes na época do 3.2 e 10 E2E; o 3.3 fechou com 252). A branch `fase-3-cliente` continua no GitHub, sem uso.
 2. **A branch atual é a `fase-4-fila`** (criada a partir da `main`). Se ela ainda não está no GitHub, `git push -u origin fase-4-fila` e abra o PR da Fase 4 em rascunho (`gh pr create --draft`).
-3. **Se o 4.1 ainda não foi aprovado:** confira o CI, apresente o relatório (`docs/relatorios/fase-4.md`) e peça o "aprovado 4.1". Depois, siga para o **4.2** (seção 7).
+3. **Se o 4.2 ainda não foi aprovado:** confira o CI do último push (`gh pr checks 5`), apresente o relatório (`docs/relatorios/fase-4.md`, seção do 4.2) e peça o "aprovado 4.2". Depois, siga para a **Fase 5** (seção 7). O PR #5 sai do rascunho e é mergeado só quando o Matheus pedir.
 
 **Dica para o Windows do Matheus:** a porta 5432 pode estar ocupada ou reservada pelo sistema. Para subir o compose, troque o mapeamento do banco para `127.0.0.1:5433:5432` (o app não usa essa porta).
 
@@ -41,7 +41,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | Portão A (validação em campo + medição de sinal) | ⏳ O Matheus faz **em paralelo** (decisão dele). Não bloqueia o código |
 | 2 — Contas, barraca, equipe, guarda-sóis, cardápio, app | ✅ Na `main` (PR #3) |
 | 3 — Check-in, QR e pedido pelo cliente | ✅ Na `main` (PR #4) |
-| **4 — Fila + tempo real + Web Push** | 🔶 Branch `fase-4-fila`: 4.1 pronto e aguardando aprovação; 4.2 (Web Push, atraso, pausar) ⬜ |
+| **4 — Fila + tempo real + Web Push** | 🔶 Branch `fase-4-fila` (PR #5): 4.1 aprovado, 4.2 pronto e aguardando aprovação |
 | 5 — Fechar conta, Pix, pagamentos, relatório | ⬜ |
 | 6 — Modo atendente offline | ⬜ (pode vir depois do piloto, se o sinal nas praias for bom) |
 | 7 — Preparação do piloto | ⬜ |
@@ -67,8 +67,8 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 
 | Checkpoint | Conteúdo | CI | Aprovação |
 |---|---|---|---|
-| **4.1** | **Fila no app, Em preparo / Entregue / Cancelar com motivo, filtros, SSE com LISTEN/NOTIFY, cliente ao vivo** | ✅ local (267 testes, 10 E2E); CI do GitHub depende do push | ⏳ pendente |
-| 4.2 | Web Push (VAPID, RFC 8291), alerta de atraso (ShedLock), "Pausar pedidos" | — | — |
+| 4.1 | Fila no app, Em preparo / Entregue / Cancelar com motivo, filtros, SSE com LISTEN/NOTIFY, cliente ao vivo | ✅ verde no PR #5 (267 testes, 10 E2E) | ✅ aprovado |
+| **4.2** | **Web Push (VAPID, RFC 8291 com o JDK), alerta de atraso, "Pausar pedidos"** | ✅ local (303 testes, 10 E2E); CI do GitHub depende do push | ⏳ pendente |
 
 **Sobre o 2.3:**
 - O CI do commit `ed43ee5` falhou em 3 testes de `CardapioTest`. **Não era bug do app:** o cliente HTTP dos testes não segue redirecionamentos, então a mensagem "flash" de um passo de preparação ficava na sessão e aparecia no lugar da mensagem do passo testado.
@@ -107,7 +107,7 @@ cd e2e && npm ci && E2E_BASE_URL=http://localhost:8080 E2E_ADMIN_PASSWORD=<a do 
 ```
 
 ### Roteiro manual completo (para a entrega final)
-`docs/testar-localmente.md`, itens 1 a 75.
+`docs/testar-localmente.md`, itens 1 a 85.
 
 ### CI (GitHub Actions, `.github/workflows/ci.yml`)
 - ktlint → build e testes → imagem Docker → smoke do compose → E2E (Playwright, Pixel 7) → push para o GHCR (só na `main`).
@@ -170,18 +170,19 @@ backend/src/main/kotlin/br/com/mesamar/
 ├── lead/         lista de espera
 ├── sinal/        /teste-sinal
 ├── comanda/      Cliente, Comanda (token do QR), ContadorDiario, CheckinService
-├── pedido/       Pedido, ItemPedido (snapshot), PedidoService (idempotência, validação, bloqueios, limite), FilaService (fila, status só para frente, cancelar com motivo), evento PedidoCriado
+├── pedido/       Pedido, ItemPedido (snapshot), PedidoService (idempotência, validação, bloqueios, limite), FilaService (fila, status só para frente, cancelar com motivo), PausaService, AlertaAtrasoService (SKIP LOCKED), eventos PedidoCriado e PedidoAtrasado
 ├── cliente/      ClienteController: API da página do cliente (/api/c/{token}), sem sessão, e o SSE da comanda
-├── eventos/      PublicadorEventos (pg_notify na transação), HubEventos (assinantes SSE por barraca e comanda, batimento 25 s), ReceptorEventos (LISTEN)
+├── eventos/      EventoTempoReal (pedido, pausa, atraso), PublicadorEventos (pg_notify na transação), HubEventos (assinantes SSE por barraca e comanda, batimento 25 s), ReceptorEventos (LISTEN)
+├── push/         WebPushCripto (RFC 8291, só JDK), Vapid (RFC 8292), PushService (inscrições, envio, 410), DestinoPush (anti-SSRF), NotificadorPush, GerarChavesVapid
 └── staff/        API do app do quiosque (/api/staff): login, cardápio, check-in
 backend/src/main/resources/
-├── db/migration/ V1…V9 (Flyway)
+├── db/migration/ V1…V10 (Flyway)
 ├── templates/    landing/, admin/, painel/ (Thymeleaf)
 └── static/css/   landing.css (base), painel.css (painel)
-web-staff/        app do quiosque (TS puro + Vite): src/api.ts, src/dom.ts, src/fila-store.ts (SSE + fila), src/som.ts, src/views/* (clientes, fila, cancelar, cardapio, mais), public/sw.js, public/manifest.json
+web-staff/        app do quiosque (TS puro + Vite): src/api.ts, src/dom.ts, src/fila-store.ts (SSE + fila), src/push.ts (inscrição Web Push), src/som.ts, src/views/* (clientes, fila, cancelar, pausar, cardapio, mais), public/sw.js (push e notificationclick), public/manifest.json
 web-customer/     página do cliente (/cliente/ e /c/{token}): TS puro; src/api.ts, carrinho.ts (carrinho e pedido pendente no localStorage), main.ts (envio com reenvio), views/*, public/sw.js (servido em /c/sw.js)
 e2e/              Playwright: landing, lista-de-espera, teste-sinal, admin, painel (fluxo completo do dono + app)
-docs/             MESAMAR_PROMPT.md (plano), adr/0001–0010, relatorios/fase-0..4, deploy.md, testar-localmente.md
+docs/             MESAMAR_PROMPT.md (plano), adr/0001–0011, relatorios/fase-0..4, deploy.md, testar-localmente.md
 ```
 
 **Cinco cadeias de segurança (`SecurityConfig`); as de login têm cada uma a sua chave na sessão:**
@@ -216,6 +217,10 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0010, relatorios/fase-0.
 - **`pg_notify` só vale dentro de uma transação que dá commit.** Chame `PublicadorEventos.pedidoMudou` dentro do `@Transactional` da mudança, nunca depois: assim ninguém é avisado de algo desfeito. Chamar fora de transação avisa na hora.
 - **Resposta SSE de erro não pode ter corpo JSON** quando o pedido aceita `text/event-stream`: o Spring devolve 406. Use `ResponseEntity.status(...).build()` (ver `ClienteController.eventos`). E o retorno de um endpoint SSE com `ResponseEntity` precisa ser tipado `ResponseEntity<SseEmitter>`, não `ResponseEntity<Any>`.
 - **Ações da fila são "definir", não "alternar":** repetir `EM_PREPARO` ou cancelar de novo devolve 200. Mantenha assim (a Fase 6 reenvia ações em fila).
+- **Mais de uma função `main` quebra o `bootJar`:** o gerador de chaves VAPID (`GerarChavesVapid.kt`) tem a sua, então o `build.gradle.kts` declara `springBoot { mainClass = "br.com.mesamar.MesaMarApplicationKt" }`. Os testes não geram o JAR: **o que pega esse erro é o `docker compose up --build` (e o CI)**. Rode a imagem antes de dar um checkpoint por pronto.
+- **O Chrome exige uma notificação para cada push** (`userVisibleOnly`): o `sw.js` sempre chama `showNotification`, mesmo com o app aberto. Pular isso faz o navegador mostrar um aviso genérico.
+- **Teste de push usa um servidor falso** (`FakePushServer`) e um aparelho de teste (`AparelhoDeTeste`, que decifra como o navegador). O perfil `test` libera `localhost` e `http` (`mesamar.push.hosts-extras` e `permitir-http`) e usa as **chaves de exemplo da RFC** como VAPID; o `DestinoPushTest` cobre a validação estrita de produção. Nunca ligue `permitir-http` fora dos testes.
+- **O texto da RFC 8291 mostra `Content-Length: 145`, mas o corpo do exemplo tem 144 bytes.** Os testes comparam o corpo, não esse número.
 - **O compose passa variáveis vazias** (ex.: `SPRING_MAIL_HOST=`). Trate vazio como "não configurado".
 - **A página do cliente não tem sessão:** a cadeia `/api/c/**` é stateless e sem CSRF de propósito. Não adicione cookie nem sessão ali (a promessa da política de privacidade é "sem cookies"). Todo endpoint novo recebe só o token, e a comanda (e a barraca) vem dele; produto de outra barraca é tratado como inexistente, **sem vazar o nome**.
 - **Service worker do cliente:** o escopo de um SW é a pasta dele, por isso ele é servido em `/c/sw.js` (rota em `FrontendRoutesConfig`), e não em `/cliente/`. Ele nunca pode cachear `POST` nem `/api/c/` além do `GET` da comanda.
@@ -251,12 +256,12 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0010, relatorios/fase-0.
   - Fila (`GET /api/staff/fila`), ações `POST /api/staff/pedidos/{id}/status|cancelar` e `…/itens/{itemId}/cancelar` (motivo obrigatório). Status só para frente (`StatusPedido.podeIrPara`), com trava da linha do pedido. Migração V9.
   - **SSE** (`/api/staff/eventos` por barraca, `/api/c/{token}/eventos` por comanda) alimentado por `pg_notify` na transação e uma conexão `LISTEN` própria; batimento de 25 s; reconexão com `ressincronizar`. O aviso leva só ids, e o app busca a fila de novo.
   - App: aba Fila (ao vivo, som e vibração, filtros, cancelar com motivo) e o cliente vendo status e cancelamentos ao vivo.
-- **4.2 (próximo):** Web Push (VAPID) para dono e atendentes.
-  - Plano: implementar a criptografia **RFC 8291** com a criptografia do próprio JDK, testada contra os **vetores de teste da RFC**, para não depender de biblioteca abandonada. As chaves VAPID vão no `.env` (nunca no repositório).
-  - Inscrições inválidas (410) são removidas.
-  - **Alerta de atraso:** tarefa agendada com **ShedLock** (para não rodar em dobro com dois servidores), usando `barraca.tempoAlertaPedidoMin`. O aviso de **pedido novo** deve usar o evento `PedidoCriado` (já leva o status) e **só para `RECEBIDO`**: pedido `AGUARDANDO_PAGAMENTO` não avisa.
-  - **"Pausar pedidos":** a coluna `barraca.pedidos_pausados` e a regra no `PedidoService.bloqueio` já existem, e a página do cliente já mostra "O quiosque pausou os pedidos…". Falta o **botão** no app (e um endpoint `POST /api/staff/pausa`, que também avisa o cliente em tempo real).
-  - O push abre a fila: o `sw.js` do app precisa do evento `push` e do `notificationclick`.
+- **4.2:** ✅ pronto, aguardando aprovação (ver relatório e [ADR 0011](docs/adr/0011-web-push-atraso-e-pausa.md)).
+  - **Web Push com o JDK** (RFC 8291 + 8188 + VAPID): corpo cifrado idêntico ao exemplo da RFC (`WebPushCriptoTest`). Envio depois do commit, em thread virtual; 404/410 removem a inscrição; destino só em Google/Mozilla/Apple/Windows (anti-SSRF); o aviso não leva o nome do cliente. Inscrições em `/api/staff/push/*` (migração V10).
+  - **Alerta de atraso:** `AlertaAtrasoService` a cada 30 s, uma vez por pedido (`alerta_atraso_em`), exclusão entre servidores com `FOR UPDATE SKIP LOCKED` (**sem ShedLock**).
+  - **Pausar pedidos:** `POST /api/staff/pausa` (dono e atendentes), recado de até 80 letras, avisa todas as comandas da barraca em tempo real.
+  - **As chaves VAPID vão no `.env`** (`MESAMAR_VAPID_PUBLIC_KEY`, `MESAMAR_VAPID_PRIVATE_KEY`, `MESAMAR_VAPID_SUBJECT`); sem elas o push fica desligado e o app avisa. Gerar: `./gradlew --console=plain -q :backend:gerarVapid`. Quem faz isso é o Matheus (`docs/deploy.md`).
+  - **Para a Fase 5.2:** quando o pagamento confirmado passar o pedido de `AGUARDANDO_PAGAMENTO` para `RECEBIDO`, ele precisa **entrar na fila e avisar o dono**: hoje o aviso de pedido novo (`NotificadorPush.aoCriarPedido`) só dispara no `PedidoCriado` com status `RECEBIDO`, e o pg_notify/SSE (`PublicadorEventos.pedidoMudou`) precisa ser chamado na confirmação também. Reaproveite os dois.
 
 ### Fase 5: fechamento e pagamento
 - **5.1:** "Fechar conta" (máquina de estados `ABERTA → AGUARDANDO_PAGAMENTO → FECHADA`; voltar só sem pagamento confirmado).
@@ -283,7 +288,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0010, relatorios/fase-0.
 - **Deploy** em `mesamar.0mega.fun`, seguindo o `docs/deploy.md`.
 - **SMTP em produção**, para o "esqueci a senha" funcionar: escolher o serviço e criar SPF/DKIM na Cloudflare, manualmente.
 - **Portão A:** divulgar a landing, visitar barracas e medir o sinal em ≥3 praias num domingo, das 12h às 15h. O resultado decide se a Fase 6 vem antes do piloto.
-- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 75 até aqui.
+- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 85 até aqui.
 
 ## 9. Riscos conhecidos e decisões de escala
 

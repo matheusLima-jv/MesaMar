@@ -192,3 +192,24 @@ curl -N https://mesamar.0mega.fun/api/c/<TOKEN_DO_QR>/eventos
 ```
 
 Esperado: aparece `:conectado` na hora e uma linha `:ping` a cada 25 segundos, sem parar. Se ficar mudo por muito tempo, alguma camada está segurando a resposta: confira se o `location` do `/api/` do Nginx não tem `proxy_buffering on` e se não há compressão ligada para `text/event-stream`.
+
+## Avisos de pedido (Web Push): chaves VAPID
+
+Os avisos no celular bloqueado precisam de um par de chaves que identifica o servidor perante o Google, a Apple e a Mozilla. **Sem elas o sistema funciona normalmente**, só que o app mostra "Os avisos ainda não foram configurados no servidor".
+
+1. **No seu computador** (não na VPS), na pasta do projeto:
+
+   ```bash
+   ./gradlew --console=plain -q :backend:gerarVapid
+   ```
+
+   Saem duas linhas (`MESAMAR_VAPID_PUBLIC_KEY=…` e `MESAMAR_VAPID_PRIVATE_KEY=…`). Nada é gravado em arquivo.
+2. **Copie as duas linhas para o `.env` da VPS** (e, se quiser, `MESAMAR_VAPID_SUBJECT=mailto:seu@email`; vazio usa a URL pública do site). **A chave privada é segredo:** só no `.env`, nunca no Git, no WhatsApp ou em e-mail.
+3. Reinicie: `docker compose -f docker-compose.prod.yml up -d`.
+4. No app do quiosque, aba **Mais**, o cartão "Avisos de pedido" deve mostrar o botão **"Ativar os avisos"**. Ative em cada celular que vai receber (dono e atendentes) e use **"Mandar um aviso de teste"**.
+
+Cuidados:
+- Só funciona em **HTTPS** (em produção já é) e **não** em `http://IP-DO-PC` na rede local.
+- No **iPhone**, o app precisa estar instalado na tela inicial (iOS 16.4 ou mais novo).
+- **Trocar as chaves depois** faz todo mundo precisar ativar os avisos de novo. Guarde a chave privada num lugar seguro.
+

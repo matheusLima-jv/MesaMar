@@ -173,6 +173,23 @@ Use o app do quiosque (Carla) no **celular A** e três clientes (check-in de Ana
 
 Também vale conferir o botão **"Som: ligado"** (alterna e continua assim depois de recarregar) e, em dois celulares do quiosque, tocar em "Entregue" no mesmo pedido quase juntos: só um aplica, e o outro mostra "Esse pedido já foi entregue." sem quebrar nada.
 
+### Avisos de pedido, atraso e pausa (Fase 4 · checkpoint 4.2)
+
+**Precisa do servidor publicado em HTTPS** (`https://mesamar.0mega.fun`) e das chaves VAPID no `.env` (passo a passo no `docs/deploy.md`). O push não funciona em `http://IP-DO-PC`.
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 76 | App do quiosque (celular A), aba Mais | Olhar o cartão "Avisos de pedido" | Com as chaves configuradas: botão **"Ativar os avisos"**. Sem elas: "Os avisos ainda não foram configurados no servidor" |
+| 77 | Android, Chrome: "Ativar os avisos" | Permitir as notificações | "Ativados neste celular", com "Mandar um aviso de teste" |
+| 78 | "Mandar um aviso de teste", depois **bloquear a tela** | Esperar | Chega a notificação "MesaMar: avisos funcionando", também com a tela bloqueada |
+| 79 | **Fechar o app e bloquear a tela do celular A.** No celular B (cliente), fazer um pedido com 3 itens | Olhar o celular A | Notificação **"Pedido nº X · Guarda-sol 12" / "3 itens"**, com vibração. **Tocar abre a Fila** no pedido |
+| 80 | iPhone, **sem** instalar o app: aba Mais | Olhar | "No iPhone, os avisos só funcionam com o app instalado na tela inicial". Instalando (itens 41) e abrindo pelo ícone, o botão aparece e os avisos funcionam (iOS 16.4 ou mais novo) |
+| 81 | Painel → Regras → "Alerta de pedido parado" `1` min. Deixar um pedido parado | Esperar até 90 s | Notificação **"Pedido nº X está parado"**. Com o app aberto: três bips graves e um aviso vermelho. O cartão fica **vermelho com "Atrasado"**. O aviso sai **uma vez só** |
+| 82 | App aberto e à vista, cliente pede | Olhar | Bip duplo e vibração, selo "Novo" e a notificação também aparece |
+| 83 | Fila → "Pausar pedidos", recado `Voltamos em 10 minutos` | Olhar o celular B, **sem recarregar**; tentar pedir | Banner "O quiosque pausou os pedidos: Voltamos em 10 minutos" e o pedido é recusado. "Voltar a receber pedidos" libera na hora |
+| 84 | Painel → Equipe: desativar a Carla. Cliente faz um pedido | Olhar o celular da Carla | A Carla **não recebe** o aviso (e o app dela volta para o login) |
+| 85 | Aba Mais → "Sair deste celular". Cliente faz um pedido | Olhar o celular | **Nenhuma** notificação nesse celular |
+
 > A instalação na tela inicial (item 41) exige **HTTPS** fora do `localhost`. No celular pela rede local (`http://IP-DO-PC`), o app abre, mas o Chrome não oferece "Instalar". Para testar a instalação de verdade, use o ambiente publicado (`https://mesamar.0mega.fun/staff/`).
 
 Consultar direto no banco, se quiser:
@@ -201,7 +218,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 267 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 303 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 
