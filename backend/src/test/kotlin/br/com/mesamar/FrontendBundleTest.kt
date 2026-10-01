@@ -40,6 +40,15 @@ class FrontendBundleTest(
         assertContains(response.body(), "data-app=\"web-customer\"")
     }
 
+    @Test
+    fun `service worker da pagina do cliente fica em c para controlar o link do QR`() {
+        val response = http.get("/c/sw.js")
+
+        assertEquals(200, response.statusCode())
+        assertContains(response.body(), "mesamar-cliente")
+        assertContains(response.headers().firstValue("Content-Type").orElse(""), "javascript")
+    }
+
     @ParameterizedTest(name = "{0} referencia um JS que existe")
     @CsvSource("/staff/", "/cliente/")
     fun `index referencia um bundle JS que tambem e servido`(route: String) {

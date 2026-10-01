@@ -1,0 +1,241 @@
+package br.com.mesamar.pedido
+
+import br.com.mesamar.barraca.Barraca
+import br.com.mesamar.barraca.BarracaRepository
+import br.com.mesamar.cardapio.CardapioService
+import br.com.mesamar.cardapio.ProdutoRepository
+import br.com.mesamar.cardapio.SecaoCardapio
+import br.com.mesamar.comanda.Comanda
+import br.com.mesamar.comanda.ContadorDiario
+import br.com.mesamar.comanda.StatusComanda
+import br.com.mesamar.comanda.TipoContador
+import br.com.mesamar.common.Fuso
+import org.springframework.context.ApplicationEventPublisher
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
+import java.time.Instant
+import java.util.UUID
+
+data class ItemRequest(
+    val produtoId: UUID? = null,
+    val quantidade: Int = 0,
+    val observacao: String? = null,
+)
+
+data class PedidoRequest(
+    /** Gerado no celular: reenviar o mesmo pedido devolve o que já foi criado. */
+    val id: UUID? = null,
+    val itens: List<ItemRequest> = emptyList(),
+)
+
+/** O pedido com as suas linhas. */
+data class PedidoDetalhe(
+    val pedido: Pedido,
+    val itens: List<ItemPedido>,
+) {
+    val totalCentavos: Long get() = itens.filter { !it.cancelado }.sumOf { it.subtotalCentavos }
+}
+
+/** Motivo pelo qual a comanda não aceita pedido agora, com a mensagem pronta para o cliente. */
+data class Bloqueio(
+    val codigo: String,
+    val mensagem: String,
+)
+
+sealed interface ResultadoPedido {
+    data class Ok(
+        val detalhe: PedidoDetalhe,
+        val nova: Boolean,
+    ) : ResultadoPedido
+
+    data class Invalido(
+        val mensagem: String,
+        val campos: Map<String, String>,
+    ) : ResultadoPedido
+
+    data class Bloqueado(
+        val bloqueio: Bloqueio,
+    ) : ResultadoPedido
+
+    /** Algum produto esgotou, saiu do cardápio ou nem é desta barraca. */
+    data class Indisponivel(
+        val produtoIds: List<UUID>,
+        val mensagem: String,
+    ) : ResultadoPedido
+
+    /** O id enviado já é de um pedido de outra comanda (na prática, nunca acontece com UUID aleatório). */
+    data object Conflito : ResultadoPedido
+}
+
+/**
+ * Pedidos feitos pelo cliente. A comanda vem sempre do token (nunca de um id enviado pelo cliente),
+ * e todo produto é conferido contra a barraca dela: um id de produto de outra barraca é tratado
+ * como se não existisse.
+ */
+@Service
+class PedidoService(
+    private val pedidos: PedidoRepository,
+    private val itens: ItemPedidoRepository,
+    private val produtos: ProdutoRepository,
+    private val barracas: BarracaRepository,
+    private val cardapio: CardapioService,
+    private val contador: ContadorDiario,
+    private val eventos: ApplicationEventPublisher,
+    private val clock: Clock,
+) {
+    @Transactional
+    fun criar(
+        comanda: Comanda,
+        req: PedidoRequest,
+    ): ResultadoPedido {
+        val id =
+            req.id ?: return "Não deu para identificar o pedido. Atualize a página e tente de novo.".let {
+                ResultadoPedido.Invalido(it, mapOf("id" to it))
+            }
+
+        // Reenvio do mesmo pedido: devolve o que já existe, mesmo que a comanda tenha mudado desde então.
+        pedidos.findById(id).orElse(null)?.let { existente ->
+            return if (existente.comandaId == comanda.id) ResultadoPedido.Ok(detalhe(existente), nova = false) else ResultadoPedido.Conflito
+        }
+
+        val barraca = barracas.findById(comanda.barracaId).orElseThrow()
+        bloqueio(barraca, comanda)?.let { return ResultadoPedido.Bloqueado(it) }
+
+        val linhas =
+            when (val v = validarLinhas(req.itens)) {
+                is Linhas.Invalidas -> return ResultadoPedido.Invalido(v.mensagem, v.campos)
+                is Linhas.Validas -> v.itens
+            }
+
+        val idsPedidos = linhas.map { it.produtoId }.distinct()
+        val achados = produtos.findAllById(idsPedidos).filter { it.barracaId == barraca.id }.associateBy { it.id }
+        val indisponiveis = idsPedidos.filter { achados[it]?.let { p -> p.ativo && !p.esgotado } != true }
+        if (indisponiveis.isNotEmpty()) {
+            val nomes = indisponiveis.mapNotNull { achados[it]?.nome }
+            val mensagem =
+                if (nomes.isEmpty()) {
+                    "Um item do pedido saiu do cardápio. Confira o carrinho e envie de novo."
+                } else {
+                    "Acabou ou saiu do cardápio: ${nomes.joinToString(", ")}. Tire do pedido e envie de novo."
+                }
+            return ResultadoPedido.Indisponivel(indisponiveis, mensagem)
+        }
+
+        val agora = Instant.now(clock)
+        val dia = Fuso.hoje(clock)
+        val pedido =
+            pedidos.save(
+                Pedido(
+                    id = id,
+                    barracaId = barraca.id,
+                    comandaId = comanda.id,
+                    dia = dia,
+                    numeroPedido = contador.proximo(barraca.id, dia, TipoContador.PEDIDO),
+                    criadoEm = agora,
+                ),
+            )
+        val gravados =
+            itens.saveAll(
+                linhas.mapIndexed { i, linha ->
+                    val produto = achados.getValue(linha.produtoId)
+                    ItemPedido(
+                        pedidoId = pedido.id,
+                        barracaId = barraca.id,
+                        produtoId = produto.id,
+                        linha = i + 1,
+                        nomeSnapshot = produto.nome,
+                        precoSnapshotCentavos = produto.precoCentavos,
+                        quantidade = linha.quantidade,
+                        observacao = linha.observacao,
+                    )
+                },
+            )
+        eventos.publishEvent(PedidoCriado(pedido.id, barraca.id, comanda.id, pedido.numeroPedido))
+        return ResultadoPedido.Ok(PedidoDetalhe(pedido, gravados), nova = true)
+    }
+
+    /** Cardápio que o cliente vê: só o que está no cardápio (ativo); o esgotado aparece, mas não dá para pedir. */
+    @Transactional(readOnly = true)
+    fun cardapioDoCliente(barraca: Barraca): List<SecaoCardapio> = cardapio.secoes(barraca).filter { it.noCardapio.isNotEmpty() }
+
+    /** Por que esta comanda não aceita pedido agora (ou `null`, se aceita). */
+    fun bloqueio(
+        barraca: Barraca,
+        comanda: Comanda,
+    ): Bloqueio? =
+        when {
+            !barraca.ativa -> Bloqueio("barraca-inativa", "Esta barraca não está atendendo pelo MesaMar agora. Fale com um atendente.")
+            comanda.status == StatusComanda.AGUARDANDO_PAGAMENTO ->
+                Bloqueio("aguardando-pagamento", "Sua conta está sendo fechada. Para pedir mais, fale com um atendente.")
+            comanda.status == StatusComanda.BLOQUEADA ->
+                Bloqueio("comanda-bloqueada", "Sua comanda está bloqueada. Fale com um atendente.")
+            comanda.status == StatusComanda.FECHADA ->
+                Bloqueio("comanda-fechada", "Esta comanda foi encerrada. Obrigado pela visita!")
+            comanda.status == StatusComanda.CANCELADA -> Bloqueio("comanda-cancelada", "Esta comanda foi cancelada. Fale com um atendente.")
+            barraca.pedidosPausados ->
+                Bloqueio("pedidos-pausados", "O quiosque pausou os pedidos por agora. Chame um atendente ou tente de novo daqui a pouco.")
+            else -> null
+        }
+
+    private fun detalhe(p: Pedido) = PedidoDetalhe(p, itens.findAllByPedidoIdOrderByLinha(p.id))
+
+    private data class Linha(
+        val produtoId: UUID,
+        val quantidade: Int,
+        val observacao: String?,
+    )
+
+    private sealed interface Linhas {
+        data class Validas(
+            val itens: List<Linha>,
+        ) : Linhas
+
+        data class Invalidas(
+            val mensagem: String,
+            val campos: Map<String, String>,
+        ) : Linhas
+    }
+
+    private fun validarLinhas(recebidas: List<ItemRequest>): Linhas {
+        fun erro(
+            campo: String,
+            mensagem: String,
+        ) = Linhas.Invalidas(mensagem, mapOf(campo to mensagem))
+        if (recebidas.isEmpty()) return erro("itens", "Escolha pelo menos um item.")
+        if (recebidas.size > MAX_LINHAS) return erro("itens", "São itens demais num pedido só. Envie em dois pedidos.")
+        val validas = mutableListOf<Linha>()
+        for ((i, r) in recebidas.withIndex()) {
+            val produtoId = r.produtoId ?: return erro("itens[$i]", "Item sem identificação. Atualize a página e tente de novo.")
+            if (r.quantidade !in
+                1..MAX_QUANTIDADE
+            ) {
+                return erro("itens[$i].quantidade", "Peça de 1 a $MAX_QUANTIDADE unidades de cada item.")
+            }
+            val observacao =
+                r.observacao
+                    ?.trim()
+                    ?.replace(Regex("\\s+"), " ")
+                    ?.ifEmpty { null }
+            if ((observacao?.length ?: 0) >
+                OBSERVACAO_MAX
+            ) {
+                return erro("itens[$i].observacao", "A observação pode ter até $OBSERVACAO_MAX letras.")
+            }
+            validas += Linha(produtoId, r.quantidade, observacao)
+        }
+        if (validas.sumOf { it.quantidade } >
+            MAX_UNIDADES
+        ) {
+            return erro("itens", "São unidades demais num pedido só. Envie em dois pedidos.")
+        }
+        return Linhas.Validas(validas)
+    }
+
+    companion object {
+        const val MAX_LINHAS = 30
+        const val MAX_QUANTIDADE = 20
+        const val MAX_UNIDADES = 60
+        const val OBSERVACAO_MAX = 80
+    }
+}

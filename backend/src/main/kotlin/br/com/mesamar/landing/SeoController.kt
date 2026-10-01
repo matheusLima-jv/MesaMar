@@ -20,6 +20,7 @@ class SeoController(
         |Allow: /
         |Disallow: /staff/
         |Disallow: /cliente/
+        |Disallow: /c/
         |Disallow: /actuator/
         |Disallow: /api/
         |Disallow: /teste-sinal
