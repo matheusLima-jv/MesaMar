@@ -49,6 +49,36 @@ export interface NovoCliente {
   consentimento: boolean
 }
 
+export type StatusPedido = 'AGUARDANDO_PAGAMENTO' | 'RECEBIDO' | 'EM_PREPARO' | 'ENTREGUE' | 'CANCELADO'
+export type Motivo = 'ESGOTOU' | 'CLIENTE_DESISTIU' | 'OUTRO'
+
+export interface ItemFila {
+  id: string
+  nome: string
+  quantidade: number
+  observacao: string | null
+  cancelado: boolean
+  motivoCancelamento: string | null
+}
+
+/** Um pedido na fila. `criadoEm` é o horário do SERVIDOR: a ordem e a espera nunca dependem do relógio do celular. */
+export interface PedidoFila {
+  id: string
+  numero: number
+  status: StatusPedido
+  criadoEm: string
+  guardaSol: number | null
+  cliente: string
+  itens: ItemFila[]
+}
+
+export interface Fila {
+  /** Horário do servidor no momento da resposta. */
+  agora: string
+  tempoAlertaMin: number
+  pedidos: PedidoFila[]
+}
+
 export class ApiError extends Error {
   constructor (
     readonly status: number,
@@ -161,6 +191,24 @@ export async function novoCliente (c: NovoCliente): Promise<Comanda> {
     }
   }
   return await chamar<Comanda>('POST', '/clientes', c)
+}
+
+/** A fila: pedidos pendentes, o mais antigo primeiro. */
+export async function fila (): Promise<Fila> {
+  return await chamar<Fila>('GET', '/fila')
+}
+
+/** "Em preparo" ou "Entregue". Repetir a mesma ação não faz mal. */
+export async function mudarStatus (pedidoId: string, status: 'EM_PREPARO' | 'ENTREGUE'): Promise<PedidoFila> {
+  return await chamar<PedidoFila>('POST', `/pedidos/${pedidoId}/status`, { status })
+}
+
+export async function cancelarPedido (pedidoId: string, motivo: Motivo, detalhe: string): Promise<PedidoFila> {
+  return await chamar<PedidoFila>('POST', `/pedidos/${pedidoId}/cancelar`, { motivo, detalhe })
+}
+
+export async function cancelarItem (pedidoId: string, itemId: string, motivo: Motivo, detalhe: string): Promise<PedidoFila> {
+  return await chamar<PedidoFila>('POST', `/pedidos/${pedidoId}/itens/${itemId}/cancelar`, { motivo, detalhe })
 }
 
 /** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */
