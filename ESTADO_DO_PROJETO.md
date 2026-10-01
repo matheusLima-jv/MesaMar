@@ -41,7 +41,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | Portão A (validação em campo + medição de sinal) | ⏳ O Matheus faz **em paralelo** (decisão dele). Não bloqueia o código |
 | 2 — Contas, barraca, equipe, guarda-sóis, cardápio, app | ✅ Na `main` (PR #3) |
 | 3 — Check-in, QR e pedido pelo cliente | ✅ Na `main` (PR #4) |
-| **4 — Fila + tempo real + Web Push** | 🔶 Branch `fase-4-fila` (PR #5): 4.1 aprovado, 4.2 pronto e aguardando aprovação |
+| 4 — Fila + tempo real + Web Push | ✅ Completa e aprovada na branch `fase-4-fila` (PR #5, rascunho, ainda não mergeado) |
 | 5 — Fechar conta, Pix, pagamentos, relatório | ⬜ |
 | 6 — Modo atendente offline | ⬜ (pode vir depois do piloto, se o sinal nas praias for bom) |
 | 7 — Preparação do piloto | ⬜ |
@@ -68,7 +68,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | Checkpoint | Conteúdo | CI | Aprovação |
 |---|---|---|---|
 | 4.1 | Fila no app, Em preparo / Entregue / Cancelar com motivo, filtros, SSE com LISTEN/NOTIFY, cliente ao vivo | ✅ verde no PR #5 (267 testes, 10 E2E) | ✅ aprovado |
-| **4.2** | **Web Push (VAPID, RFC 8291 com o JDK), alerta de atraso, "Pausar pedidos"** | ✅ local (303 testes, 10 E2E); CI do GitHub depende do push | ⏳ pendente |
+| 4.2 | Web Push (VAPID, RFC 8291 com o JDK), alerta de atraso, "Pausar pedidos" | ✅ verde no PR #5 (303 testes, 10 E2E) | ✅ aprovado |
 
 **Sobre o 2.3:**
 - O CI do commit `ed43ee5` falhou em 3 testes de `CardapioTest`. **Não era bug do app:** o cliente HTTP dos testes não segue redirecionamentos, então a mensagem "flash" de um passo de preparação ficava na sessão e aparecia no lugar da mensagem do passo testado.
