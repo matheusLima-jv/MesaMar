@@ -310,6 +310,47 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(app.getByRole('button', { name: 'Pausar pedidos' })).toBeVisible()
   await expectNoHorizontalScroll(app)
 
+  // 12) Fechar conta (5.1): a Ana tem R$ 49,00 a pagar. Dinheiro com troco, desiste, e depois escolhe o Pix
+  await cliente.getByRole('link', { name: 'Conta', exact: true }).click()
+  await expect(cliente.getByRole('heading', { name: 'Conta', exact: true })).toBeVisible()
+  await expect(cliente.locator('.resumo-linha.forte')).toContainText('R$ 49,00')
+  await expect(cliente.getByRole('button', { name: 'Fechar a conta' })).toBeDisabled()
+  await cliente.getByRole('radio', { name: /^Dinheiro/ }).click()
+  await cliente.getByLabel(/Vou pagar com R\$/).fill('abc')
+  await cliente.getByRole('button', { name: 'Fechar a conta' }).click()
+  await expect(cliente.getByText('Não entendemos o valor do troco')).toBeVisible()
+  await cliente.getByLabel(/Vou pagar com R\$/).fill('100')
+  await cliente.getByRole('button', { name: 'Fechar a conta' }).click()
+  await expect(cliente.getByRole('heading', { name: 'Aguardando confirmação do quiosque' })).toBeVisible()
+  await expect(cliente.getByText('Vá ao quiosque pagar R$ 49,00 em dinheiro (troco para R$ 100,00).')).toBeVisible()
+  await expectNoHorizontalScroll(cliente)
+
+  // Com a conta fechando, o cardápio não deixa pedir e explica o caminho de volta
+  await cliente.getByRole('link', { name: 'Cardápio' }).click()
+  await expect(cliente.getByText('Sua conta está sendo fechada.')).toBeVisible()
+  await expect(cliente.getByRole('button', { name: /^Adicionar / })).toHaveCount(0)
+
+  await cliente.getByRole('link', { name: 'Conta', exact: true }).click()
+  await cliente.getByRole('button', { name: 'Voltar e pedir mais' }).click()
+  await expect(cliente.getByRole('button', { name: 'Fechar a conta' })).toBeVisible()
+  await cliente.getByRole('link', { name: 'Cardápio' }).click()
+  await expect(cliente.getByText('Sua conta está sendo fechada.')).toBeHidden()
+  await expect(cliente.getByRole('button', { name: /^Adicionar / }).first()).toBeVisible()
+
+  // Pix: o QR e o código aparecem no celular da Ana, com o valor da conta e o recebedor da barraca
+  await cliente.getByRole('link', { name: 'Conta', exact: true }).click()
+  await cliente.getByRole('radio', { name: /^Pix/ }).click()
+  await cliente.getByRole('button', { name: 'Fechar a conta' }).click()
+  await expect(cliente.getByRole('heading', { name: 'Aguardando confirmação do quiosque' })).toBeVisible()
+  await expect(cliente.locator('.pix svg.qr')).toBeVisible()
+  await expect(cliente.locator('.pix-valor')).toHaveText('R$ 49,00')
+  await expect(cliente.getByRole('button', { name: 'Copiar código Pix' })).toBeVisible()
+  await cliente.getByText('Ver o código').click()
+  await expect(cliente.getByLabel('Código Pix copia e cola')).toHaveValue(/^000201.*6304[0-9A-F]{4}$/)
+  await cliente.getByRole('button', { name: 'Já paguei' }).click()
+  await expect(cliente.getByText(/Você avisou às \d\d:\d\d\./)).toBeVisible()
+  await expectNoHorizontalScroll(cliente)
+
   await dono.reload()
   await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
   await dono.goto('/painel/cardapio')
