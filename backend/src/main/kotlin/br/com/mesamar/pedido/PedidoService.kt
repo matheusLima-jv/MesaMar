@@ -14,6 +14,7 @@ import br.com.mesamar.comanda.TipoContador
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.Money
 import br.com.mesamar.eventos.PublicadorEventos
+import br.com.mesamar.pagamento.PagamentoRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -86,6 +87,7 @@ class PedidoService(
     private val comandas: ComandaRepository,
     private val cardapio: CardapioService,
     private val contador: ContadorDiario,
+    private val pagamentos: PagamentoRepository,
     private val eventos: ApplicationEventPublisher,
     private val tempoReal: PublicadorEventos,
     private val clock: Clock,
@@ -174,9 +176,9 @@ class PedidoService(
     @Transactional(readOnly = true)
     fun cardapioDoCliente(barraca: Barraca): List<SecaoCardapio> = cardapio.secoes(barraca).filter { it.noCardapio.isNotEmpty() }
 
-    /** Quanto a comanda já pediu (itens não cancelados). Ainda sem pagamentos: eles chegam na Fase 5. */
+    /** Quanto a comanda ainda deve: o que pediu (itens não cancelados) menos o que o quiosque já confirmou de pagamento. */
     @Transactional(readOnly = true)
-    fun saldoCentavos(comandaId: UUID): Long = itens.totalCentavos(comandaId)
+    fun saldoCentavos(comandaId: UUID): Long = itens.totalCentavos(comandaId) - pagamentos.totalCentavos(comandaId)
 
     /** Os pedidos da comanda, do mais antigo para o mais novo, com os itens. */
     @Transactional(readOnly = true)
@@ -196,7 +198,10 @@ class PedidoService(
         return when {
             !barraca.ativa -> Bloqueio("barraca-inativa", "Esta barraca não está atendendo pelo MesaMar agora. Fale com um atendente.")
             comanda.status == StatusComanda.AGUARDANDO_PAGAMENTO ->
-                Bloqueio("aguardando-pagamento", "Sua conta está sendo fechada. Para pedir mais, fale com um atendente.")
+                Bloqueio(
+                    "aguardando-pagamento",
+                    "Sua conta está sendo fechada. Para pedir mais, abra a aba Conta e toque em Voltar e pedir mais.",
+                )
             comanda.status == StatusComanda.BLOQUEADA ->
                 Bloqueio("comanda-bloqueada", "Sua comanda está bloqueada. Fale com um atendente.")
             comanda.status == StatusComanda.FECHADA ->
