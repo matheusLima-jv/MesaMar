@@ -218,6 +218,29 @@ Precisa de uma barraca com a chave Pix configurada (Painel → Pix) e de um clie
 
 > No 5.1 o app do quiosque **ainda não mostra** a comanda aguardando pagamento, e o dono não é avisado: isso chega no 5.2. Hoje só dá para ver pelo celular do cliente.
 
+### Pagamentos: receber, bloquear e fechar a conta (Fase 5 · checkpoint 5.2)
+
+Use dois celulares: **A** (cliente, pela página do QR) e **B** (dono ou atendente, no app do quiosque). Os itens 100 e 101 precisam do servidor em HTTPS e das chaves VAPID (como os itens 76 a 85).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 97 | B, aba **Pagamentos** | Olhar com nenhuma conta fechando | "Ninguém avisou que vai pagar" e, embaixo, **"Contas abertas com saldo"** com quem tem pedidos, as maiores primeiro |
+| 98 | A: Conta → Dinheiro, "vou pagar com" `100` → Fechar a conta | Olhar o B **sem recarregar** | A conta aparece na aba (com o número na aba), **som de três notas** e aviso "Guarda-sol 12 · Ana está indo pagar · R$ … · Dinheiro (troco para R$ 100,00)". O cartão mostra "Troco para R$ 100,00: devolver R$ …" |
+| 99 | A: "Trocar a forma de pagamento" → Pix → "Já paguei" | Olhar o B | A conta passa a dizer **"Pix · avisou que pagou agora"** e **"Confira no app do banco antes de confirmar"** |
+| 100 | **Fechar o app no B e bloquear a tela.** No A, fechar a conta em Cartão | Olhar o B | Notificação **"Guarda-sol 12 · indo pagar" / "R$ … · Cartão"**, sem o nome do cliente. Tocar abre a aba **Pagamentos** |
+| 101 | Mesmo teste, no Pix, tocando em "Já paguei" | Olhar o B | **"Guarda-sol 12 · Pix enviado" / "R$ … · confira no app do banco"**. Escolher o Pix, sem tocar em "Já paguei", **não** avisa |
+| 102 | No A, tocar duas vezes seguidas no mesmo botão de fechar | Olhar o B | Um aviso só |
+| 103 | B: **Receber** na conta do Pix (confira antes no app do seu banco) | Ver o diálogo | Vem com **Pix** marcado e o aviso "Confira no app do seu banco antes de confirmar". "Valor recebido agora" já traz o que falta |
+| 104 | B: receber **uma parte** (ex.: R$ 20,00 no Pix) | Olhar o A, **sem recarregar** | "Recebido R$ 20,00… Ainda falta R$ …". No A, **"Já pago"** e "Falta pagar" mudam na hora, e o Pix mostra só o que falta |
+| 105 | B: receber o resto **em dinheiro**, "entregou" um valor maior | Olhar o diálogo antes de confirmar | **"Devolver de troco: R$ …"** com a conta certa. Ao confirmar: "Conta de Ana paga e encerrada. Troco: R$ …". No A: **"Conta paga"** com o extrato |
+| 106 | B: tocar duas vezes em "Confirmar" (ou confirmar de novo depois de tirar o celular do sinal e voltar) | Olhar o extrato do A | **Um pagamento só** |
+| 107 | B: tentar receber **mais do que falta**, ou deixar o valor vazio | Olhar | Mensagem "O valor passa do que falta pagar" ou "Digite quanto o cliente pagou", sem registrar nada |
+| 108 | B: **Bloquear** o cliente. No A, tentar pedir | Olhar o A | O cardápio mostra "Sua comanda está bloqueada" e **não deixa pedir**. **Desbloquear** libera na hora |
+| 109 | Modo "pagar a cada pedido" (Painel → Regras): A faz um pedido de R$ 24,00 | Olhar a Fila no B, depois receber R$ 10,00 e o resto | O pedido **não** está na fila; com R$ 10,00 continua fora; ao completar R$ 24,00 **entra na fila** com o aviso de pedido novo, e o tempo de espera **começa nessa hora** |
+| 110 | B como **dono**: **Fechar sem receber…** numa conta com saldo. Depois, entrar como **atendente** | Olhar | O dono precisa escrever o motivo (mín. 3 letras); a conta some e fica registrado o valor não recebido. **O atendente não vê** o botão "Fechar sem receber" |
+
+> Link de uma conta **paga há mais de 7 dias** deixa de abrir ("Esse link não vale mais"). Para ver isso sem esperar, mude `fechada_em` no banco: `docker compose exec db psql -U mesamar -c "update comanda set fechada_em = now() - interval '8 days' where status = 'FECHADA';"`.
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:
@@ -238,7 +261,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 323 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 347 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 
