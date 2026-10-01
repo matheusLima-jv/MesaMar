@@ -178,3 +178,17 @@ Guarde uma cópia fora da VPS (ex.: `scp` para o seu computador).
 - Não abre nenhuma porta nova no host nem mexe no UFW. A aplicação só existe nas redes Docker.
 - Não altera SSH, Cloudflare SSL/TLS, Bot Fight Mode nem regras de firewall da Cloudflare.
 - Não guarda nenhum segredo no repositório: tudo fica no `.env` da VPS.
+
+## Tempo real (SSE) atrás do Nginx e da Cloudflare
+
+A fila e a página do cliente usam uma conexão que fica aberta (SSE, `text/event-stream`). Nada a configurar:
+- o servidor já manda `X-Accel-Buffering: no`, então o Nginx não segura os avisos;
+- o `proxy_read_timeout 60s` do `nginx-mesamar-proxy.conf` é maior que o batimento do servidor (a cada 25 s), e a Cloudflare também mantém a conexão viva por causa dele.
+
+**Como conferir depois do deploy** (use o link do QR de uma comanda de teste):
+
+```bash
+curl -N https://mesamar.0mega.fun/api/c/<TOKEN_DO_QR>/eventos
+```
+
+Esperado: aparece `:conectado` na hora e uma linha `:ping` a cada 25 segundos, sem parar. Se ficar mudo por muito tempo, alguma camada está segurando a resposta: confira se o `location` do `/api/` do Nginx não tem `proxy_buffering on` e se não há compressão ligada para `text/event-stream`.

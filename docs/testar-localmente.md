@@ -155,6 +155,24 @@ docker compose exec db psql -U mesamar -c "update item_pedido set cancelado = tr
 docker compose exec db psql -U mesamar -c "update barraca set pedidos_pausados = true;"
 ```
 
+### Fila e tempo real (Fase 4 · checkpoint 4.1)
+
+Use o app do quiosque (Carla) no **celular A** e três clientes (check-in de Ana, Bruno e Carol) nos **celulares B, C e D**. Se tiver só um celular de cliente, use abas anônimas diferentes.
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 67 | Celular A: abrir a aba **Fila** | Olhar | "Tudo em dia" e o indicador verde "Ao vivo" |
+| 68 | Celulares B, C e D | Pedir um item cada, **com 10 s de intervalo** | No celular A, **sem recarregar**, os pedidos aparecem na ordem em que foram feitos, com o selo "Novo", **bip e vibração** (toque na tela uma vez antes, para o navegador liberar o som). Guarda-sol em destaque, nome, itens e observações. A aba mostra a contagem |
+| 69 | Painel → Regras → "Alerta de pedido parado" `2` min; deixar um pedido parado | Esperar | Faixa **verde**, depois **amarela** (1 min) e **vermelha** com a etiqueta "Atrasado" (2 min). A cor muda sozinha |
+| 70 | Celular A: "Em preparo" num pedido, depois "Entregue" | Olhar o celular do cliente, **sem recarregar** | O status muda em até 2 segundos. O pedido entregue some da fila |
+| 71 | Celular A: "Cancelar…" num pedido com 2 itens, escolher 1 item e **não** escolher o motivo | Tocar em "Confirmar cancelamento" | "Escolha o motivo do cancelamento." |
+| 72 | Mesmo diálogo, motivo "Esgotou" | Confirmar e olhar o celular do cliente | Aviso vermelho "O quiosque cancelou 1× … do pedido nº …: Esgotou.", item riscado e **a conta baixa**. "Entendi" fecha o aviso |
+| 73 | Celular A: cancelar um pedido inteiro com "Outro" e escrever um detalhe | Olhar o cliente | Aviso com "Outro: o detalhe" e o pedido "Cancelado" |
+| 74 | Celular A: filtros "Pendentes" e o seletor de guarda-sol | Tocar | Só os pedidos que combinam aparecem |
+| 75 | Celular A: **modo avião por 20 s**, e um cliente pedindo nesse tempo. Depois, desligar o modo avião | Olhar | "Reconectando…" em vermelho e, ao voltar, "Ao vivo" e **o pedido feito no meio aparece sozinho** |
+
+Também vale conferir o botão **"Som: ligado"** (alterna e continua assim depois de recarregar) e, em dois celulares do quiosque, tocar em "Entregue" no mesmo pedido quase juntos: só um aplica, e o outro mostra "Esse pedido já foi entregue." sem quebrar nada.
+
 > A instalação na tela inicial (item 41) exige **HTTPS** fora do `localhost`. No celular pela rede local (`http://IP-DO-PC`), o app abre, mas o Chrome não oferece "Instalar". Para testar a instalação de verdade, use o ambiente publicado (`https://mesamar.0mega.fun/staff/`).
 
 Consultar direto no banco, se quiser:
@@ -183,7 +201,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 252 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 267 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 

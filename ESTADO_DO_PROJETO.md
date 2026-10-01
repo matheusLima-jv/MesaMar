@@ -1,15 +1,15 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-10-01**, checkpoint **3.3 (Meus pedidos, saldo, limite e pagar a cada pedido)** pronto na branch `fase-3-cliente` ([PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4), rascunho), com tudo verde localmente, **aguardando o "aprovado 3.3"**. Os checkpoints 3.1 e 3.2 foram aprovados, com CI verde no PR. **A Fase 3 fica completa com o 3.3.**
+> Última atualização: **2026-10-01**. **Fase 3 concluída e mergeada na `main`** ([PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4)). Checkpoint **4.1 (fila, ações e tempo real por SSE)** pronto na branch `fase-4-fila`, com tudo verde localmente, **aguardando o "aprovado 4.1"**.
 
 ---
 
 ## 0. Primeiro passo (antes de escrever qualquer código)
 
-1. **A `main` e a `fase-3-cliente` já estão no GitHub** (a `fase-3-cliente` foi enviada em 2026-09-30, com a `main` do GitHub mesclada nela). Confira com `git status -sb` (não pode estar "ahead").
-2. **O PR da Fase 3 está aberto em rascunho** (`fase-3-cliente` → `main`). Confira o CI dele com `gh pr checks`. (O `CLAUDE.md` cita a branch `fase-3-pedidos`, mas a branch real é `fase-3-cliente`.)
-3. **Se o 3.3 ainda não foi aprovado:** confira o CI do último push (`gh pr checks 4`), apresente o relatório (`docs/relatorios/fase-3.md`, seção do 3.3) e peça o "aprovado 3.3". Depois, siga para a **Fase 4** (seção 7). O PR #4 sai do rascunho e é mergeado só quando o Matheus pedir.
+1. **A `main` tem tudo até a Fase 3** (PR #4 mergeado em 2026-10-01, CI verde: 244 testes na época do 3.2 e 10 E2E; o 3.3 fechou com 252). A branch `fase-3-cliente` continua no GitHub, sem uso.
+2. **A branch atual é a `fase-4-fila`** (criada a partir da `main`). Se ela ainda não está no GitHub, `git push -u origin fase-4-fila` e abra o PR da Fase 4 em rascunho (`gh pr create --draft`).
+3. **Se o 4.1 ainda não foi aprovado:** confira o CI, apresente o relatório (`docs/relatorios/fase-4.md`) e peça o "aprovado 4.1". Depois, siga para o **4.2** (seção 7).
 
 **Dica para o Windows do Matheus:** a porta 5432 pode estar ocupada ou reservada pelo sistema. Para subir o compose, troque o mapeamento do banco para `127.0.0.1:5433:5432` (o app não usa essa porta).
 
@@ -40,8 +40,8 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | 1 — Landing + lista de espera + teste de sinal + /admin + deploy | ✅ Na `main` (PR #2). Deploy em `mesamar.0mega.fun` **ainda não feito** pelo Matheus |
 | Portão A (validação em campo + medição de sinal) | ⏳ O Matheus faz **em paralelo** (decisão dele). Não bloqueia o código |
 | 2 — Contas, barraca, equipe, guarda-sóis, cardápio, app | ✅ Na `main` (PR #3) |
-| **3 — Check-in, QR e pedido pelo cliente** | 🔶 Branch `fase-3-cliente` (PR #4): 3.1 e 3.2 aprovados, 3.3 pronto e aguardando aprovação |
-| 4 — Fila + tempo real + Web Push | ⬜ |
+| 3 — Check-in, QR e pedido pelo cliente | ✅ Na `main` (PR #4) |
+| **4 — Fila + tempo real + Web Push** | 🔶 Branch `fase-4-fila`: 4.1 pronto e aguardando aprovação; 4.2 (Web Push, atraso, pausar) ⬜ |
 | 5 — Fechar conta, Pix, pagamentos, relatório | ⬜ |
 | 6 — Modo atendente offline | ⬜ (pode vir depois do piloto, se o sinal nas praias for bom) |
 | 7 — Preparação do piloto | ⬜ |
@@ -61,7 +61,14 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 |---|---|---|---|
 | 3.1 | Check-in no app (aba Clientes), QR em tela cheia, `/api/staff/clientes` | ✅ verde no PR #4 (228 testes, 10 E2E) | ✅ aprovado |
 | 3.2 | Página do cliente: cardápio, carrinho, pedido idempotente, reenvio sem sinal | ✅ verde no PR #4 (244 testes, 10 E2E) | ✅ aprovado |
-| **3.3** | **Meus pedidos, saldo, limite de conta, pagar a cada pedido, E2E multi-contexto** | ✅ local (252 testes, 10 E2E); CI do GitHub depende do push | ⏳ pendente |
+| 3.3 | Meus pedidos, saldo, limite de conta, pagar a cada pedido, E2E multi-contexto | ✅ verde no PR #4 (252 testes, 10 E2E) | ✅ aprovado |
+
+### Checkpoints da Fase 4
+
+| Checkpoint | Conteúdo | CI | Aprovação |
+|---|---|---|---|
+| **4.1** | **Fila no app, Em preparo / Entregue / Cancelar com motivo, filtros, SSE com LISTEN/NOTIFY, cliente ao vivo** | ✅ local (267 testes, 10 E2E); CI do GitHub depende do push | ⏳ pendente |
+| 4.2 | Web Push (VAPID, RFC 8291), alerta de atraso (ShedLock), "Pausar pedidos" | — | — |
 
 **Sobre o 2.3:**
 - O CI do commit `ed43ee5` falhou em 3 testes de `CardapioTest`. **Não era bug do app:** o cliente HTTP dos testes não segue redirecionamentos, então a mensagem "flash" de um passo de preparação ficava na sessão e aparecia no lugar da mensagem do passo testado.
@@ -100,7 +107,7 @@ cd e2e && npm ci && E2E_BASE_URL=http://localhost:8080 E2E_ADMIN_PASSWORD=<a do 
 ```
 
 ### Roteiro manual completo (para a entrega final)
-`docs/testar-localmente.md`, itens 1 a 66.
+`docs/testar-localmente.md`, itens 1 a 75.
 
 ### CI (GitHub Actions, `.github/workflows/ci.yml`)
 - ktlint → build e testes → imagem Docker → smoke do compose → E2E (Playwright, Pixel 7) → push para o GHCR (só na `main`).
@@ -163,17 +170,18 @@ backend/src/main/kotlin/br/com/mesamar/
 ├── lead/         lista de espera
 ├── sinal/        /teste-sinal
 ├── comanda/      Cliente, Comanda (token do QR), ContadorDiario, CheckinService
-├── pedido/       Pedido, ItemPedido (snapshot), PedidoService (idempotência, validação, bloqueios), evento PedidoCriado
-├── cliente/      ClienteController: API da página do cliente (/api/c/{token}), sem sessão
+├── pedido/       Pedido, ItemPedido (snapshot), PedidoService (idempotência, validação, bloqueios, limite), FilaService (fila, status só para frente, cancelar com motivo), evento PedidoCriado
+├── cliente/      ClienteController: API da página do cliente (/api/c/{token}), sem sessão, e o SSE da comanda
+├── eventos/      PublicadorEventos (pg_notify na transação), HubEventos (assinantes SSE por barraca e comanda, batimento 25 s), ReceptorEventos (LISTEN)
 └── staff/        API do app do quiosque (/api/staff): login, cardápio, check-in
 backend/src/main/resources/
-├── db/migration/ V1…V8 (Flyway)
+├── db/migration/ V1…V9 (Flyway)
 ├── templates/    landing/, admin/, painel/ (Thymeleaf)
 └── static/css/   landing.css (base), painel.css (painel)
-web-staff/        app do quiosque (TS puro + Vite): src/api.ts, src/dom.ts, src/views/*, public/sw.js, public/manifest.json
+web-staff/        app do quiosque (TS puro + Vite): src/api.ts, src/dom.ts, src/fila-store.ts (SSE + fila), src/som.ts, src/views/* (clientes, fila, cancelar, cardapio, mais), public/sw.js, public/manifest.json
 web-customer/     página do cliente (/cliente/ e /c/{token}): TS puro; src/api.ts, carrinho.ts (carrinho e pedido pendente no localStorage), main.ts (envio com reenvio), views/*, public/sw.js (servido em /c/sw.js)
 e2e/              Playwright: landing, lista-de-espera, teste-sinal, admin, painel (fluxo completo do dono + app)
-docs/             MESAMAR_PROMPT.md (plano), adr/0001–0009, relatorios/fase-0..3, deploy.md, testar-localmente.md
+docs/             MESAMAR_PROMPT.md (plano), adr/0001–0010, relatorios/fase-0..4, deploy.md, testar-localmente.md
 ```
 
 **Cinco cadeias de segurança (`SecurityConfig`); as de login têm cada uma a sua chave na sessão:**
@@ -182,7 +190,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0009, relatorios/fase-0.
 |---|---|---|---|
 | 1 | `/admin/**` | usuário único do `.env` | `MESAMAR_ADMIN` |
 | 2 | `/painel/**` | dono, e-mail + senha, form | `MESAMAR_PAINEL` |
-| 3 | `/api/staff/**` | dono ou atendente, JSON | `MESAMAR_STAFF` |
+| 3 | `/api/staff/**` | dono ou atendente, JSON (inclui `/api/staff/fila` e o SSE `/api/staff/eventos`) | `MESAMAR_STAFF` |
 | 4 | `/api/c/**` | **ninguém**: o token do QR no caminho é a credencial. Sem sessão, sem cookies, sem CSRF | — |
 | 5 | resto | público, sem cookies na landing | — |
 
@@ -204,6 +212,10 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0009, relatorios/fase-0.
 - **Imagem nova, contêiner velho:** num caso, depois de `docker compose up -d --build`, o servidor continuou entregando o bundle antigo. Antes de concluir que o E2E falhou por causa do código, confira o hash em `curl -s localhost:8080/staff/ | grep assets` e, se for o antigo, rode `docker compose up -d --force-recreate app`.
 - **QR no celular pela rede local:** o link usa `MESAMAR_PUBLIC_URL`. Com `localhost`, o QR não abre em outro aparelho.
 - **Scripts Python longos dentro de um heredoc do shell podem quebrar o parser** (aconteceu duas vezes). Escreva o script num arquivo com a ferramenta de escrita e rode com `python arquivo.py`.
+- **O Spring escreve o SSE sem espaço:** `event:fila`, `data:{…}`, `:ping` (não `event: fila`). Os testes (`SseTestClient`) esperam esse formato; o `EventSource` do navegador aceita os dois.
+- **`pg_notify` só vale dentro de uma transação que dá commit.** Chame `PublicadorEventos.pedidoMudou` dentro do `@Transactional` da mudança, nunca depois: assim ninguém é avisado de algo desfeito. Chamar fora de transação avisa na hora.
+- **Resposta SSE de erro não pode ter corpo JSON** quando o pedido aceita `text/event-stream`: o Spring devolve 406. Use `ResponseEntity.status(...).build()` (ver `ClienteController.eventos`). E o retorno de um endpoint SSE com `ResponseEntity` precisa ser tipado `ResponseEntity<SseEmitter>`, não `ResponseEntity<Any>`.
+- **Ações da fila são "definir", não "alternar":** repetir `EM_PREPARO` ou cancelar de novo devolve 200. Mantenha assim (a Fase 6 reenvia ações em fila).
 - **O compose passa variáveis vazias** (ex.: `SPRING_MAIL_HOST=`). Trate vazio como "não configurado".
 - **A página do cliente não tem sessão:** a cadeia `/api/c/**` é stateless e sem CSRF de propósito. Não adicione cookie nem sessão ali (a promessa da política de privacidade é "sem cookies"). Todo endpoint novo recebe só o token, e a comanda (e a barraca) vem dele; produto de outra barraca é tratado como inexistente, **sem vazar o nome**.
 - **Service worker do cliente:** o escopo de um SW é a pasta dele, por isso ele é servido em `/c/sw.js` (rota em `FrontendRoutesConfig`), e não em `/cliente/`. Ele nunca pode cachear `POST` nem `/api/c/` além do `GET` da comanda.
@@ -235,14 +247,16 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0009, relatorios/fase-0.
 - **Para a Fase 4/5:** a fila lista só `RECEBIDO` e `EM_PREPARO`; o aviso de pedido novo não dispara para `AGUARDANDO_PAGAMENTO` (o `PedidoCriado` leva o status); a confirmação de pagamento (5.2) é quem passa o pedido para `RECEBIDO`; o saldo passa a descontar os pagamentos. Hoje o status só muda por SQL.
 
 ### Fase 4: fila e notificações
-- **4.1:** aba Fila no app (ordem de chegada pelo relógio do **servidor**; tempo de espera com cor; Em preparo / Entregue / Cancelar com motivo; filtros). **SSE com heartbeat de 25 s.**
-  - Decisão já tomada: publicar os eventos via **PostgreSQL `LISTEN/NOTIFY`**, e não só em memória. Custa quase o mesmo e deixa pronto para mais de um servidor.
-  - O cliente vê o status em tempo real.
-- **4.2:** Web Push (VAPID) para dono e atendentes.
-  - Plano: implementar a criptografia **RFC 8291** com a criptografia do próprio JDK, testada contra os **vetores de teste da RFC**, para não depender de biblioteca abandonada.
+- **4.1:** ✅ pronto, aguardando aprovação (ver `docs/relatorios/fase-4.md` e [ADR 0010](docs/adr/0010-fila-e-tempo-real.md)).
+  - Fila (`GET /api/staff/fila`), ações `POST /api/staff/pedidos/{id}/status|cancelar` e `…/itens/{itemId}/cancelar` (motivo obrigatório). Status só para frente (`StatusPedido.podeIrPara`), com trava da linha do pedido. Migração V9.
+  - **SSE** (`/api/staff/eventos` por barraca, `/api/c/{token}/eventos` por comanda) alimentado por `pg_notify` na transação e uma conexão `LISTEN` própria; batimento de 25 s; reconexão com `ressincronizar`. O aviso leva só ids, e o app busca a fila de novo.
+  - App: aba Fila (ao vivo, som e vibração, filtros, cancelar com motivo) e o cliente vendo status e cancelamentos ao vivo.
+- **4.2 (próximo):** Web Push (VAPID) para dono e atendentes.
+  - Plano: implementar a criptografia **RFC 8291** com a criptografia do próprio JDK, testada contra os **vetores de teste da RFC**, para não depender de biblioteca abandonada. As chaves VAPID vão no `.env` (nunca no repositório).
   - Inscrições inválidas (410) são removidas.
-  - Alerta de atraso: tarefa agendada com **ShedLock**, para não rodar em dobro com dois servidores.
-  - "Pausar pedidos".
+  - **Alerta de atraso:** tarefa agendada com **ShedLock** (para não rodar em dobro com dois servidores), usando `barraca.tempoAlertaPedidoMin`. O aviso de **pedido novo** deve usar o evento `PedidoCriado` (já leva o status) e **só para `RECEBIDO`**: pedido `AGUARDANDO_PAGAMENTO` não avisa.
+  - **"Pausar pedidos":** a coluna `barraca.pedidos_pausados` e a regra no `PedidoService.bloqueio` já existem, e a página do cliente já mostra "O quiosque pausou os pedidos…". Falta o **botão** no app (e um endpoint `POST /api/staff/pausa`, que também avisa o cliente em tempo real).
+  - O push abre a fila: o `sw.js` do app precisa do evento `push` e do `notificationclick`.
 
 ### Fase 5: fechamento e pagamento
 - **5.1:** "Fechar conta" (máquina de estados `ABERTA → AGUARDANDO_PAGAMENTO → FECHADA`; voltar só sem pagamento confirmado).
@@ -269,7 +283,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0009, relatorios/fase-0.
 - **Deploy** em `mesamar.0mega.fun`, seguindo o `docs/deploy.md`.
 - **SMTP em produção**, para o "esqueci a senha" funcionar: escolher o serviço e criar SPF/DKIM na Cloudflare, manualmente.
 - **Portão A:** divulgar a landing, visitar barracas e medir o sinal em ≥3 praias num domingo, das 12h às 15h. O resultado decide se a Fase 6 vem antes do piloto.
-- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 66 até aqui.
+- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 75 até aqui.
 
 ## 9. Riscos conhecidos e decisões de escala
 
