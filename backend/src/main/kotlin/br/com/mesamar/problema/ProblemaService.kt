@@ -101,6 +101,33 @@ class ProblemaService(
             limit,
         )
 
+    /** Os avisos **desta barraca** (o painel do dono): a barraca vem do login, nunca da URL. */
+    fun daBarraca(
+        barracaId: UUID,
+        limit: Int = 100,
+    ): List<ProblemaRow> =
+        jdbc.query(
+            """
+            SELECT p.criado_em, b.nome AS barraca, p.origem, p.tela, p.conexao, p.mensagem, p.agente
+            FROM problema_reportado p JOIN barraca b ON b.id = p.barraca_id
+            WHERE p.barraca_id = ?
+            ORDER BY p.criado_em DESC LIMIT ?
+            """.trimIndent(),
+            { rs, _ ->
+                ProblemaRow(
+                    rs.getTimestamp("criado_em").toInstant(),
+                    rs.getString("barraca"),
+                    rs.getString("origem"),
+                    rs.getString("tela"),
+                    rs.getString("conexao"),
+                    rs.getString("mensagem"),
+                    rs.getString("agente"),
+                )
+            },
+            barracaId,
+            limit,
+        )
+
     /** Sem caractere de controle, espaços repetidos viram um, e cabe no tamanho do banco. */
     private fun limpar(
         texto: String?,

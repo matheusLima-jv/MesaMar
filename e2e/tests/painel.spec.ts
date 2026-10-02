@@ -405,6 +405,13 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(cliente.getByText('Aviso enviado. Obrigado!')).toBeVisible()
   await expectNoHorizontalScroll(cliente)
 
+  // O dono vê o aviso da Ana no painel dele (menu Avisos)
+  await dono.goto('/painel/problemas')
+  await expect(dono.getByRole('heading', { name: 'Avisos de problema' })).toBeVisible()
+  await expect(dono.getByText('Não consegui ver o Pix')).toBeVisible()
+  await expect(dono.getByText('Cliente', { exact: true })).toBeVisible()
+  await expectNoHorizontalScroll(dono)
+
   await dono.reload()
   await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
   await dono.goto('/painel/cardapio')

@@ -208,3 +208,8 @@
 
 /* Barraca de demonstração (treino) */
 .demo-faixa { margin: 0; padding: 0.5rem 1rem; background: var(--sun); color: var(--ink); font-weight: 800; text-align: center; border-bottom: 2px solid var(--ink); }
+
+/* Avisos de problema (/painel/problemas) */
+.avisos { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.aviso-texto { margin: 0.25rem 0; overflow-wrap: anywhere; white-space: pre-line; }
+.aviso-meta { margin: 0; color: var(--ink-2); font-size: 0.9rem; }

@@ -133,28 +133,27 @@ class AnonimizacaoTest(
     }
 
     @Test
-    fun `quem ainda tem comanda aberta, fechando ou bloqueada fica de fora ate fechar`() {
+    fun `a regra e seca, passou dos 90 dias anonimiza mesmo com comanda aberta, fechando ou bloqueada, e a divida continua`() {
         val q = apoio.quiosque("Barraca LGPD Devendo")
         val devendo = checkinComZap(q, "Caio")
         val fechando = checkinComZap(q, "Dani")
         val bloqueado = checkinComZap(q, "Edu")
+        apoio.pedir(apoio.celular(), devendo, UUID.randomUUID(), Item(q.coco.id, 1))
         apoio.pedir(apoio.celular(), fechando, UUID.randomUUID(), Item(q.coco.id, 1))
         assertEquals(200, apoio.celular().postJson("/api/c/$fechando/conta/fechar", """{"metodo":"CARTAO"}""").statusCode())
         assertEquals(200, app(q).post("/api/staff/comandas/${idDe(bloqueado)}/bloquear").statusCode())
+        val emAbertoAntes = relatorios.dia(q.barracaId, hoje()).emAberto.sumOf { it.saldoCentavos }
         listOf(devendo, fechando, bloqueado).forEach { envelhecer(it, 120) }
 
         anonimizacao.anonimizar()
 
-        listOf(devendo to "Caio", fechando to "Dani", bloqueado to "Edu").forEach { (token, nome) ->
-            assertEquals(nome, clienteDe(token).nome, "$nome ainda deve ou pode dever: o dono precisa saber quem é")
-            assertNotNull(clienteDe(token).whatsappE164)
+        listOf(devendo, fechando, bloqueado).forEach { token ->
+            assertEquals("Cliente", clienteDe(token).nome)
+            assertNull(clienteDe(token).whatsappE164)
         }
-        // Fechada a conta, na próxima rodada é anonimizado; as outras continuam como estavam
-        assertEquals(200, app(q).post("/api/staff/comandas/${idDe(devendo)}/encerrar").statusCode())
-        anonimizacao.anonimizar()
-        assertEquals("Cliente", clienteDe(devendo).nome)
-        assertEquals("Dani", clienteDe(fechando).nome)
-        assertEquals("Edu", clienteDe(bloqueado).nome)
+        // O valor devido continua na conta; só o nome sumiu
+        assertEquals(emAbertoAntes, relatorios.dia(q.barracaId, hoje()).emAberto.sumOf { it.saldoCentavos })
+        assertEquals(2400, emAbertoAntes)
     }
 
     @Test
