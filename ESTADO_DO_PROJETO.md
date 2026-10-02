@@ -1,7 +1,7 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-10-02**. **Fases 0 a 3 na `main`.** Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **Fases 4 e 5 completas e aprovadas** (o **5.3 foi aprovado em 2026-10-02**, com a anonimização de regra seca). Fase 7 na branch `fase-7-piloto` (PR #6 em rascunho, apontando para a `fase-4-fila`): **7.1, 7.2, 7.3 e 7.4 aprovados** (CI verde, 388 testes e 11 E2E; depois disso entraram a regra seca da anonimização e a página de Avisos no painel do dono, com testes locais verdes). **A revisão final foi feita em 2026-10-02** (2 bugs corrigidos, ver `docs/relatorios/fase-7.md`, seção "Revisão final"; 393 testes). A Fase 6 (offline) ainda não começou.
+> Última atualização: **2026-10-02**. **Fases 0 a 5 e 7 estão na `main`** (PRs #5 e #6 mergeados em 2026-10-02, com CI verde). **PIN novo de atendente exige exatamente 6 números** (PIN antigo de 4 continua entrando). A Fase 6 (offline) ainda não começou: o plano diz que ela vem antes do piloto se o sinal medido no Portão A for ruim, e depois da primeira semana de piloto se for bom.
 
 ---
 
