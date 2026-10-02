@@ -68,5 +68,21 @@ test('o projeto cria a barraca de demonstração e a equipe treina nela, com avi
   await expect(app.locator('.pedido')).toHaveCount(2)
   await expect(app.locator('.pedido').first()).toContainText('Ana (treino)')
   await expectNoHorizontalScroll(app)
+
+  // 4) A atendente reporta um problema (Mais → Reportar problema) e o admin vê com a tela e a conexão
+  const aviso = `A fila demorou para atualizar ${Date.now()}`
+  await app.getByRole('link', { name: 'Mais' }).click()
+  await expect(app.getByRole('heading', { name: 'Reportar problema' })).toBeVisible()
+  await app.getByLabel('O que aconteceu?').fill(aviso)
+  await app.getByRole('button', { name: 'Enviar aviso' }).click()
+  await expect(app.getByText('Aviso enviado. Obrigado!')).toBeVisible()
+  await expectNoHorizontalScroll(app)
   checkApp()
+  await page.goto('/admin')
+  await page.reload() // a mesma página com outro # não recarrega sozinha
+  const linha = page.getByRole('row', { name: new RegExp(aviso) })
+  await expect(linha).toContainText('Barraca Demo (treino)')
+  await expect(linha).toContainText('Quiosque')
+  await expect(linha).toContainText('fila')
+  await expect(linha).toContainText('online')
 })

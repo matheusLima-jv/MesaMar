@@ -397,6 +397,14 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(dono.getByRole('link', { name: 'Baixar em CSV' })).toHaveAttribute('href', /relatorio\.csv\?dia=\d{4}-\d\d-\d\d$/)
   await expectNoHorizontalScroll(dono)
 
+  // 15) Reportar problema na página do cliente (7.3): uma frase, e o aviso sai
+  await cliente.getByRole('link', { name: 'Reportar um problema' }).click()
+  await expect(cliente.getByRole('heading', { name: 'Reportar um problema' })).toBeVisible()
+  await cliente.getByLabel('O que aconteceu?').fill('Não consegui ver o Pix')
+  await cliente.getByRole('button', { name: 'Enviar aviso' }).click()
+  await expect(cliente.getByText('Aviso enviado. Obrigado!')).toBeVisible()
+  await expectNoHorizontalScroll(cliente)
+
   await dono.reload()
   await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
   await dono.goto('/painel/cardapio')
