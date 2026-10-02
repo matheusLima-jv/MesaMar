@@ -509,4 +509,88 @@ class PushEnvioTest(
             assertTrue(servidor.nada("/push/b"), "B não recebe nada de A")
         }
     }
+
+    // ---------- Aviso de problema ----------
+
+    private fun inscreverAtendente(
+        q: Quiosque,
+        servidor: FakePushServer,
+        caminho: String,
+    ): AparelhoDeTeste {
+        val agora = Instant.now()
+        val atendente =
+            atendentes.save(
+                Atendente(barracaId = q.barracaId, nome = "Eva", pinHash = "x", criadoEm = agora, atualizadoEm = agora),
+            )
+        val aparelho = AparelhoDeTeste()
+        subs.save(
+            PushSubscription(
+                barracaId = q.barracaId,
+                usuarioId = null,
+                atendenteId = atendente.id,
+                endpoint = servidor.endpoint(caminho),
+                p256dh = Base64Url.codificar(aparelho.publicaBytes),
+                auth = Base64Url.codificar(aparelho.segredoAuth),
+                criadoEm = agora,
+            ),
+        )
+        return aparelho
+    }
+
+    @Test
+    fun `problema reportado avisa so o aparelho do dono, com o comeco do texto, e nao os atendentes nem outra barraca`() {
+        FakePushServer().use { servidor ->
+            val a = apoio.quiosque("Barraca Push Problema A")
+            val b = apoio.quiosque("Barraca Push Problema B")
+            val aparelhoDono = inscrever(a, servidor, "/push/dono")
+            inscreverAtendente(a, servidor, "/push/atendente")
+            inscrever(b, servidor, "/push/outra")
+            val token = apoio.novaComanda(a, "Ana Silva")
+
+            val longo = "Não consegui ver o Pix. ".repeat(10)
+            val r = apoio.celular().postJson("/api/c/$token/problemas", """{"mensagem":"$longo","tela":"conta","conexao":"online"}""")
+            assertEquals(201, r.statusCode(), r.body())
+
+            assertTrue(servidor.esperar("/push/dono"), "o aparelho do dono recebe")
+            assertTrue(servidor.nada("/push/atendente"), "o atendente não recebe")
+            assertTrue(servidor.nada("/push/outra", 500), "a outra barraca não recebe")
+            val recebido = servidor.em("/push/dono").single()
+            val texto = aparelhoDono.decifrar(recebido.corpo)
+            assertContains(texto, """"titulo":"Aviso de problema · Cliente"""")
+            assertContains(texto, """"corpo":"Não consegui ver o Pix. Não consegui ver o Pix.""")
+            assertContains(texto, """"url":"/painel/problemas"""")
+            assertContains(texto, """"tag":"problema"""")
+            assertContains(texto, """"tipo":"PROBLEMA"""")
+            assertFalse(texto.contains("Ana"), "o nome do cliente não vai no aviso: $texto")
+            val corpo = Regex(""""corpo":"([^"]*)"""").find(texto)!!.groupValues[1]
+            assertTrue(corpo.length <= NotificadorPush.MENSAGEM_NO_AVISO, "só o começo do texto: ${corpo.length}")
+            assertEquals("3600", recebido.cabecalhos["ttl"])
+        }
+    }
+
+    @Test
+    fun `problema reportado pela equipe chega ao dono como aviso da Equipe`() {
+        FakePushServer().use { servidor ->
+            val q = apoio.quiosque("Barraca Push Problema Equipe")
+            val aparelho = inscrever(q, servidor, "/push/dono")
+
+            val r = app(q).post("/api/staff/problemas", """{"mensagem":"A fila travou","tela":"fila","conexao":"offline"}""")
+            assertEquals(201, r.statusCode(), r.body())
+
+            assertTrue(servidor.esperar("/push/dono"))
+            assertContains(aparelho.decifrar(servidor.em("/push/dono").single().corpo), """"titulo":"Aviso de problema · Equipe"""")
+        }
+    }
+
+    @Test
+    fun `aviso recusado por texto curto nao manda push`() {
+        FakePushServer().use { servidor ->
+            val q = apoio.quiosque("Barraca Push Problema Curto")
+            inscrever(q, servidor, "/push/dono")
+
+            assertEquals(400, app(q).post("/api/staff/problemas", """{"mensagem":"a"}""").statusCode())
+
+            assertTrue(servidor.nada("/push/dono"))
+        }
+    }
 }

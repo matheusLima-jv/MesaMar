@@ -69,13 +69,15 @@ self.addEventListener('push', (event) => {
   )
 })
 
-// Tocar na notificação abre a fila: reaproveita o app se já estiver aberto.
+// Tocar na notificação abre o destino dela (a fila, a aba Pagamentos ou o painel do dono): reaproveita a janela se já estiver aberta.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const alvo = new URL((event.notification.data && event.notification.data.url) || '/staff/#/fila', self.location.origin).href
   event.waitUntil((async () => {
     const janelas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    const aberta = janelas.find((j) => j.url.startsWith(self.location.origin + '/staff/'))
+    // Só reaproveita o app aberto quando o destino é do próprio app (/staff/); o resto (ex.: o painel do dono) abre numa janela nova
+    const noApp = new URL(alvo).pathname.startsWith('/staff/')
+    const aberta = noApp ? janelas.find((j) => j.url.startsWith(self.location.origin + '/staff/')) : janelas.find((j) => j.url === alvo)
     if (aberta) {
       await aberta.focus()
       try { await aberta.navigate(alvo) } catch { /* já está no app; o hash é trocado ao focar */ }

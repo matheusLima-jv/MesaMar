@@ -6,6 +6,7 @@ import br.com.mesamar.comanda.Comanda
 import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.common.BrCodePix
+import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.Money
 import br.com.mesamar.eventos.PublicadorEventos
 import br.com.mesamar.pedido.ItemPedidoRepository
@@ -155,6 +156,12 @@ class FechamentoService(
         when (comanda.status) {
             StatusComanda.ABERTA -> Unit
             StatusComanda.AGUARDANDO_PAGAMENTO -> {
+                if (comanda.dia < Fuso.hoje(clock)) {
+                    return ResultadoConta.Recusado(
+                        "comanda-de-outro-dia",
+                        "Esta comanda é de outro dia e já não aceita pedidos. Se ainda há conta a pagar, fale com um atendente.",
+                    )
+                }
                 if (pagamentos.totalCentavos(comanda.id) > 0) {
                     return ResultadoConta.Recusado(
                         "pagamento-confirmado",

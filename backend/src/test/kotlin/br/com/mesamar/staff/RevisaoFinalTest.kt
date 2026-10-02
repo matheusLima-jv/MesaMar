@@ -179,6 +179,59 @@ class RevisaoFinalTest(
         assertTrue(apoio.pedir(apoio.celular(), quitada, UUID.randomUUID(), Item(q.coco.id, 1)).statusCode() in 400..499)
     }
 
+    // ---------- Comanda de outro dia ----------
+
+    private fun deOntem(token: String) {
+        jdbc.update("UPDATE comanda SET dia = ? WHERE token_acesso = ?", Fuso.hoje(clock).minusDays(1), token)
+    }
+
+    @Test
+    fun `comanda de um dia anterior nao aceita pedido novo, mas o quiosque ainda recebe o que ela deve`() {
+        val q = apoio.quiosque("Barraca Comanda Antiga")
+        val app = app(q)
+        val token = apoio.novaComanda(q, "Devedor")
+        pedido(token, Item(q.coco.id, 1))
+        deOntem(token)
+        val cliente = apoio.celular()
+
+        val r = apoio.pedir(cliente, token, UUID.randomUUID(), Item(q.coco.id, 1))
+
+        assertEquals(409, r.statusCode(), r.body())
+        assertContains(r.body(), "comanda-de-outro-dia")
+        assertContains(r.body(), "é de outro dia")
+        assertContains(cliente.get("/api/c/$token").body(), "\"codigo\":\"comanda-de-outro-dia\"", message = "a página mostra o motivo")
+        assertEquals(1, pedidos.findAll().count { it.comandaId == comandas.findByTokenAcesso(token)!!.id }, "nenhum pedido novo")
+
+        // O cliente ainda pode fechar a conta e pagar; o quiosque recebe e a comanda se encerra
+        assertEquals(200, cliente.postJson("/api/c/$token/conta/fechar", """{"metodo":"DINHEIRO"}""").statusCode())
+        receber(app, token, 1200)
+        assertEquals(StatusComanda.FECHADA, comandas.findByTokenAcesso(token)!!.status)
+    }
+
+    @Test
+    fun `voltar e pedir mais tambem e recusado numa comanda de outro dia`() {
+        val q = apoio.quiosque("Barraca Reabrir Antiga")
+        val token = apoio.novaComanda(q, "Devedor")
+        pedido(token, Item(q.coco.id, 1))
+        val cliente = apoio.celular()
+        assertEquals(200, cliente.postJson("/api/c/$token/conta/fechar", """{"metodo":"DINHEIRO"}""").statusCode())
+        deOntem(token)
+
+        val r = cliente.postJson("/api/c/$token/conta/reabrir", "{}")
+
+        assertEquals(409, r.statusCode(), r.body())
+        assertContains(r.body(), "comanda-de-outro-dia")
+        assertEquals(StatusComanda.AGUARDANDO_PAGAMENTO, comandas.findByTokenAcesso(token)!!.status)
+    }
+
+    @Test
+    fun `comanda de hoje continua aceitando pedido`() {
+        val q = apoio.quiosque("Barraca Comanda De Hoje")
+        val token = apoio.novaComanda(q)
+
+        assertEquals(201, apoio.pedir(apoio.celular(), token, UUID.randomUUID(), Item(q.coco.id, 1)).statusCode())
+    }
+
     // ---------- Sessão do dono depois de trocar a senha ----------
 
     @Test

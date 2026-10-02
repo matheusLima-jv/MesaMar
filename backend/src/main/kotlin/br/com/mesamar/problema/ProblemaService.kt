@@ -1,8 +1,10 @@
 package br.com.mesamar.problema
 
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.sql.Timestamp
 import java.time.Clock
 import java.time.Instant
@@ -35,6 +37,14 @@ data class ProblemaRow(
     val agente: String?,
 )
 
+/** Avisa o resto do sistema que alguém reportou um problema (o push do dono escuta isto, depois do commit). */
+data class ProblemaReportado(
+    val barracaId: UUID,
+    /** `QUIOSQUE` ou `CLIENTE`. */
+    val origem: String,
+    val mensagem: String,
+)
+
 /**
  * "Reportar problema" (Fase 7 · checkpoint 7.3). Grava o texto e o contexto (tela, horário do servidor, conexão, navegador)
  * para o projeto ver no /admin. A barraca vem sempre de quem reportou (o login ou o token da comanda), nunca do pedido.
@@ -43,9 +53,11 @@ data class ProblemaRow(
 class ProblemaService(
     private val jdbc: JdbcTemplate,
     private val clock: Clock,
+    private val eventos: ApplicationEventPublisher,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
+    @Transactional
     fun registrar(
         barracaId: UUID,
         origem: String,
@@ -77,6 +89,7 @@ class ProblemaService(
             Timestamp.from(Instant.now(clock)),
         )
         log.warn("Problema reportado: origem={} barraca={} tela={} conexao={}", origem, barracaId, tela, conexao)
+        eventos.publishEvent(ProblemaReportado(barracaId, origem, mensagem))
         return ResultadoProblema.Ok
     }
 
