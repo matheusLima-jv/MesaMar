@@ -121,7 +121,7 @@ Itens 97 a 110 de [`docs/testar-localmente.md`](../testar-localmente.md). Os mai
 ## Checkpoint 5.3 — Relatório do dia e anonimização LGPD
 
 - **Data:** 2026-10-01
-- **Verificado localmente:** ktlint, **359 testes de backend** (347 do 5.2 + 12 novos), build dos dois fronts e **10 E2E** (o do painel ganhou o passo do relatório), com a imagem Docker construída do zero. **O CI do GitHub ainda não rodou para o 5.3** (os commits ainda não foram enviados).
+- **CI:** ✅ verde no GitHub (PR #5): ktlint, **359 testes de backend** (347 do 5.2 + 12 novos), imagem Docker, smoke do compose e **10 E2E** no tamanho de celular (o do painel ganhou o passo do relatório).
 
 ### 1. O que foi feito
 
@@ -172,4 +172,4 @@ Com o 5.3, a Fase 5 está completa (fechar conta e Pix, receber, bloquear e fech
 
 ### 7. Antes de aprovar
 
-- O 5.3 está na `fase-4-fila`, no PR #5 (rascunho). Os commits do 5.3 ainda são locais.
+- O 5.3 está na `fase-4-fila`, no PR #5 (rascunho, não mergeado). Com ele, **a Fase 5 está completa**.

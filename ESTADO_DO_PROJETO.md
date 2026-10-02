@@ -1,7 +1,7 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-10-01**. **Fase 3 mergeada na `main`** ([PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4)). Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **4.1 e 4.2 aprovados** (CI verde): **a Fase 4 está completa.** Na mesma `fase-4-fila`: **5.1 e 5.2 aprovados** (CI verde) e **5.3 (relatório do dia e anonimização LGPD) pronto**, verde localmente (359 testes, 10 E2E), **aguardando o push, o CI e o "aprovado 5.3"**. **Com o 5.3 a Fase 5 fica completa.**
+> Última atualização: **2026-10-01**. **Fase 3 mergeada na `main`** ([PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4)). Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **4.1 e 4.2 aprovados** (CI verde): **a Fase 4 está completa.** Na mesma `fase-4-fila`: **5.1 e 5.2 aprovados** (CI verde) e **5.3 (relatório do dia e anonimização LGPD) pronto**, **CI verde no PR #5** (359 testes, 10 E2E), **aguardando o "aprovado 5.3"**. **Com o 5.3 a Fase 5 fica completa.**
 
 ---
 
@@ -9,7 +9,7 @@
 
 1. **A `main` tem tudo até a Fase 3** (PR #4 mergeado em 2026-10-01, CI verde: 244 testes na época do 3.2 e 10 E2E; o 3.3 fechou com 252). A branch `fase-3-cliente` continua no GitHub, sem uso.
 2. **A branch atual é a `fase-4-fila`** (criada a partir da `main`). Se ela ainda não está no GitHub, `git push -u origin fase-4-fila` e abra o PR da Fase 4 em rascunho (`gh pr create --draft`).
-3. **O 5.3 está pronto e não foi aprovado.** Confira o CI do último push (`gh pr checks 5`; se os commits do 5.3 ainda forem locais, `git push` antes), apresente o relatório (`docs/relatorios/fase-5.md`, seção do 5.3) e peça o "aprovado 5.3". Depois, **pergunte ao Matheus a ordem**: Fase 6 (modo offline) agora ou Fase 7 (piloto) primeiro, conforme o resultado do Portão A. O PR #5 sai do rascunho e é mergeado só quando o Matheus pedir.
+3. **O 5.3 está pronto, com CI verde, e não foi aprovado.** Apresente o relatório (`docs/relatorios/fase-5.md`, seção do 5.3) e peça o "aprovado 5.3". Depois, **pergunte ao Matheus a ordem**: Fase 6 (modo offline) agora ou Fase 7 (piloto) primeiro, conforme o resultado do Portão A. O PR #5 sai do rascunho e é mergeado só quando o Matheus pedir.
 
 **Dica para o Windows do Matheus:** a porta 5432 pode estar ocupada ou reservada pelo sistema. Para subir o compose, troque o mapeamento do banco para `127.0.0.1:5433:5432` (o app não usa essa porta).
 
@@ -76,7 +76,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 |---|---|---|---|
 | 5.1 | Aba Conta no cliente (extrato, fechar, Pix com QR, "já paguei", voltar e pedir mais), saldo desconta pagamentos, BR Code Pix | ✅ verde no PR #5 (323 testes, 10 E2E) | ✅ aprovado |
 | 5.2 | Aba Pagamentos no app (receber total, parcial e dividido, troco, bloquear, encerrar, fechar sem receber), aviso "indo pagar" (SSE + push), extrato vence em 7 dias | ✅ verde no PR #5 (347 testes, 10 E2E) | ✅ aprovado |
-| 5.3 | Relatório do dia no painel (+ CSV) e job diário de anonimização LGPD | ✅ local (359 testes, 10 E2E); CI do GitHub depende do push | ⏳ pendente |
+| 5.3 | Relatório do dia no painel (+ CSV) e job diário de anonimização LGPD | ✅ verde no PR #5 (359 testes, 10 E2E) | ⏳ pendente |
 
 **Sobre o 2.3:**
 - O CI do commit `ed43ee5` falhou em 3 testes de `CardapioTest`. **Não era bug do app:** o cliente HTTP dos testes não segue redirecionamentos, então a mensagem "flash" de um passo de preparação ficava na sessão e aparecia no lugar da mensagem do passo testado.
