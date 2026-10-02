@@ -6,7 +6,7 @@ export interface Sessao {
   logado: boolean
   csrf: string
   usuario?: { nome: string, papel: Papel }
-  barraca?: { nome: string, codigo: string, praia: string }
+  barraca?: { nome: string, codigo: string, praia: string, demo?: boolean }
 }
 
 export interface Produto {
@@ -330,6 +330,11 @@ export function lerReais (texto: string): number | null {
   const m = /^(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,2}))?$/.exec(limpo)
   if (m === null) return null
   return Number(m[1].replace(/\./g, '')) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
+}
+
+/** "Reportar problema": o texto e o contexto que o app conhece (tela, conexão). */
+export async function reportarProblema (mensagem: string, tela: string, conexao: string): Promise<void> {
+  await chamar<unknown>('POST', '/problemas', { mensagem, tela, conexao })
 }
 
 /** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */

@@ -45,4 +45,30 @@ class SecurityHeadersTest(
 
         assertContains(http.get(cssPath).header("Cache-Control"), "max-age=31536000")
     }
+
+    @Test
+    fun `as paginas dos apps nao liberam servico de fora, e a landing continua liberando os da Cloudflare`() {
+        listOf("/staff/", "/cliente/").forEach { path ->
+            val csp = http.get(path).header("Content-Security-Policy")
+            assertContains(csp, "script-src 'self';", message = path)
+            assertTrue(!csp.contains("cloudflare"), "$path não deveria liberar a Cloudflare: $csp")
+        }
+        assertContains(http.get("/").header("Content-Security-Policy"), "static.cloudflareinsights.com")
+        assertEquals(
+            1,
+            http
+                .get("/staff/")
+                .headers()
+                .allValues("Content-Security-Policy")
+                .size,
+        )
+        assertEquals(
+            1,
+            http
+                .get("/")
+                .headers()
+                .allValues("Content-Security-Policy")
+                .size,
+        )
+    }
 }

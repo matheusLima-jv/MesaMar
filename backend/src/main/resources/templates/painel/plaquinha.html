@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="|Plaquinha · ${barraca.nome} · MesaMar|">Plaquinha · MesaMar</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="../../static/img/favicon.svg" th:href="@{/img/favicon.svg}" type="image/svg+xml">
+  <link rel="stylesheet" href="../../static/css/impresso.css" th:href="@{/css/impresso.css}">
+  <script src="../../static/js/imprimir.js" th:src="@{/js/imprimir.js}" defer></script>
+</head>
+<body class="impresso">
+<div class="barra-impressao no-print">
+  <a href="/painel/materiais" th:href="@{/painel/materiais}">← Materiais</a>
+  <button type="button" id="imprimir" class="botao-imprimir">Imprimir (A4)</button>
+</div>
+
+<main class="folha plaquinha" aria-labelledby="titulo">
+  <p class="plaquinha-barraca" th:text="${barraca.nome}">Barraca do Zé</p>
+  <h1 id="titulo">Peça pelo celular</h1>
+  <p class="plaquinha-chamada">Faça seu cadastro aqui e receba seu QR</p>
+
+  <ol class="plaquinha-passos">
+    <li><strong>Cadastro aqui no balcão</strong><span>Diga seu nome e o número do guarda-sol. Leva 20 segundos.</span></li>
+    <li><strong>Leia o QR com a câmera</strong><span>Sem baixar nada. O seu cardápio abre no celular.</span></li>
+    <li><strong>Peça sem sair do guarda-sol</strong><span>Acompanhe o pedido e, na hora de ir embora, feche a conta no celular.</span></li>
+  </ol>
+
+  <p class="plaquinha-pagamento">Pague no <strong>Pix</strong>, em <strong>dinheiro</strong> ou no <strong>cartão</strong>.</p>
+  <p class="plaquinha-rodape">MesaMar · comanda digital para barracas de praia</p>
+</main>
+</body>
+</html>

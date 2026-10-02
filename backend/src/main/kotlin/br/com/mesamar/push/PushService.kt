@@ -267,6 +267,20 @@ class PushService(
         }
     }
 
+    /**
+     * Avisa só os aparelhos do **dono** da barraca (quem ativou os avisos entrando como dono), nunca os dos atendentes.
+     * É o caso dos avisos de "reportar problema": o dono quer saber, a equipe no balcão não precisa.
+     */
+    fun enviarParaDono(
+        barracaId: UUID,
+        mensagem: MensagemPush,
+    ) {
+        val v = vapid ?: return
+        subs.findAllByBarracaId(barracaId).filter { it.usuarioId != null }.forEach { s ->
+            executor.execute { entregar(v, s, mensagem) }
+        }
+    }
+
     private fun entregar(
         v: Vapid,
         s: PushSubscription,

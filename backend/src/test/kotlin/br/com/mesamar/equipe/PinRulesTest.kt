@@ -7,13 +7,13 @@ import kotlin.test.assertNull
 
 class PinRulesTest {
     @ParameterizedTest
-    @ValueSource(strings = ["2580", "1357", "904512", " 7391 ", "1123"])
+    @ValueSource(strings = ["258014", "135792", "904512", " 739104 ", "112358"])
     fun `PINs aceitos`(pin: String) {
         assertNull(PinRules.problema(pin))
     }
 
     @ParameterizedTest
-    @ValueSource(strings = ["", "123", "1234567", "12a4", "1111", "000000", "1234", "4321", "456789", "987654"])
+    @ValueSource(strings = ["", "123", "1234567", "12a456", "2580", "13579", "111111", "000000", "123456", "654321", "456789", "987654"])
     fun `PINs recusados`(pin: String) {
         assertNotNull(PinRules.problema(pin))
     }

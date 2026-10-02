@@ -177,6 +177,8 @@ class RecuperacaoSenhaService(
         val reset = buscar(token) ?: return false
         val usuario = usuarios.findById(reset.usuarioId).orElse(null) ?: return false
         usuario.senhaHash = requireNotNull(passwordEncoder.encode(novaSenha))
+        // Celular perdido ou senha vazada: quem estava logado com a senha antiga cai na próxima ação
+        usuario.credenciaisEm = Instant.now(clock)
         reset.usadoEm = Instant.now(clock)
         log.info("Senha redefinida para usuario={}", usuario.id)
         return true

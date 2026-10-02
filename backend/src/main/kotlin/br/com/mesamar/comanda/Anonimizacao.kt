@@ -13,30 +13,28 @@ import org.springframework.transaction.annotation.Transactional
  * valores ficam como estão (a barraca precisa deles para as contas e os relatórios), só que sem identificar a pessoa.
  *
  * É um único `UPDATE`: com mais de um servidor rodando, o primeiro anonimiza e os outros não encontram mais nada, então
- * ninguém precisa de trava de tarefa agendada. Clientes que ainda têm uma comanda aberta, aguardando pagamento ou
- * bloqueada **ficam de fora**: o dono precisa saber quem está devendo, e eles são anonimizados no dia seguinte ao fechamento.
+ * ninguém precisa de trava de tarefa agendada. A regra é seca: passou o prazo, anonimiza, **mesmo que a comanda ainda
+ * esteja aberta ou com conta a pagar** (decisão do dono do projeto no 5.3; quem deve é cobrado antes disso).
  */
 @Service
 class AnonimizacaoService(
     private val jdbc: JdbcTemplate,
     @Value("\${mesamar.anonimizacao.dias:90}") private val dias: Int,
 ) {
-    /** Devolve quantos clientes foram anonimizados agora. */
+    /** Devolve quantos clientes foram anonimizados agora. Os avisos de "reportar problema" com mais de [dias] dias são apagados. */
     @Transactional
-    fun anonimizar(): Int =
-        jdbc.update(
+    fun anonimizar(): Int {
+        jdbc.update("DELETE FROM problema_reportado WHERE criado_em < now() - make_interval(days => ?)", dias)
+        return jdbc.update(
             """
             UPDATE cliente
             SET nome = 'Cliente', whatsapp_e164 = NULL, anonimizado_em = now()
             WHERE anonimizado_em IS NULL
               AND criado_em < now() - make_interval(days => ?)
-              AND NOT EXISTS (
-                  SELECT 1 FROM comanda c
-                  WHERE c.cliente_id = cliente.id AND c.status IN ('ABERTA', 'AGUARDANDO_PAGAMENTO', 'BLOQUEADA')
-              )
             """.trimIndent(),
             dias,
         )
+    }
 }
 
 /** Roda a anonimização todo dia, de madrugada (fuso das barracas). */

@@ -2,9 +2,13 @@ package br.com.mesamar.pedido
 
 import br.com.mesamar.comanda.AbertaPor
 import br.com.mesamar.comanda.ClienteRepository
+import br.com.mesamar.comanda.Comanda
 import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.eventos.PublicadorEventos
 import br.com.mesamar.guardasol.GuardaSolRepository
+import br.com.mesamar.pagamento.PagamentoRepository
+import jakarta.persistence.EntityManager
+import jakarta.persistence.LockModeType
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -72,6 +76,9 @@ class FilaService(
     private val clientes: ClienteRepository,
     private val guardaSois: GuardaSolRepository,
     private val eventos: PublicadorEventos,
+    private val pagamentos: PagamentoRepository,
+    private val liberacao: LiberacaoPedidos,
+    private val em: EntityManager,
     private val clock: Clock,
 ) {
     @Transactional(readOnly = true)
@@ -110,7 +117,7 @@ class FilaService(
         quem: AbertaPor,
     ): ResultadoFila {
         val m = MotivoCancelamento.de(motivo) ?: return ResultadoFila.Invalido("Escolha o motivo do cancelamento.")
-        val pedido = pedidos.travar(pedidoId, barracaId) ?: return ResultadoFila.NaoEncontrado
+        val (comanda, pedido) = travarComandaEPedido(barracaId, pedidoId) ?: return ResultadoFila.NaoEncontrado
         if (pedido.status == StatusPedido.CANCELADO) return ResultadoFila.Ok(montar(pedido))
         if (!pedido.status.podeIrPara(
                 StatusPedido.CANCELADO,
@@ -118,8 +125,9 @@ class FilaService(
         ) {
             return ResultadoFila.Transicao(mensagemTransicao(pedido.status, StatusPedido.CANCELADO))
         }
-        val texto = m.texto(detalhe)
         val linhas = itens.findAllByPedidoIdOrderByLinha(pedido.id)
+        recusaPorSaldoNegativo(comanda, linhas.filter { !it.cancelado }.sumOf { it.subtotalCentavos })?.let { return it }
+        val texto = m.texto(detalhe)
         linhas.filter { !it.cancelado }.forEach {
             it.cancelado = true
             it.motivoCancelamento = texto
@@ -128,6 +136,7 @@ class FilaService(
         cancelar(pedido, texto, quem)
         pedidos.save(pedido)
         eventos.pedidoMudou(pedido.barracaId, pedido.comandaId, pedido.id)
+        liberacao.liberar(comanda, Instant.now(clock))
         return ResultadoFila.Ok(montar(pedido))
     }
 
@@ -142,11 +151,12 @@ class FilaService(
         quem: AbertaPor,
     ): ResultadoFila {
         val m = MotivoCancelamento.de(motivo) ?: return ResultadoFila.Invalido("Escolha o motivo do cancelamento.")
-        val pedido = pedidos.travar(pedidoId, barracaId) ?: return ResultadoFila.NaoEncontrado
+        val (comanda, pedido) = travarComandaEPedido(barracaId, pedidoId) ?: return ResultadoFila.NaoEncontrado
         val linhas = itens.findAllByPedidoIdOrderByLinha(pedido.id)
         val item = linhas.firstOrNull { it.id == itemId } ?: return ResultadoFila.NaoEncontrado
         if (item.cancelado) return ResultadoFila.Ok(montar(pedido, linhas))
         if (pedido.status.terminal) return ResultadoFila.Transicao(mensagemTransicao(pedido.status, StatusPedido.CANCELADO))
+        recusaPorSaldoNegativo(comanda, item.subtotalCentavos)?.let { return it }
         val texto = m.texto(detalhe)
         item.cancelado = true
         item.motivoCancelamento = texto
@@ -154,7 +164,39 @@ class FilaService(
         if (linhas.all { it.cancelado }) cancelar(pedido, texto, quem) else atender(pedido, quem)
         pedidos.save(pedido)
         eventos.pedidoMudou(pedido.barracaId, pedido.comandaId, pedido.id)
+        liberacao.liberar(comanda, Instant.now(clock))
         return ResultadoFila.Ok(montar(pedido, linhas))
+    }
+
+    /**
+     * Trava a comanda **antes** do pedido (a mesma ordem do pagamento, então não há deadlock entre os dois) e relê o
+     * pedido do banco já travado. O pedido de outra barraca é igual a um que não existe.
+     */
+    private fun travarComandaEPedido(
+        barracaId: UUID,
+        pedidoId: UUID,
+    ): Pair<Comanda, Pedido>? {
+        val pedido = pedidos.findByIdAndBarracaId(pedidoId, barracaId) ?: return null
+        val comanda = comandas.travar(pedido.comandaId)?.takeIf { it.barracaId == barracaId } ?: return null
+        em.refresh(pedido, LockModeType.PESSIMISTIC_WRITE)
+        return comanda to pedido
+    }
+
+    /**
+     * Cancelar algo que o cliente já pagou deixaria a conta dele negativa, e o sistema não registra devolução de dinheiro:
+     * o quiosque combina a troca ou a devolução no balcão. Antes de qualquer pagamento, cancelar é sempre possível.
+     */
+    private fun recusaPorSaldoNegativo(
+        comanda: Comanda,
+        valorCancelado: Long,
+    ): ResultadoFila.Transicao? {
+        val pago = pagamentos.totalCentavos(comanda.id)
+        if (pago == 0L) return null
+        val saldoDepois = itens.totalCentavos(comanda.id) - valorCancelado - pago
+        if (saldoDepois >= 0) return null
+        return ResultadoFila.Transicao(
+            "O cliente já pagou por isso: cancelar deixaria a conta dele negativa. Combine a troca ou devolva o valor no balcão.",
+        )
     }
 
     private fun cancelar(

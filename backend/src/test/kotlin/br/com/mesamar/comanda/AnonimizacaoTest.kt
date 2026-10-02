@@ -133,28 +133,27 @@ class AnonimizacaoTest(
     }
 
     @Test
-    fun `quem ainda tem comanda aberta, fechando ou bloqueada fica de fora ate fechar`() {
+    fun `a regra e seca, passou dos 90 dias anonimiza mesmo com comanda aberta, fechando ou bloqueada, e a divida continua`() {
         val q = apoio.quiosque("Barraca LGPD Devendo")
         val devendo = checkinComZap(q, "Caio")
         val fechando = checkinComZap(q, "Dani")
         val bloqueado = checkinComZap(q, "Edu")
+        apoio.pedir(apoio.celular(), devendo, UUID.randomUUID(), Item(q.coco.id, 1))
         apoio.pedir(apoio.celular(), fechando, UUID.randomUUID(), Item(q.coco.id, 1))
         assertEquals(200, apoio.celular().postJson("/api/c/$fechando/conta/fechar", """{"metodo":"CARTAO"}""").statusCode())
         assertEquals(200, app(q).post("/api/staff/comandas/${idDe(bloqueado)}/bloquear").statusCode())
+        val emAbertoAntes = relatorios.dia(q.barracaId, hoje()).emAberto.sumOf { it.saldoCentavos }
         listOf(devendo, fechando, bloqueado).forEach { envelhecer(it, 120) }
 
         anonimizacao.anonimizar()
 
-        listOf(devendo to "Caio", fechando to "Dani", bloqueado to "Edu").forEach { (token, nome) ->
-            assertEquals(nome, clienteDe(token).nome, "$nome ainda deve ou pode dever: o dono precisa saber quem é")
-            assertNotNull(clienteDe(token).whatsappE164)
+        listOf(devendo, fechando, bloqueado).forEach { token ->
+            assertEquals("Cliente", clienteDe(token).nome)
+            assertNull(clienteDe(token).whatsappE164)
         }
-        // Fechada a conta, na próxima rodada é anonimizado; as outras continuam como estavam
-        assertEquals(200, app(q).post("/api/staff/comandas/${idDe(devendo)}/encerrar").statusCode())
-        anonimizacao.anonimizar()
-        assertEquals("Cliente", clienteDe(devendo).nome)
-        assertEquals("Dani", clienteDe(fechando).nome)
-        assertEquals("Edu", clienteDe(bloqueado).nome)
+        // O valor devido continua na conta; só o nome sumiu
+        assertEquals(emAbertoAntes, relatorios.dia(q.barracaId, hoje()).emAberto.sumOf { it.saldoCentavos })
+        assertEquals(2400, emAbertoAntes)
     }
 
     @Test
@@ -176,5 +175,29 @@ class AnonimizacaoTest(
 
         assertEquals("America/Sao_Paulo", agendado.zone)
         assertContains(agendado.cron, "3 * * *")
+    }
+
+    @Test
+    fun `os avisos de problema com mais de 90 dias sao apagados e os recentes ficam`() {
+        val q = apoio.quiosque("Barraca LGPD Problemas")
+
+        fun aviso(diasAtras: Int): UUID =
+            UUID.randomUUID().also {
+                jdbc.update(
+                    "INSERT INTO problema_reportado (id, barraca_id, origem, tela, mensagem, conexao, criado_em) " +
+                        "VALUES (?, ?, 'QUIOSQUE', 'fila', 'travou', 'online', now() - make_interval(days => ?))",
+                    it,
+                    q.barracaId,
+                    diasAtras,
+                )
+            }
+        val velho = aviso(91)
+        val recente = aviso(89)
+
+        anonimizacao.anonimizar()
+
+        fun existe(id: UUID) = jdbc.queryForObject("SELECT COUNT(*) FROM problema_reportado WHERE id = ?", Int::class.java, id) == 1
+        assertTrue(!existe(velho), "o aviso de 91 dias some")
+        assertTrue(existe(recente), "o de 89 dias fica")
     }
 }

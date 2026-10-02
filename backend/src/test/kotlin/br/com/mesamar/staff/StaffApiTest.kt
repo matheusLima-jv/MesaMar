@@ -65,7 +65,7 @@ class StaffApiTest(
 
     private fun painelDe(email: String): HttpTestClient = sessoesPainel.getValue(email)
 
-    /** Dono com barraca, 1 categoria com "Coco", e a atendente "Carla" (PIN 2580). */
+    /** Dono com barraca, 1 categoria com "Coco", e a atendente "Carla" (PIN 258014). */
     private fun barracaPronta(nome: String = "Barraca App"): String {
         val email = painel.novoEmail("app")
         val http = painel.donoComBarraca(nomeBarraca = nome, email = email)
@@ -86,7 +86,7 @@ class StaffApiTest(
                 "preco" to "12",
             ),
         )
-        painel.post(http, "/painel/equipe", "/painel/equipe", mapOf("nome" to "Carla", "pin" to "2580"))
+        painel.post(http, "/painel/equipe", "/painel/equipe", mapOf("nome" to "Carla", "pin" to "258014"))
         http.get("/painel/equipe")
         return email
     }
@@ -103,7 +103,7 @@ class StaffApiTest(
             val r =
                 it.post(
                     "/api/staff/entrar/atendente",
-                    """{"codigo":"${codigo(email)}","atendenteId":"${carla(email).id}","pin":"2580"}""",
+                    """{"codigo":"${codigo(email)}","atendenteId":"${carla(email).id}","pin":"258014"}""",
                 )
             assertEquals(200, r.statusCode(), r.body())
         }
@@ -186,10 +186,10 @@ class StaffApiTest(
         val quinta = app.post("/api/staff/entrar/atendente", body("9999"))
         assertEquals(423, quinta.statusCode())
         assertContains(quinta.body(), "\"erro\":\"bloqueado\"")
-        assertEquals(423, app.post("/api/staff/entrar/atendente", body("2580")).statusCode(), "bloqueada, nem o PIN certo entra")
+        assertEquals(423, app.post("/api/staff/entrar/atendente", body("258014")).statusCode(), "bloqueada, nem o PIN certo entra")
 
         painel.post(painelDe(email), "/painel/equipe", "/painel/equipe/${carla.id}/desbloquear", emptyMap())
-        val ok = app.post("/api/staff/entrar/atendente", body("2580"))
+        val ok = app.post("/api/staff/entrar/atendente", body("258014"))
         assertEquals(200, ok.statusCode())
         assertContains(ok.body(), "\"papel\":\"ATENDENTE\"")
         assertEquals(200, app.get("/api/staff/cardapio").statusCode())
@@ -238,7 +238,7 @@ class StaffApiTest(
         val cruzado =
             StaffApp(
                 port,
-            ).post("/api/staff/entrar/atendente", """{"codigo":"${codigo(b)}","atendenteId":"${carla(a).id}","pin":"2580"}""")
+            ).post("/api/staff/entrar/atendente", """{"codigo":"${codigo(b)}","atendenteId":"${carla(a).id}","pin":"258014"}""")
         assertEquals(404, cruzado.statusCode())
     }
 

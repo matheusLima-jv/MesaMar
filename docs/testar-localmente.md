@@ -79,7 +79,7 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 26 | Painel → Guarda-sóis | Criar "do 1 ao 20" | "Pronto: 20 criados." e a sugestão passa para 21 a 30 |
 | 27 | Mesma tela | Criar "do 21 ao 40" (limite padrão é 30) | "…cabem só mais 10" e nada é criado |
 | 28 | Grade de números | Tocar no 5, depois criar "do 1 ao 20" de novo | O 5 fica riscado; depois volta ("1 reativado") |
-| 29 | Painel → Equipe | Adicionar "Carla" com PIN `1234` | Recusa por ser sequência; com `2580` entra |
+| 29 | Painel → Equipe | Adicionar "Carla" com PIN `123456` | Recusa por ser sequência; `1234` (4 números) também é recusado; com `258014` entra |
 | 30 | Mesma tela | Adicionar "carla" de novo | "Já existe um atendente com esse nome." |
 | 31 | Regras | Baixar o limite de guarda-sóis para 5 | Recusa: "Você tem 20 guarda-sóis ativos…" |
 | 32 | Painel → Cardápio | Criar "Bebidas" e "Porções"; cadastrar 15 itens com "Adicionar e cadastrar outro" | Cada item volta ao formulário já na mesma categoria; anote quanto tempo levou |
@@ -87,9 +87,9 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 34 | Cardápio | Subir e descer itens e categorias (↑ ↓) | A ordem muda na hora |
 | 35 | Cardápio | "Tirar do cardápio" num item | Some da categoria e aparece em "Fora do cardápio" |
 | 36 | Cardápio → Editar "Bebidas" | Tentar excluir com produtos dentro | Recusa: "ainda tem N produtos" |
-| 37 | Painel → Equipe | Adicionar "Carla" com PIN `2580` e anotar o código da barraca | Aparece na lista como "Ativo" |
+| 37 | Painel → Equipe | Adicionar "Carla" com PIN `258014` e anotar o código da barraca | Aparece na lista como "Ativo" |
 | 38 | Celular: `http://IP-DO-PC:8080/staff/` | "Sou da equipe" → código → Carla → PIN `1111` | "PIN errado. Restam 4 tentativas…" |
-| 39 | Mesmo celular | PIN `2580` | Abre o app na aba Cardápio |
+| 39 | Mesmo celular | PIN `258014` | Abre o app na aba Cardápio |
 | 40 | Aba Cardápio | Tocar "Esgotou" num item; conferir no painel do computador | O item fica riscado nos dois |
 | 41 | Aba Mais | Seguir o passo a passo de instalação (Android: Chrome; iPhone: Safari) | Ícone do MesaMar na tela inicial; abre sem barra do navegador |
 | 42 | Painel → Equipe → desativar a Carla; tocar em qualquer coisa no app | — | O app volta para a tela de entrada |
@@ -254,7 +254,7 @@ Use um dia com movimento (ou crie: 3 ou 4 clientes, pedidos, pagamentos em forma
 | 115 | **Baixar em CSV** → abrir no Excel ou Google Planilhas | Olhar | Abre em colunas **Seção, Item, Quantidade, Valor (R$)**, com acentos certos e valores com vírgula (ex.: `49,00`) |
 | 116 | "Dia anterior" / escolher uma data / digitar uma data no futuro na URL (`?dia=2099-01-01`) | Olhar | Mostra os números do dia escolhido (as **contas em aberto** são sempre as de agora); data futura volta para hoje |
 | 117 | Outra conta de dono (outra barraca) | Abrir o relatório | **Nenhum** cliente, valor ou motivo da primeira barraca |
-| 118 | Banco: envelhecer um cliente e rodar o job (ver abaixo) | Abrir o relatório e a página do cliente | Nome vira **"Cliente"** e o WhatsApp some; **os valores do relatório não mudam**. Cliente com conta ainda aberta **não** é anonimizado |
+| 118 | Banco: envelhecer um cliente e rodar o job (ver abaixo) | Abrir o relatório e a página do cliente | Nome vira **"Cliente"** e o WhatsApp some; **os valores do relatório não mudam**. Cliente com conta ainda aberta **também** é anonimizado (o valor devido continua na conta) |
 
 Para o item 118, sem esperar 90 dias, no banco do compose:
 
@@ -263,6 +263,63 @@ docker compose exec db psql -U mesamar -c "update cliente set criado_em = now() 
 ```
 
 O job roda todo dia às 3h30 (Brasília): depois de envelhecer o cliente, confira no dia seguinte (o `AnonimizacaoTest` já cobre o comportamento; aqui você só confere que ele rodou de madrugada no servidor de verdade, procurando "LGPD: N clientes anonimizados" em `docker compose logs app`).
+
+### Backup e restauração na VPS (Fase 7 · checkpoint 7.1)
+
+Estes itens são **no servidor de produção** (ou num ambiente igual a ele), seguindo a seção "Backup diário, restauração e monitoramento" do `docs/deploy.md`.
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 119 | VPS: `./deploy/backup/backup.sh` | Rodar à mão | `backup ok: /opt/mesamar/backups/mesamar-AAAA-MM-DD_HHMM.dump (…)` e `rotação: … backup(s) guardado(s)`. O arquivo existe e é só seu (`ls -l`: `-rw-------`) |
+| 120 | VPS: `./deploy/backup/testar-restauracao.sh` | Rodar fora do horário de movimento | No fim: **`RESTAURAÇÃO OK: N tabelas, M linhas, esquema V12, idêntico ao banco original`**. O banco de produção continua intacto |
+| 121 | VPS: `crontab -l` e, **no dia seguinte**, `ls -lh /opt/mesamar/backups` e `tail /opt/mesamar/backups/backup.log` | Conferir o cron | Um backup novo da madrugada (3h15) e a linha `backup ok` no log |
+| 122 | VPS: `./deploy/backup/restaurar.sh <um backup>` (sem `--producao`) | Abrir o banco de treino (`docker compose … exec db psql -U mesamar -d mesamar_restauracao`, `select count(*) from pedido;`) e depois `./deploy/backup/restaurar.sh --limpar` | Os dados do backup estão lá; o banco de produção **não mudou**; `--limpar` apaga o de treino |
+| 123 | UptimeRobot (ou outro) | Criar o monitor de `https://mesamar.0mega.fun/actuator/health` com a palavra-chave `"status":"UP"`. Para testar: `docker compose -f docker-compose.prod.yml stop app`, esperar 5 a 10 min, depois `start app` | Você recebe o alerta de "fora do ar" e depois o de "voltou" |
+| 124 | healthchecks.io (opcional) | Criar um monitor com período de 1 dia e colocar a URL em `MESAMAR_BACKUP_PING_URL` no cron | O monitor fica verde depois do backup; se você **comentar o cron por 2 dias**, ele alerta |
+| 125 | Seu computador | Copiar um backup para fora: `scp usuario@vps:/opt/mesamar/backups/mesamar-*.dump ~/backups-mesamar/` e rodar `restaurar.sh` com ele (sem `--producao`) | O backup copiado também restaura. Defina **onde** e **com que frequência** você guarda cópias fora da VPS |
+
+> **Não** teste `restaurar.sh --producao` no servidor de verdade só por curiosidade: ele apaga o banco. Para ensaiar, use uma cópia da VPS ou o ambiente local (`docker compose up`), onde o comando é seguro.
+
+### Barraca de demonstração e materiais (Fase 7 · checkpoint 7.2)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 126 | /admin → "Barraca de demonstração" | Tocar em **Criar a barraca de demonstração** | Aparece, **uma vez**, o e-mail (`demo@treino.invalid`), a **senha do dono**, o **código da barraca** e o **PIN da atendente**. Anote. Ao recarregar a página, a senha e o PIN **não aparecem mais** e o botão vira "Reiniciar…" |
+| 127 | Painel do dono (celular ou computador): entrar com o e-mail e a senha anotados | Olhar | **Faixa amarela** "Barraca de treino: nada aqui é de verdade". Cardápio com 6 itens, 20 guarda-sóis, atendente Carla (treino) |
+| 128 | App do quiosque: entrar como atendente (código da barraca, "Carla (treino)", o PIN anotado) | Olhar | Faixa amarela de treino. A aba **Fila** já tem os pedidos da "Ana (treino)" e do "Beto (treino)" |
+| 129 | Treinar o dia inteiro: check-in, o cliente pede pelo QR, Em preparo / Entregue, cancelar com motivo, o cliente fecha a conta (Pix, dinheiro, cartão), receber, bloquear | Fazer tudo como na barraca de verdade | Tudo funciona, e **a página do cliente mostra a faixa de treino**. O QR Pix é válido para ler, mas **a chave é fictícia: não leva dinheiro a lugar nenhum** |
+| 130 | /admin → **Reiniciar a barraca de demonstração** | Depois, tentar entrar com a senha e o PIN antigos | O que o treino gerou **some**, o cardápio e as regras voltam ao padrão, os dois clientes de exemplo voltam. **A senha e o PIN antigos não entram mais**; os novos (mostrados uma vez) entram |
+| 131 | Painel do dono da **barraca de verdade** → **Materiais** → **Guia rápido da equipe** → Imprimir | Olhar a prévia de impressão (A4) | **Uma página só**, com o nome e o código da **sua** barraca e o endereço do app. Legível a 1 metro |
+| 132 | Mesmo lugar → **Plaquinha do balcão** → Imprimir | Olhar a prévia e a folha impressa | "Peça pelo celular", "Faça seu cadastro aqui e receba seu QR" e os 3 passos, em letra grande. **Cole no balcão e peça a alguém que não conhece o sistema para ler**: entendeu o que fazer? |
+| 133 | Plaquinha e guia impressos | Ver a folha ao sol, a 2 metros (plaquinha) e a 1 metro (guia) | Dá para ler. Se não, anote o que ficou pequeno (ajusto o tamanho) |
+| 134 | Barraca **de verdade** (painel, app e página do cliente) | Olhar | **Nenhuma** faixa de treino |
+| 135 | Dono de **outra** barraca: abrir Materiais | Olhar o guia e a plaquinha | Mostram **o nome e o código da barraca dele**, nunca os de outra |
+
+### Reportar problema (Fase 7 · checkpoint 7.3)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 136 | App do quiosque → aba **Mais** | Ver o cartão "Reportar problema", escrever uma frase e tocar em **Enviar aviso** | "Aviso enviado. Obrigado!" e a caixa esvazia |
+| 137 | /admin → **Problemas reportados** (recarregue a página) | Procurar o aviso | A linha traz **quando**, a **barraca**, "Quiosque", a **tela** em que você estava antes de abrir "Mais" (ex.: `fila`) e a **conexão** (ex.: `online · 4g · tempo real conectado`). Passando o mouse na conexão, aparece o navegador |
+| 138 | Página do cliente (celular B) → rodapé → **Reportar um problema** | Escrever e enviar | "Aviso enviado. Obrigado!". No /admin, a linha aparece como "Cliente" e **sem o nome do cliente** |
+| 139 | Celular em **modo avião** (ou sem sinal): tentar enviar | Olhar | Mensagem "Não deu para enviar agora. Tente de novo quando o sinal voltar". **Nada** é enviado em segundo plano |
+| 140 | Escrever só "a" | Enviar | "Conte o que aconteceu, com pelo menos 3 letras" |
+| 141 | Mandar 11 avisos seguidos no app | Olhar | A partir do 11º: "Você já mandou vários avisos. Espere um pouco" |
+| 142 | Painel do dono → menu **Avisos** | Abrir depois de mandar os avisos dos itens 136 e 138 | Os avisos **da sua barraca**, do mais novo para o mais antigo, com "Equipe" ou "Cliente", a hora, a tela e a conexão. Sem o navegador de quem avisou. Barraca sem aviso mostra "Nenhum aviso até agora." |
+| 143 | Dono de **outra** barraca → Avisos | Olhar | Só os avisos dele, nunca os da primeira barraca |
+
+### Revisão final (Fase 7 · checkpoint 7.4)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 144 | App do quiosque, uma conta com pedido **já pago** | Tentar cancelar o pedido (ou o único item) | Mensagem "O cliente já pagou por isso… combine a troca ou devolva o valor no balcão". O pedido continua como estava. Antes de qualquer pagamento, cancelar funciona |
+| 145 | Painel aberto no computador **e** app aberto no celular, com o dono logado nos dois. Em outra aba, "Esqueci a senha" e trocar pelo link do e-mail (no log, sem SMTP) | Voltar ao painel e ao app e clicar em qualquer coisa | O painel volta para o **login**; o app pede para entrar de novo. A senha nova entra |
+| 146 | App da atendente, celular A. No celular B (ou outra rede), errar o PIN 5 vezes | Entrar com o PIN certo no celular A | **Entra.** Só o celular B fica bloqueado por 15 minutos. No painel do dono, Equipe, a atendente **não** aparece bloqueada |
+| 147 | /admin → Problemas reportados e uma barraca com mais de 90 dias de uso | (só em produção, depois de 90 dias) | Avisos antigos somem sozinhos de madrugada |
+| 148 | Cliente com comanda de **ontem**, sem saldo, que nunca tocou em "Fechar conta" | Olhar de manhã (depois das 4h) | A comanda está **fechada** e o link já não aceita pedido novo. A que ainda deve continua aberta em "Contas abertas" |
+| 149 | Cliente com comanda de **ontem** que ainda deve (mude o `dia` da comanda no banco para ontem) | Tentar pedir de novo pela página do cliente | "Esta comanda é de outro dia e já não aceita pedidos." O pedido **não** é feito. "Voltar e pedir mais" também é recusado |
+| 150 | Mesma comanda, no app do quiosque (aba Pagamentos) | Receber o que ela deve | O pagamento funciona e a comanda se encerra |
+| 151 | **Celular do dono**, app do quiosque entrando **como dono** → aba Mais → ativar avisos. Depois, outro celular manda "Reportar problema" (quiosque ou página do cliente) | Olhar a tela do celular do dono (com o navegador ou o app em segundo plano) | Chega uma notificação **"Aviso de problema · Cliente"** (ou "Equipe") com o começo do texto. Tocar abre a página **Avisos** do painel (pede o login do painel se preciso). Atendentes, no mesmo estabelecimento, **não** recebem. Vários avisos seguidos viram uma notificação só |
 
 ## 5. Testes E2E (os mesmos do CI)
 
@@ -276,7 +333,7 @@ E2E_ADMIN_PASSWORD=uma-senha-sua npx playwright test    # no Windows (PowerShell
 npx playwright show-report
 ```
 
-Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o E2E logo depois de subir o app, porque os testes enviam o formulário e contam no limite de envios por aparelho.
+Esperado: **11 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o E2E logo depois de subir o app, porque os testes enviam o formulário e contam no limite de envios por aparelho.
 
 ## 6. Testes de backend (opcional; o CI já roda)
 
@@ -284,7 +341,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 359 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: todos os testes passando (a contagem está no relatório do último checkpoint). Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 

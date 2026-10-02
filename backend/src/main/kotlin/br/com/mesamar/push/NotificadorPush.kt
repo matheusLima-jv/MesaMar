@@ -9,6 +9,7 @@ import br.com.mesamar.pedido.ItemPedidoRepository
 import br.com.mesamar.pedido.PedidoAtrasado
 import br.com.mesamar.pedido.PedidoCriado
 import br.com.mesamar.pedido.StatusPedido
+import br.com.mesamar.problema.ProblemaReportado
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.event.TransactionPhase
@@ -120,6 +121,30 @@ class NotificadorPush(
         }
     }
 
+    /**
+     * Alguém reportou um problema: o dono recebe o aviso no aparelho dele, com o começo do texto. A etiqueta é a mesma para
+     * todos os avisos, então vários seguidos viram uma notificação só (a mais recente), e não enchem a tela.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun aoReportarProblema(e: ProblemaReportado) {
+        if (!push.habilitado) return
+        executor.execute {
+            runCatching {
+                push.enviarParaDono(
+                    e.barracaId,
+                    MensagemPush(
+                        titulo = "Aviso de problema · ${if (e.origem == "CLIENTE") "Cliente" else "Equipe"}",
+                        corpo = e.mensagem.replace(ESPACOS, " ").take(MENSAGEM_NO_AVISO),
+                        url = URL_PROBLEMAS,
+                        tag = "problema",
+                        tipo = "PROBLEMA",
+                        validadeSegundos = 3600,
+                    ),
+                )
+            }.onFailure { log.warn("Não deu para avisar o problema da barraca {}: {}", e.barracaId, it.message) }
+        }
+    }
+
     private fun local(guardaSol: Int?) = if (guardaSol == null) "Balcão" else "Guarda-sol $guardaSol"
 
     companion object {
@@ -128,5 +153,13 @@ class NotificadorPush(
 
         /** Tocar no aviso de "indo pagar" abre a aba Pagamentos. */
         const val URL_PAGAMENTOS = "/staff/#/pagamentos"
+
+        /** Tocar no aviso de problema abre a página Avisos do painel do dono. */
+        const val URL_PROBLEMAS = "/painel/problemas"
+
+        /** O texto do problema aparece na tela de bloqueio: só o começo. */
+        const val MENSAGEM_NO_AVISO = 100
+
+        private val ESPACOS = Regex("\\s+")
     }
 }

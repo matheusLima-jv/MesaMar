@@ -57,6 +57,9 @@ class Barraca(
     var mensagemPausa: String? = null,
     @Column(nullable = false)
     var ativa: Boolean = true,
+    /** A barraca de demonstração (treino): nada nela é de verdade, e o painel, o app e a página do cliente avisam. */
+    @Column(nullable = false)
+    val demo: Boolean = false,
     @Column(name = "criada_em", nullable = false)
     val criadaEm: Instant,
     @Column(name = "atualizada_em", nullable = false)

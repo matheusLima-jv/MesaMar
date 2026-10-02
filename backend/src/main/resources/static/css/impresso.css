@@ -1,0 +1,58 @@
+/* Materiais para imprimir (guia e plaquinha). Na tela, a folha aparece como um papel A4; ao imprimir, só a folha. */
+:root {
+  --ink: #101b1e;
+  --ink-2: #44535a;
+  --sun: #ffc233;
+  --paper: #f6f1e7;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body.impresso { margin: 0; background: #d9d4c7; color: var(--ink); font: 400 11pt/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+.barra-impressao { display: flex; justify-content: space-between; align-items: center; gap: 1rem; max-width: 210mm; margin: 0 auto; padding: 0.75rem 1rem; }
+.barra-impressao a { color: var(--ink); font-weight: 700; }
+.botao-imprimir { min-height: 48px; padding: 0 1.25rem; border: 2px solid var(--ink); border-radius: 999px; background: var(--sun); color: var(--ink); font: 700 1rem/1 system-ui, sans-serif; cursor: pointer; }
+
+/* A folha */
+.folha { width: 210mm; max-width: 100%; min-height: 297mm; margin: 0 auto 2rem; padding: 14mm 14mm 12mm; background: #fff; }
+
+/* ---------- Guia de 1 página ---------- */
+.guia { font-size: 11.5pt; line-height: 1.4; }
+.guia-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding-bottom: 3mm; border-bottom: 3px solid var(--ink); margin-bottom: 4mm; }
+.guia-topo h1 { margin: 0; font-size: 20pt; letter-spacing: -0.02em; }
+.guia-topo p { margin: 0; color: var(--ink-2); }
+.guia section { break-inside: avoid; margin: 0 0 5mm; }
+.guia h2 { display: flex; align-items: center; gap: 2.5mm; margin: 0 0 1.5mm; font-size: 14pt; }
+.guia h2 small { color: var(--ink-2); font-weight: 400; font-size: 9.5pt; }
+.guia .n { display: inline-flex; align-items: center; justify-content: center; width: 6.5mm; height: 6.5mm; border-radius: 50%; background: var(--ink); color: var(--sun); font-size: 10pt; font-weight: 800; }
+.guia ul { margin: 0; padding-left: 5mm; }
+.guia li { margin: 0 0 1.5mm; }
+.guia .alerta { padding: 1.5mm 2.5mm; margin-left: -2mm; border-left: 4px solid var(--sun); background: #fff8e1; list-style-position: inside; }
+
+/* ---------- Plaquinha do balcão ---------- */
+.plaquinha { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9mm; text-align: center; border: 3mm solid var(--ink); }
+.plaquinha-barraca { margin: 0; font-size: 20pt; font-weight: 700; color: var(--ink-2); }
+.plaquinha h1 { margin: 0; font-size: 64pt; line-height: 1; letter-spacing: -0.03em; }
+.plaquinha-chamada { margin: 0; padding: 4mm 8mm; background: var(--sun); border-radius: 6mm; font-size: 26pt; font-weight: 800; line-height: 1.15; }
+.plaquinha-passos { list-style: none; margin: 4mm 0 0; padding: 0; display: grid; gap: 6mm; text-align: left; counter-reset: passo; width: 100%; max-width: 150mm; }
+.plaquinha-passos li { counter-increment: passo; display: grid; grid-template-columns: 16mm 1fr; column-gap: 5mm; align-items: center; }
+.plaquinha-passos li::before { content: counter(passo); grid-row: span 2; display: flex; align-items: center; justify-content: center; width: 16mm; height: 16mm; border-radius: 50%; background: var(--ink); color: var(--sun); font-size: 24pt; font-weight: 800; }
+.plaquinha-passos strong { font-size: 20pt; line-height: 1.15; }
+.plaquinha-passos span { font-size: 14pt; color: var(--ink-2); }
+.plaquinha-pagamento { margin: 4mm 0 0; font-size: 16pt; }
+.plaquinha-rodape { margin: 0; color: var(--ink-2); font-size: 11pt; }
+
+@page { size: A4; margin: 0; }
+@media print {
+  body.impresso { background: #fff; }
+  .no-print { display: none !important; }
+  .folha { margin: 0; width: 210mm; height: 297mm; min-height: 0; padding: 12mm 14mm; box-shadow: none; overflow: hidden; }
+  .plaquinha { padding: 12mm; }
+}
+
+@media (max-width: 800px) {
+  .folha { padding: 1rem; min-height: 0; }
+  .plaquinha h1 { font-size: 42pt; }
+  .plaquinha-chamada { font-size: 20pt; }
+}

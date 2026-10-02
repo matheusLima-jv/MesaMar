@@ -31,6 +31,8 @@ export interface Comanda {
   saldoCentavos: number
   /** FINAL: paga ao fechar a conta. POR_PEDIDO: o pedido só entra na fila depois de pago. */
   modoPagamento: 'FINAL' | 'POR_PEDIDO'
+  /** Barraca de treino: a página mostra um aviso de que nada ali é de verdade. */
+  demo: boolean
   cardapio: Secao[]
 }
 
@@ -167,6 +169,11 @@ export async function comanda (token: string): Promise<Comanda> {
 /** Os pedidos da comanda (do mais novo para o mais antigo) e o saldo. */
 export async function meusPedidos (token: string): Promise<MeusPedidos> {
   return await chamar<MeusPedidos>('GET', token, '/pedidos')
+}
+
+/** "Reportar problema": o texto e o contexto que a página conhece (tela, conexão). */
+export async function reportarProblema (token: string, mensagem: string, tela: string, conexao: string): Promise<void> {
+  await chamar<unknown>('POST', token, '/problemas', { mensagem, tela, conexao })
 }
 
 /** Uma tentativa de envio. Quem chama repete com o MESMO `id` até dar certo: o servidor não duplica. */

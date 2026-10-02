@@ -10,17 +10,18 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
-/** PIN de 4 a 6 números. Recusa os que qualquer um chuta primeiro (1111, 1234, 4321…). */
+/** PIN de exatamente 6 números (quem já tem PIN de 4 continua entrando; só um PIN novo exige 6). Recusa os que qualquer um chuta primeiro (1111, 1234, 4321…). */
 object PinRules {
-    private val digits = Regex("^\\d{4,6}$")
+    private val digits = Regex("^\\d{6}$")
 
     fun problema(pin: String): String? {
         val p = pin.trim()
         return when {
-            !digits.matches(p) -> "O PIN precisa ter de 4 a 6 números."
+            !digits.matches(p) -> "O PIN precisa ter 6 números."
             p.all { it == p[0] } -> "PIN com todos os números iguais é fácil de adivinhar. Escolha outro."
-            sequencia(p) -> "PIN em sequência (como 1234) é fácil de adivinhar. Escolha outro."
+            sequencia(p) -> "PIN em sequência (como 123456) é fácil de adivinhar. Escolha outro."
             else -> null
         }
     }
@@ -131,19 +132,27 @@ class AtendenteService(
     }
 
     /**
-     * Confere o PIN (usado pelo login do app do quiosque). Com o bloqueio ativo, nem olha o PIN:
-     * assim não dá para continuar testando PINs durante os 15 minutos.
+     * Confere o PIN (usado pelo login do app do quiosque).
+     *
+     * O bloqueio é **por aparelho** (a origem, o IP): 5 PINs errados de um lugar bloqueiam aquele lugar por 15 minutos,
+     * sem trancar a atendente no celular do quiosque. Antes, qualquer um que soubesse o código da barraca bloqueava a
+     * equipe inteira errando o PIN de propósito. Para quem tenta de muitos lugares, há um teto da conta: 20 erros
+     * (sem um acerto no meio) bloqueiam a atendente para todos, e o dono desbloqueia no painel. Cada origem soma no
+     * máximo 5 erros a esse teto, então ele só é atingido de pelo menos 4 lugares diferentes.
      */
     @Transactional
     fun autenticar(
         barracaId: UUID,
         atendenteId: UUID,
         pin: String,
+        origem: String = "",
     ): ResultadoPin {
         val atendente = repository.findForUpdate(atendenteId, barracaId)
         if (atendente == null || !atendente.ativo) return ResultadoPin.Indisponivel
         val now = Instant.now(clock)
         if (atendente.bloqueado(now)) return ResultadoPin.Bloqueado(atendente.bloqueadoAte!!)
+        val chave = "${atendente.id}|$origem"
+        falhasPorOrigem[chave]?.bloqueadoAte?.takeIf { it.isAfter(now) }?.let { return ResultadoPin.Bloqueado(it) }
 
         if (encoder.matches(pin.trim(), atendente.pinHash)) {
             liberar(atendente)
@@ -151,18 +160,50 @@ class AtendenteService(
             return ResultadoPin.Ok(atendente)
         }
 
-        atendente.tentativasFalhas += 1
+        // A linha do atendente está travada: as contas abaixo não correm com outra tentativa ao mesmo tempo
+        val daOrigem =
+            falhasPorOrigem.compute(chave) { _, atual ->
+                when {
+                    atual == null -> Falhas()
+                    // O bloqueio desta origem venceu: nova rodada de 5, mas ela já contou para o teto da conta
+                    atual.bloqueadoAte != null -> Falhas(jaBloqueada = true)
+                    else -> atual
+                }.also { it.quantidade++ }
+            }!!
+        // Cada origem soma no máximo 5 erros ao teto da conta: um lugar sozinho, insistindo, nunca tranca a atendente para todos
+        if (!daOrigem.jaBloqueada) atendente.tentativasFalhas += 1
         val resultado =
-            if (atendente.tentativasFalhas >= MAX_TENTATIVAS) {
-                atendente.tentativasFalhas = 0
-                atendente.bloqueadoAte = now.plus(BLOQUEIO)
-                log.warn("Atendente bloqueado por PIN errado: barraca={} atendente={}", barracaId, atendente.id)
-                ResultadoPin.Bloqueado(atendente.bloqueadoAte!!)
-            } else {
-                ResultadoPin.PinErrado(MAX_TENTATIVAS - atendente.tentativasFalhas)
+            when {
+                atendente.tentativasFalhas >= MAX_TENTATIVAS_CONTA -> {
+                    atendente.tentativasFalhas = 0
+                    atendente.bloqueadoAte = now.plus(BLOQUEIO)
+                    esquecerOrigens(atendente)
+                    log.warn("Atendente bloqueado por PIN errado (de vários lugares): barraca={} atendente={}", barracaId, atendente.id)
+                    ResultadoPin.Bloqueado(atendente.bloqueadoAte!!)
+                }
+                daOrigem.quantidade >= MAX_TENTATIVAS -> {
+                    daOrigem.bloqueadoAte = now.plus(BLOQUEIO)
+                    log.warn("PIN errado demais de uma origem: barraca={} atendente={}", barracaId, atendente.id)
+                    ResultadoPin.Bloqueado(daOrigem.bloqueadoAte!!)
+                }
+                else -> ResultadoPin.PinErrado(MAX_TENTATIVAS - daOrigem.quantidade)
             }
         salvar(atendente)
         return resultado
+    }
+
+    /** Erros de PIN por (atendente, origem), em memória: um servidor só no piloto; com dois, cada um conta os seus. */
+    private class Falhas(
+        var quantidade: Int = 0,
+        var bloqueadoAte: Instant? = null,
+        /** Esta origem já foi bloqueada uma vez: os erros dela não contam mais para o teto da conta. */
+        val jaBloqueada: Boolean = false,
+    )
+
+    private val falhasPorOrigem = ConcurrentHashMap<String, Falhas>()
+
+    private fun esquecerOrigens(atendente: Atendente) {
+        falhasPorOrigem.keys.removeIf { it.startsWith("${atendente.id}|") }
     }
 
     private fun validarNome(
@@ -184,6 +225,7 @@ class AtendenteService(
     private fun liberar(atendente: Atendente) {
         atendente.tentativasFalhas = 0
         atendente.bloqueadoAte = null
+        esquecerOrigens(atendente)
     }
 
     private fun salvar(atendente: Atendente) {
@@ -194,6 +236,7 @@ class AtendenteService(
     companion object {
         const val NOME_MAX = 40
         const val MAX_TENTATIVAS = 5
+        const val MAX_TENTATIVAS_CONTA = 20
         const val MAX_POR_BARRACA = 30
         val BLOQUEIO: Duration = Duration.ofMinutes(15)
         private val NENHUM = UUID(0, 0)

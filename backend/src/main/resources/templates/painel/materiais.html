@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Materiais')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('materiais')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <section class="app-section" aria-labelledby="t-materiais">
+    <p class="kicker">Para imprimir</p>
+    <h1 id="t-materiais" class="app-title">Materiais da barraca</h1>
+    <p class="app-lead">Abra, toque em <strong>Imprimir</strong> e escolha a impressora (ou "Salvar como PDF"). Saem em uma folha A4 com o nome da sua barraca.</p>
+  </section>
+
+  <section class="app-section app-grid">
+    <div class="app-card">
+      <h2>Guia rápido da equipe</h2>
+      <p>1 página para o dono e os atendentes: entrar no app, fazer o check-in, atender a fila e receber o pagamento. Cole perto do balcão.</p>
+      <a class="btn btn-ink" href="/painel/materiais/guia" th:href="@{/painel/materiais/guia}" target="_blank" rel="noopener">Abrir o guia</a>
+    </div>
+
+    <div class="app-card">
+      <h2>Plaquinha do balcão</h2>
+      <p>"Peça pelo celular: faça seu cadastro aqui e receba seu QR". Para o cliente entender, sem você explicar toda vez.</p>
+      <a class="btn btn-ink" href="/painel/materiais/plaquinha" th:href="@{/painel/materiais/plaquinha}" target="_blank" rel="noopener">Abrir a plaquinha</a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

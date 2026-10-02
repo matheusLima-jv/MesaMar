@@ -29,6 +29,9 @@ class Usuario(
     val criadoEm: Instant,
     @Column(name = "ultimo_login_em")
     var ultimoLoginEm: Instant? = null,
+    /** Quando a senha mudou pela última vez: sessões abertas antes disso deixam de valer. */
+    @Column(name = "credenciais_em")
+    var credenciaisEm: Instant? = null,
 )
 
 interface UsuarioRepository : JpaRepository<Usuario, UUID> {

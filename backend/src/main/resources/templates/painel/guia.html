@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="|Guia rápido · ${barraca.nome} · MesaMar|">Guia rápido · MesaMar</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="../../static/img/favicon.svg" th:href="@{/img/favicon.svg}" type="image/svg+xml">
+  <link rel="stylesheet" href="../../static/css/impresso.css" th:href="@{/css/impresso.css}">
+  <script src="../../static/js/imprimir.js" th:src="@{/js/imprimir.js}" defer></script>
+</head>
+<body class="impresso">
+<div class="barra-impressao no-print">
+  <a href="/painel/materiais" th:href="@{/painel/materiais}">← Materiais</a>
+  <button type="button" id="imprimir" class="botao-imprimir">Imprimir (A4)</button>
+</div>
+
+<main class="folha guia" aria-labelledby="titulo">
+  <header class="guia-topo">
+    <h1 id="titulo">Guia rápido da equipe</h1>
+    <p><strong th:text="${barraca.nome}">Barraca do Zé</strong> · MesaMar</p>
+  </header>
+
+  <section>
+    <h2><span class="n">1</span> Entrar no app</h2>
+    <ul>
+      <li>No celular, abra <strong class="mono" th:text="${appUrl}">mesamar.0mega.fun/staff/</strong> e use <em>Instalar / Adicionar à tela inicial</em>.</li>
+      <li><strong>Dono:</strong> e-mail e senha. <strong>Atendente:</strong> código da barraca <strong class="mono" th:text="${barraca.slug}">barraca-do-ze</strong>, o seu nome e o PIN.</li>
+      <li>Aba <strong>Mais → Ativar avisos</strong>: o celular apita com a tela bloqueada quando chega pedido.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">2</span> Check-in do cliente <small>(20 segundos)</small></h2>
+    <ul>
+      <li>Aba <strong>Clientes → + Novo cliente</strong>: nome, guarda-sol, WhatsApp (opcional) e marque que o cliente concorda.</li>
+      <li><strong>Gerar QR</strong> e mostre a tela para o cliente ler com a câmera, ou toque em <em>Enviar pelo WhatsApp</em>.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">3</span> Atender a fila</h2>
+    <ul>
+      <li>Aba <strong>Fila</strong>: o pedido aparece sozinho, com som, o mais antigo em cima. Vermelho = está demorando.</li>
+      <li><strong>Em preparo</strong> e depois <strong>Entregue</strong>. Acabou um item? <strong>Cancelar…</strong> e escolha o motivo (o cliente vê).</li>
+      <li>Muito pedido ao mesmo tempo? <strong>Pausar pedidos</strong> (com um recado). <strong>Voltar a receber</strong> quando aliviar.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">4</span> Receber o pagamento</h2>
+    <ul>
+      <li>Aba <strong>Pagamentos</strong>: quando o cliente toca em <em>Fechar conta</em>, ele aparece aqui, com o valor e a forma que escolheu.</li>
+      <li><strong>Receber</strong> → confirme a forma e o valor. Pode ser <strong>só uma parte</strong> (conta dividida).</li>
+      <li><strong>Dinheiro:</strong> digite quanto o cliente entregou: o app mostra o <strong>troco</strong>.</li>
+      <li class="alerta"><strong>Pix: confira no app do seu banco ANTES de confirmar.</strong> O "já paguei" do cliente é só um aviso.</li>
+      <li>Quando a conta chega a zero, ela se encerra sozinha. Cliente devendo? <strong>Bloquear</strong> impede novos pedidos. <strong>Só o dono:</strong> <em>Fechar sem receber</em>, com motivo.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">5</span> Se algo não parecer certo</h2>
+    <ul>
+      <li>Sem sinal? O pedido do cliente fica guardado no celular dele e é enviado sozinho quando o sinal volta, sem duplicar. No seu app, espere o sinal voltar para dar baixa.</li>
+      <li>Algo errado no app? <strong>Mais → Reportar problema</strong>: conte em uma frase. O aviso chega ao suporte com a tela e a conexão.</li>
+      <li>Dúvida na conta de um cliente? Abra a aba <strong>Pagamentos</strong> ou o <strong>Relatório</strong> no painel do dono.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Avisos')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('problemas')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <section class="app-section" aria-labelledby="t-avisos">
+    <p class="kicker">O que a equipe e os clientes avisaram</p>
+    <h1 id="t-avisos" class="app-title">Avisos de problema</h1>
+    <p class="app-lead">Quando alguém toca em "Reportar problema" no app ou na página do cliente, o aviso aparece aqui, com a tela em que a pessoa estava e como estava a conexão. Os mais recentes primeiro; os avisos somem depois de 90 dias.</p>
+    <p class="app-card" th:if="${avisos.isEmpty()}">Nenhum aviso até agora.</p>
+    <ul class="avisos" th:unless="${avisos.isEmpty()}">
+      <li class="app-card aviso" th:each="a : ${avisos}">
+        <p class="aviso-meta"><strong th:text="${a.origem}">Cliente</strong> · <span th:text="${a.quando}">01/10/2026 14:00</span></p>
+        <p class="aviso-texto" th:text="${a.mensagem}">Texto</p>
+        <p class="aviso-meta">Tela: <span th:text="${a.tela}">fila</span> · Conexão: <span th:text="${a.conexao}">online</span></p>
+      </li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

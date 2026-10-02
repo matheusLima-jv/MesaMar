@@ -2,6 +2,7 @@ import { sair, type Sessao } from '../api'
 import { ativarPush, desativarPush, estadoPush, testar, type EstadoPush } from '../push'
 import { avisar } from '../toast'
 import { h, mount } from '../dom'
+import { cartaoProblema } from './problema'
 import { instalacao, instalado, instalar, plataforma, podeInstalarDireto } from '../install'
 
 export function abaMais (root: HTMLElement, sessao: Sessao, aoSair: () => void): void {
@@ -33,6 +34,7 @@ export function abaMais (root: HTMLElement, sessao: Sessao, aoSair: () => void):
     h('header', { class: 'tab-head' }, h('h1', {}, 'Mais')),
     areaAvisos,
     areaInstalar,
+    cartaoProblema(),
     h('section', { class: 'card' },
       h('h2', { class: 'card-title' }, sessao.usuario?.nome ?? ''),
       h('p', { class: 'hint' },

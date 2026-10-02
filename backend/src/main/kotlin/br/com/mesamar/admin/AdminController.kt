@@ -1,7 +1,9 @@
 package br.com.mesamar.admin
 
+import br.com.mesamar.barraca.DemoService
 import br.com.mesamar.config.SiteProperties
 import br.com.mesamar.conta.ConviteService
+import br.com.mesamar.problema.ProblemaService
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
@@ -28,11 +30,37 @@ data class ConviteGerado(
     val expiraEm: String,
 ) : Serializable
 
+/** Um problema reportado, com a hora no formato do painel. */
+data class ProblemaLinha(
+    val quando: String,
+    val barraca: String,
+    val origem: String,
+    val tela: String,
+    val conexao: String,
+    val mensagem: String,
+    val agente: String,
+) {
+    companion object {
+        fun of(p: br.com.mesamar.problema.ProblemaRow) =
+            ProblemaLinha(
+                AdminQueries.format(p.criadoEm),
+                p.barraca,
+                if (p.origem == "CLIENTE") "Cliente" else "Quiosque",
+                p.tela,
+                p.conexao,
+                p.mensagem,
+                p.agente.orEmpty(),
+            )
+    }
+}
+
 /** Painel interno: lista de espera, convites, medições de sinal e exportações em CSV. */
 @Controller
 class AdminController(
     private val queries: AdminQueries,
     private val convites: ConviteService,
+    private val demo: DemoService,
+    private val problemas: ProblemaService,
     private val site: SiteProperties,
     private val clock: Clock,
 ) {
@@ -54,6 +82,8 @@ class AdminController(
         model.addAttribute("resumoSinal", queries.resumoSinal())
         model.addAttribute("medicoes", queries.medicoes(limit = 50))
         model.addAttribute("convites", queries.convites(Instant.now(clock)))
+        model.addAttribute("demoExiste", demo.existe())
+        model.addAttribute("problemas", problemas.recentes().map { ProblemaLinha.of(it) })
         return "admin/index"
     }
 
@@ -84,6 +114,16 @@ class AdminController(
             ),
         )
         return "redirect:/admin#convites"
+    }
+
+    /**
+     * Cria a barraca de demonstração (treino) ou a reinicia: apaga o que o treino gerou e recria os dados de exemplo, com
+     * senha e PIN novos. As credenciais aparecem uma vez, nesta resposta.
+     */
+    @PostMapping("/admin/demo")
+    fun criarDemo(redirect: RedirectAttributes): String {
+        redirect.addFlashAttribute("demoCredenciais", demo.criarOuReiniciar())
+        return "redirect:/admin#demo"
     }
 
     @GetMapping("/admin/leads.csv")

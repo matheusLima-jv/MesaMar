@@ -10,6 +10,7 @@ import { abaFila } from './views/fila'
 import { abaPagamentos } from './views/pagamentos'
 import { aguardando, iniciarPagamentos, observar as observarPagamentos, pararPagamentos } from './pagamentos-store'
 import { telaLogin } from './views/login'
+import { lembrarTela } from './views/problema'
 import { abaMais } from './views/mais'
 import { limparAviso } from './toast'
 
@@ -50,6 +51,7 @@ function app (s: Sessao): void {
         a.id === 'pagamentos' ? h('span', { class: 'contagem', hidden: aguardando() === 0, 'aria-label': `${aguardando()} para receber` }, String(aguardando())) : null)
     ))
     conteudo.scrollTop = 0
+    lembrarTela(aba)
     limparAviso()
     switch (aba) {
       case 'clientes': abaClientes(conteudo, s); break
@@ -61,6 +63,8 @@ function app (s: Sessao): void {
   }
 
   mount(root,
+    // Barraca de treino: uma faixa que não some, para ninguém receber dinheiro de verdade por engano
+    ...(s.barraca?.demo === true ? [h('p', { class: 'demo-faixa', role: 'note' }, 'Barraca de treino: nada aqui é de verdade')] : []),
     h('header', { class: 'topbar' },
       h('p', { class: 'brand' }, 'MesaMar'),
       h('p', { class: 'where' }, s.barraca?.nome ?? '', h('span', {}, ` · ${s.usuario?.nome ?? ''}`))

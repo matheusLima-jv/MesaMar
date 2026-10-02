@@ -197,6 +197,13 @@ class PedidoService(
         val limite = barraca.limiteSaldoAbertoCentavos
         return when {
             !barraca.ativa -> Bloqueio("barraca-inativa", "Esta barraca não está atendendo pelo MesaMar agora. Fale com um atendente.")
+            // Comanda de um dia anterior (o cliente foi embora devendo): não aceita pedido novo, mas o quiosque ainda recebe o que ela deve
+            (comanda.status == StatusComanda.ABERTA || comanda.status == StatusComanda.AGUARDANDO_PAGAMENTO) &&
+                comanda.dia < Fuso.hoje(clock) ->
+                Bloqueio(
+                    "comanda-de-outro-dia",
+                    "Esta comanda é de outro dia e já não aceita pedidos. Se ainda há conta a pagar, fale com um atendente.",
+                )
             comanda.status == StatusComanda.AGUARDANDO_PAGAMENTO ->
                 Bloqueio(
                     "aguardando-pagamento",

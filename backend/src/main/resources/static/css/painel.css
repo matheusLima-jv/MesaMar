@@ -205,3 +205,11 @@
 .tabela thead th { color: var(--ink-2); font-size: 0.85rem; font-weight: 700; }
 .tabela th[scope='col']:first-child, .tabela th[scope='row'] { text-align: left; font-weight: 600; overflow-wrap: anywhere; }
 .tabela tfoot th, .tabela tfoot td { border-bottom: 0; border-top: 2px solid var(--ink); font-weight: 800; }
+
+/* Barraca de demonstração (treino) */
+.demo-faixa { margin: 0; padding: 0.5rem 1rem; background: var(--sun); color: var(--ink); font-weight: 800; text-align: center; border-bottom: 2px solid var(--ink); }
+
+/* Avisos de problema (/painel/problemas) */
+.avisos { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.aviso-texto { margin: 0.25rem 0; overflow-wrap: anywhere; white-space: pre-line; }
+.aviso-meta { margin: 0; color: var(--ink-2); font-size: 0.9rem; }
