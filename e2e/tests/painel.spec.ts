@@ -385,6 +385,18 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(contaAna).toHaveCount(0)
   await expectNoHorizontalScroll(cliente)
 
+  // 14) Relatório do dia (5.3): o dono vê o que entrou (R$ 20,00 no Pix + R$ 29,00 em dinheiro) e quem ainda deve (Bruno)
+  await dono.goto('/painel/relatorio')
+  await expect(dono.getByRole('heading', { name: /^Hoje, \d\d\/\d\d\/\d{4}$/ })).toBeVisible()
+  await expect(dono.locator('.kv').first()).toContainText('Recebido no dia')
+  await expect(dono.locator('.kv').first()).toContainText('R$ 49,00')
+  await expect(dono.getByRole('row', { name: /Pix 1 pagamento\(s\) R\$ 20,00/ })).toBeVisible()
+  await expect(dono.getByRole('row', { name: /Dinheiro 1 pagamento\(s\) R\$ 29,00/ })).toBeVisible()
+  await expect(dono.getByRole('row', { name: /Bruno.*R\$ 25,00/ })).toBeVisible()
+  await expect(dono.getByRole('row', { name: /Esgotou/ })).toBeVisible()
+  await expect(dono.getByRole('link', { name: 'Baixar em CSV' })).toHaveAttribute('href', /relatorio\.csv\?dia=\d{4}-\d\d-\d\d$/)
+  await expectNoHorizontalScroll(dono)
+
   await dono.reload()
   await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
   await dono.goto('/painel/cardapio')
