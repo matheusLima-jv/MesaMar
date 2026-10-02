@@ -13,7 +13,7 @@
 ## Checkpoint 7.1 — Backup diário, restauração, health check e logs
 
 - **Data:** 2026-10-01
-- **Verificado localmente:** os quatro scripts, rodados contra o PostgreSQL de verdade no Docker (inclusive o caminho de recuperação de desastre, com a aplicação subindo de novo e saudável sobre o banco restaurado). O teste de restauração entrou no **CI**. **O CI do GitHub ainda não rodou para a Fase 7** (nada foi enviado).
+- **CI:** ✅ verde no GitHub (PR #6), **incluindo o novo passo de restauração**: "RESTAURAÇÃO OK: 19 tabelas, 70 linhas, esquema V12, idêntico ao banco original" (o banco que acabou de passar pelo E2E). Além disso, os quatro scripts foram rodados à mão contra o PostgreSQL de verdade no Docker, inclusive a recuperação de desastre, com a aplicação subindo saudável sobre o banco restaurado.
 
 ### 1. O que foi feito
 
@@ -55,4 +55,4 @@ Itens 119 a 125 de [`docs/testar-localmente.md`](../testar-localmente.md) (seç�
 
 ### 6. Antes de aprovar
 
-- A Fase 7 está na branch `fase-7-piloto`. Abri o PR dela como rascunho **apontando para a `fase-4-fila`** (o PR #5 ainda não foi mergeado). Se você mergear o #5 primeiro, eu reaponto este para a `main`.
+- A Fase 7 está na branch `fase-7-piloto`. O PR dela é o #6, em rascunho, **apontando para a `fase-4-fila`** (o PR #5 ainda não foi mergeado). Se você mergear o #5 primeiro, eu reaponto este para a `main`.
