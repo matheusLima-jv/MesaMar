@@ -114,7 +114,7 @@ Itens 126 a 135 de [`docs/testar-localmente.md`](../testar-localmente.md) (seç�
 ## Checkpoint 7.3 — Botão "reportar problema" nos dois apps
 
 - **Data:** 2026-10-02
-- **Verificado localmente:** ktlint, **377 testes de backend** (371 do 7.2 + 6 novos), build dos dois fronts e **11 E2E** (os dois E2E do painel e da demonstração ganharam o passo novo), com a imagem Docker construída do zero. **O CI do GitHub ainda não rodou para o 7.3** (os commits ainda não foram enviados).
+- **CI:** ✅ verde no GitHub (PR #6): ktlint, **377 testes de backend** (371 do 7.2 + 6 novos), imagem Docker, smoke do compose, **11 E2E** (os do painel e da demonstração ganharam o passo novo) e o teste de restauração do backup.
 
 ### 1. O que foi feito
 
@@ -158,4 +158,4 @@ Itens 136 a 141 de [`docs/testar-localmente.md`](../testar-localmente.md).
 
 ### 6. Antes de aprovar
 
-- O 7.3 está na `fase-7-piloto`, no PR #6 (rascunho, apontando para a `fase-4-fila`). Os commits do 7.3 ainda são locais.
+- O 7.3 está na `fase-7-piloto`, no PR #6 (rascunho, apontando para a `fase-4-fila`). Não mergeado.
