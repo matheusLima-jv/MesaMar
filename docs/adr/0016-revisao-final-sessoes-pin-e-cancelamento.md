@@ -18,7 +18,8 @@ Antes do piloto, a revisão final do código apontou sete pontos em que o sistem
 
 **2. O bloqueio de PIN é por origem (IP), com um teto por atendente.**
 - Antes: 5 PINs errados bloqueavam o atendente para todos. Quem soubesse o código da barraca (que é público) trancava a equipe inteira errando de propósito.
-- Agora: 5 erros de **uma origem** bloqueiam aquela origem por 15 minutos, sem trancar a atendente no celular do quiosque. 20 erros seguidos (de várias origens, sem um acerto no meio) bloqueiam a atendente para todos; o dono desbloqueia no painel. Acertar o PIN, trocar o PIN ou desbloquear zera tudo.
+- Agora: 5 erros de **uma origem** bloqueiam aquela origem por 15 minutos, sem trancar a atendente no celular do quiosque. 20 erros (sem um acerto no meio) bloqueiam a atendente para todos; o dono desbloqueia no painel. Acertar o PIN, trocar o PIN ou desbloquear zera tudo.
+- **Cada origem soma no máximo 5 erros ao teto da conta** (correção da revisão final): sem isso, um único IP, esperando cada bloqueio de 15 minutos vencer, chegava aos 20 em cerca de 1 hora e trancava a equipe toda. Agora o teto só é atingido de pelo menos 4 lugares diferentes. Um lugar sozinho continua limitado a 5 tentativas a cada 15 minutos.
 - **O contador por origem fica em memória.** Vale para um servidor só (o piloto) e zera quando o servidor reinicia. Com dois servidores, cada um conta os seus. É o mesmo limite já conhecido do `RateLimiter`.
 - A origem é o `remoteAddr`. Atrás do proxy da produção, isso depende da configuração de cabeçalhos encaminhados que o `RateLimiter` já usa. **Se várias barracas saírem pelo mesmo IP (4G compartilhado, por exemplo), elas dividem o contador por origem**; o teto de 20 por atendente continua valendo para cada uma.
 

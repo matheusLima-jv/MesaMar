@@ -219,3 +219,23 @@ Itens 144 a 148 de [`docs/testar-localmente.md`](../testar-localmente.md).
   1. **Anonimização com regra seca** (5.3): depois de 90 dias, anonimiza também quem ainda deve. Ver o [ADR 0014](../adr/0014-relatorio-do-dia-e-anonimizacao.md). O valor devido continua na conta; só o nome vira "Cliente". Política de privacidade ajustada.
   2. **Avisos de problema no painel do dono** (7.3): menu **Avisos**, itens 142 e 143 do roteiro. Testes: `ProblemasPainelTest` (4, com isolamento entre barracas e texto escapado) e um passo novo no E2E do painel.
 - **Falta** a revisão por um agente independente sobre este código.
+
+---
+
+## Revisão final (2026-10-02)
+
+Revisão de tudo o que a Fase 7 mudou (backend, apps, scripts de backup), com foco em login, isolamento entre barracas, dinheiro e dados pessoais.
+
+### Bugs encontrados e corrigidos
+
+1. **Um único IP conseguia trancar a atendente para todos.** O bloqueio por origem do 7.4 dava 5 tentativas a cada 15 minutos para cada lugar, mas todos os erros somavam no teto de 20 da conta. Esperando os bloqueios vencerem, o mesmo IP chegava aos 20 em cerca de 1 hora e trancava a equipe inteira, que era exatamente o que o 7.4 queria evitar. Agora cada origem soma no máximo 5 erros ao teto (precisa de 4 lugares diferentes). Teste novo em `EquipeTest`, com relógio controlado, que **falhava antes da correção** (a conta era bloqueada na 4ª rodada).
+2. **Reiniciar a demonstração não apagava os avisos de problema do treino.** Eles continuariam aparecendo na página Avisos da barraca de treino. Corrigido no `DemoService`; o teste de reinício agora confere isso, que os avisos de uma barraca real ao lado ficam, e que a sessão aberta antes do reinício cai.
+
+### Conferido e sem problema
+
+- **IP real atrás do proxy:** o Nginx sobrescreve o `X-Forwarded-For` e o Spring usa `forward-headers-strategy: framework`, então o bloqueio de PIN e os freios por IP veem o cliente, não o proxy.
+- **CSP sem terceiros:** só a landing usa scripts da Cloudflare; painel, admin e apps não carregam nada de fora.
+- **Isolamento:** os endpoints da Fase 7 (avisos no app, na página do cliente e no painel; cancelamento; pagamentos) pegam a barraca do login ou do token, e todos têm teste com outra barraca.
+- **Travas:** pagamento e cancelamento travam sempre a comanda antes do pedido; não há caminho que trave na ordem inversa.
+- **Saldo no cancelamento:** a conta ignora itens e pedidos já cancelados.
+- **Sessões:** só o link de "esqueci a senha" e o reinício da demonstração mudam a senha, e os dois gravam `credenciais_em`.

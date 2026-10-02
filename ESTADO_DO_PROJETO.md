@@ -1,7 +1,7 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-10-02**. **Fases 0 a 3 na `main`.** Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **Fases 4 e 5 completas e aprovadas** (o **5.3 foi aprovado em 2026-10-02**, com a anonimização de regra seca). Fase 7 na branch `fase-7-piloto` (PR #6 em rascunho, apontando para a `fase-4-fila`): **7.1, 7.2, 7.3 e 7.4 aprovados** (CI verde, 388 testes e 11 E2E; depois disso entraram a regra seca da anonimização e a página de Avisos no painel do dono, com testes locais verdes). **Falta a revisão por um agente independente.** A Fase 6 (offline) ainda não começou.
+> Última atualização: **2026-10-02**. **Fases 0 a 3 na `main`.** Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **Fases 4 e 5 completas e aprovadas** (o **5.3 foi aprovado em 2026-10-02**, com a anonimização de regra seca). Fase 7 na branch `fase-7-piloto` (PR #6 em rascunho, apontando para a `fase-4-fila`): **7.1, 7.2, 7.3 e 7.4 aprovados** (CI verde, 388 testes e 11 E2E; depois disso entraram a regra seca da anonimização e a página de Avisos no painel do dono, com testes locais verdes). **A revisão final foi feita em 2026-10-02** (2 bugs corrigidos, ver `docs/relatorios/fase-7.md`, seção "Revisão final"; 393 testes). A Fase 6 (offline) ainda não começou.
 
 ---
 
@@ -44,7 +44,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | 4 — Fila + tempo real + Web Push | ✅ Completa e aprovada na branch `fase-4-fila` (PR #5, rascunho, ainda não mergeado) |
 | 5 — Fechar conta, Pix, pagamentos, relatório | ✅ Completa e aprovada (5.1, 5.2 e 5.3) na branch `fase-4-fila` |
 | 6 — Modo atendente offline | ⬜ (pode vir depois do piloto, se o sinal nas praias for bom) |
-| 7 — Preparação do piloto | 🔶 Branch `fase-7-piloto`: 7.1 a 7.4 aprovados; falta a revisão por um agente independente |
+| 7 — Preparação do piloto | 🔶 Branch `fase-7-piloto`: 7.1 a 7.4 aprovados e revisão final feita |
 
 ### Checkpoints da Fase 2
 
@@ -305,7 +305,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 - **7.2:** ✅ aprovado (ver `docs/relatorios/fase-7.md` e [ADR 0015](docs/adr/0015-barraca-de-demonstracao-e-materiais.md)). `DemoService` cria/reinicia a barraca `demo` (V13, índice único parcial) pelo botão do `/admin` (credenciais mostradas uma vez; senha e PIN novos a cada reinício; chave Pix fictícia; e-mail `demo@treino.invalid`); faixa de treino no painel, no app e na página do cliente (campo `demo`). Materiais: `/painel/materiais`, `/guia` e `/plaquinha` (A4, `impresso.css`, botão em `js/imprimir.js` por causa da CSP). O guia já menciona o "reportar problema".
 - **7.3:** ✅ aprovado (ver `docs/relatorios/fase-7.md`). `POST /api/staff/problemas` e `POST /api/c/{token}/problemas` gravam em `problema_reportado` (V14) com tela, conexão e hora do servidor; `ProblemaService`; lista no `/admin` ("Problemas reportados") e, por barraca, no painel do dono (menu **Avisos**, `/painel/problemas`, sem o navegador de quem avisou). Freio de 10/10 min (quiosque) e 5/10 min (cliente). **Sem sinal o aviso não é reenviado depois** (modo offline é a Fase 6). O nome do cliente não é guardado.
 - **7.4:** 🔶 **aprovado** (CI verde no PR #6 com 388 testes) (ver `docs/relatorios/fase-7.md` e [ADR 0016](docs/adr/0016-revisao-final-sessoes-pin-e-cancelamento.md)). Sessão do dono cai ao trocar a senha (V15), bloqueio de PIN por origem (contador em memória), cancelar depois de pagar é recusado, cancelar libera o pedido seguinte (`LiberacaoPedidos`), encerramento diário às 4h, avisos de problema apagados aos 90 dias, CSP sem terceiros nos apps. 388 testes e 11 E2E locais.
-- **Falta:** a revisão por um agente independente sobre este código.
+- **Revisão final feita** (2026-10-02): corrigido o PIN (um IP sozinho chegava ao teto da conta em ~1 h; agora cada origem soma no máximo 5) e o reinício da demonstração (não apagava os avisos do treino). Decisões em aberto no relatório.
 
 ---
 
