@@ -2,8 +2,8 @@
 
 - **Branch:** `fase-7-piloto` (criada a partir da `fase-4-fila`, que tem as Fases 4 e 5 no PR #5 ainda não mergeado)
 - A Fase 7 está dividida em checkpoints, aprovados um por vez:
-  - [ ] **7.1 — Backup diário, teste de restauração, health check e logs** ← checkpoint atual
-  - [ ] 7.2 — Barraca de demonstração e materiais impressos (guia de 1 página e plaquinha de balcão)
+  - [x] **7.1 — Backup diário, teste de restauração, health check e logs** (aprovado; CI verde no PR #6)
+  - [ ] **7.2 — Barraca de demonstração e materiais impressos (guia de 1 página e plaquinha de balcão)** ← checkpoint atual
   - [ ] 7.3 — Botão "reportar problema" nos dois apps
   - [ ] 7.4 — Revisão final por um agente independente
 - O que **só você** faz (deploy, treino, operação no fim de semana, Portão B) está no `ESTADO_DO_PROJETO.md`, seção 8.
@@ -56,3 +56,55 @@ Itens 119 a 125 de [`docs/testar-localmente.md`](../testar-localmente.md) (seç�
 ### 6. Antes de aprovar
 
 - A Fase 7 está na branch `fase-7-piloto`. O PR dela é o #6, em rascunho, **apontando para a `fase-4-fila`** (o PR #5 ainda não foi mergeado). Se você mergear o #5 primeiro, eu reaponto este para a `main`.
+
+---
+
+## Checkpoint 7.2 — Barraca de demonstração e materiais impressos
+
+- **Data:** 2026-10-02
+- **Verificado localmente:** ktlint, **371 testes de backend** (359 do 5.3 + 12 novos), build dos dois fronts e **11 E2E** (um novo, da demonstração), com a imagem Docker construída do zero. **O CI do GitHub ainda não rodou para o 7.2** (os commits ainda não foram enviados).
+
+### 1. O que foi feito
+
+- **Barraca de demonstração** (V13, coluna `barraca.demo`), criada e reiniciada pelo **/admin** com um botão. Mostra **uma vez** o e-mail e a senha do dono, o código da barraca e o PIN da atendente.
+  - Traz **cardápio** (6 produtos), **20 guarda-sóis**, a atendente "Carla (treino)" e **dois clientes de exemplo com pedido**, para a fila e a aba Pagamentos não começarem vazias.
+  - **Reiniciar** apaga o que o treino gerou, volta as regras ao padrão e **troca a senha e o PIN**. Não toca em nenhuma outra barraca.
+  - **A chave Pix é fictícia:** o QR é válido para treinar, mas não leva dinheiro a lugar nenhum.
+- **Faixa de treino amarela** no painel do dono, no app do quiosque e na página do cliente ("Barraca de treino: nada aqui é de verdade. Não pague.").
+- **Materiais impressos** no painel do dono (menu **Materiais**), prontos para imprimir em A4 ou "Salvar como PDF", com o nome e o código da barraca de quem está logado:
+  - **Guia rápido da equipe** (1 página): entrar no app, check-in, fila, receber o pagamento (com "confira o Pix no app do banco ANTES de confirmar") e quando algo não parece certo;
+  - **Plaquinha do balcão**: "Peça pelo celular · Faça seu cadastro aqui e receba seu QR", em três passos.
+
+### 2. Decisões
+
+Ver o [ADR 0015](../adr/0015-barraca-de-demonstracao-e-materiais.md). As que merecem o seu olho:
+- **A demonstração é uma barraca de verdade, marcada no banco**, e não um "modo de mentira": o treino usa exatamente as telas do piloto.
+- **Só o projeto (/admin) cria e reinicia**, porque reiniciar troca a senha e o PIN.
+- **A plaquinha diz "faça seu cadastro aqui" no sentido de "no balcão"**: o cadastro é feito pela equipe. O autocadastro do cliente por QR fixo é da Fase 8 e não existe ainda; se um dia existir, a plaquinha ganha o QR.
+- **Os materiais são páginas do painel, não PDF gerado**: nenhuma biblioteca nova, o texto acompanha o produto, e a CSP continua restrita.
+- **O guia ainda não fala do "reportar problema"** (checkpoint 7.3); a linha entra junto com o botão.
+
+### 3. O que precisa de você
+
+- **Criar a barraca de demonstração em produção** (itens 126 e 127 do roteiro) e **treinar o dono e os atendentes nela** antes da sexta-feira do treino.
+- **Imprimir o guia e a plaquinha** da barraca de verdade (itens 131 e 132) e ver se cabem e se leem bem no balcão, ao sol. Sobra espaço no rodapé do guia para você escrever o seu telefone de suporte.
+
+### 4. Testes automatizados novos
+
+- **Demonstração (`DemoBarracaTest`, 6 testes):**
+  - **só o admin cria** (sem login, vai para o login);
+  - cria com cardápio, guarda-sóis, equipe e clientes de exemplo, **tudo marcado como treino** (painel, app e página do cliente), com a **chave Pix fictícia**, e o dono e a atendente **entram** com o que foi mostrado;
+  - o **QR Pix** da demonstração leva à chave fictícia;
+  - **reiniciar apaga o que o treino gerou** (comanda, pagamento, pausa, regras alteradas), **troca senha e PIN** (as antigas deixam de valer) e **não mexe numa barraca de verdade ao lado** (mesmas contagens de comanda, pedido, item, cliente e produto, e a página dela diz `demo:false`);
+  - **senha só como hash**; uma barraca de verdade **não** tem faixa de treino.
+- **Materiais (`MateriaisTest`, 6 testes):** sem login, nada abre (vai para o login); quem ainda não cadastrou a barraca volta ao cadastro; o guia traz o **nome e o código** da barraca e as regras que importam (inclusive o aviso do Pix e "só o dono"); a plaquinha traz a chamada do plano; **cada dono vê só a própria barraca**; o menu tem "Materiais"; **nenhuma página usa script ou estilo dentro dela** (CSP), e a folha de impressão A4 e o botão existem como arquivos próprios.
+- **E2E (celular):** o admin cria a demonstração, anota as credenciais (que **somem ao recarregar**); o dono entra, vê a faixa de treino e abre o guia e a plaquinha; a atendente entra com o PIN mostrado, vê a faixa e **os dois pedidos de exemplo na fila**. Sem rolagem lateral e sem erro no console.
+- **Impressão conferida na mão:** o guia e a plaquinha foram renderizados com a folha de impressão A4 e olhados na imagem: o guia cabe em uma página, com folga; a plaquinha fica com a chamada grande e legível.
+
+### 5. Como validar (na entrega final)
+
+Itens 126 a 135 de [`docs/testar-localmente.md`](../testar-localmente.md) (seção "Barraca de demonstração e materiais").
+
+### 6. Antes de aprovar
+
+- O 7.2 está na `fase-7-piloto`, no PR #6 (rascunho, apontando para a `fase-4-fila`). Os commits do 7.2 ainda são locais.

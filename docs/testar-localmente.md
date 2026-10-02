@@ -280,6 +280,21 @@ Estes itens são **no servidor de produção** (ou num ambiente igual a ele), se
 
 > **Não** teste `restaurar.sh --producao` no servidor de verdade só por curiosidade: ele apaga o banco. Para ensaiar, use uma cópia da VPS ou o ambiente local (`docker compose up`), onde o comando é seguro.
 
+### Barraca de demonstração e materiais (Fase 7 · checkpoint 7.2)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 126 | /admin → "Barraca de demonstração" | Tocar em **Criar a barraca de demonstração** | Aparece, **uma vez**, o e-mail (`demo@treino.invalid`), a **senha do dono**, o **código da barraca** e o **PIN da atendente**. Anote. Ao recarregar a página, a senha e o PIN **não aparecem mais** e o botão vira "Reiniciar…" |
+| 127 | Painel do dono (celular ou computador): entrar com o e-mail e a senha anotados | Olhar | **Faixa amarela** "Barraca de treino: nada aqui é de verdade". Cardápio com 6 itens, 20 guarda-sóis, atendente Carla (treino) |
+| 128 | App do quiosque: entrar como atendente (código da barraca, "Carla (treino)", o PIN anotado) | Olhar | Faixa amarela de treino. A aba **Fila** já tem os pedidos da "Ana (treino)" e do "Beto (treino)" |
+| 129 | Treinar o dia inteiro: check-in, o cliente pede pelo QR, Em preparo / Entregue, cancelar com motivo, o cliente fecha a conta (Pix, dinheiro, cartão), receber, bloquear | Fazer tudo como na barraca de verdade | Tudo funciona, e **a página do cliente mostra a faixa de treino**. O QR Pix é válido para ler, mas **a chave é fictícia: não leva dinheiro a lugar nenhum** |
+| 130 | /admin → **Reiniciar a barraca de demonstração** | Depois, tentar entrar com a senha e o PIN antigos | O que o treino gerou **some**, o cardápio e as regras voltam ao padrão, os dois clientes de exemplo voltam. **A senha e o PIN antigos não entram mais**; os novos (mostrados uma vez) entram |
+| 131 | Painel do dono da **barraca de verdade** → **Materiais** → **Guia rápido da equipe** → Imprimir | Olhar a prévia de impressão (A4) | **Uma página só**, com o nome e o código da **sua** barraca e o endereço do app. Legível a 1 metro |
+| 132 | Mesmo lugar → **Plaquinha do balcão** → Imprimir | Olhar a prévia e a folha impressa | "Peça pelo celular", "Faça seu cadastro aqui e receba seu QR" e os 3 passos, em letra grande. **Cole no balcão e peça a alguém que não conhece o sistema para ler**: entendeu o que fazer? |
+| 133 | Plaquinha e guia impressos | Ver a folha ao sol, a 2 metros (plaquinha) e a 1 metro (guia) | Dá para ler. Se não, anote o que ficou pequeno (ajusto o tamanho) |
+| 134 | Barraca **de verdade** (painel, app e página do cliente) | Olhar | **Nenhuma** faixa de treino |
+| 135 | Dono de **outra** barraca: abrir Materiais | Olhar o guia e a plaquinha | Mostram **o nome e o código da barraca dele**, nunca os de outra |
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:
@@ -292,7 +307,7 @@ E2E_ADMIN_PASSWORD=uma-senha-sua npx playwright test    # no Windows (PowerShell
 npx playwright show-report
 ```
 
-Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o E2E logo depois de subir o app, porque os testes enviam o formulário e contam no limite de envios por aparelho.
+Esperado: **11 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o E2E logo depois de subir o app, porque os testes enviam o formulário e contam no limite de envios por aparelho.
 
 ## 6. Testes de backend (opcional; o CI já roda)
 
@@ -300,7 +315,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 359 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 371 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 

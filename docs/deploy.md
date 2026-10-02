@@ -164,6 +164,17 @@ docker compose -f docker-compose.prod.yml --env-file .env up -d
 
 As migrações do Flyway só adicionam coisas nesta fase, então voltar a imagem não quebra o banco.
 
+## Barraca de demonstração (treino)
+
+Antes de operar de verdade, treine a equipe numa barraca fictícia. Depois que o app estiver no ar:
+
+1. Entre em `https://mesamar.0mega.fun/admin` → **Barraca de demonstração** → **Criar a barraca de demonstração**.
+2. **Anote na hora** o e-mail e a senha do dono, o código da barraca e o PIN da atendente: eles aparecem uma vez.
+3. A equipe treina em `/painel` (dono) e `/staff/` (atendente) com esses dados. Tudo mostra a faixa amarela de **treino**, e a chave Pix é fictícia (não leva dinheiro a lugar nenhum).
+4. **Reiniciar** no mesmo botão apaga o que o treino gerou e troca a senha e o PIN.
+
+Os materiais para imprimir (guia de 1 página e plaquinha do balcão) estão no painel do dono, no menu **Materiais**, com o nome e o código da barraca de quem está logado.
+
 ## Backup diário, restauração e monitoramento
 
 O banco é o único lugar onde os pedidos e os pagamentos existem. Este bloco liga o backup, prova que ele restaura e avisa quando algo para.
