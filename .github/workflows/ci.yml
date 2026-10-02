@@ -109,6 +109,13 @@ jobs:
           E2E_ADMIN_PASSWORD: ${{ env.MESAMAR_ADMIN_PASSWORD }}
         run: npx playwright test
 
+      # Prova que o backup restaura: dump do banco que acabou de passar pelo E2E, restauração num banco descartável e
+      # comparação de todas as tabelas (docs/deploy.md, "Teste de restauração")
+      - name: Teste de restauração do backup
+        run: |
+          bash deploy/backup/testar-restauracao.sh | tee /tmp/restauracao.log
+          echo "::notice title=Backup::$(tail -n 1 /tmp/restauracao.log | cut -d' ' -f3-)"
+
       - name: Resumo do E2E
         if: always()
         run: node .github/scripts/e2e-summary.mjs e2e/test-results/results.json

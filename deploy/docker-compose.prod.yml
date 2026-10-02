@@ -9,10 +9,18 @@
 # fala com ela pela rede Docker externa "web". Nada muda no firewall.
 name: mesamar
 
+# O Docker guarda no máximo 5 arquivos de 10 MB de log por serviço: o disco da VPS não enche.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_DB: ${DB_NAME:-mesamar}
       POSTGRES_USER: ${DB_USER:-mesamar}
@@ -32,6 +40,7 @@ services:
     image: ghcr.io/matheuslima-jv/mesamar:${MESAMAR_TAG:-latest}
     container_name: mesamar-app
     restart: unless-stopped
+    logging: *logging
     depends_on:
       db:
         condition: service_healthy
