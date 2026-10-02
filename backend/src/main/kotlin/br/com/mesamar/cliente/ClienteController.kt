@@ -64,6 +64,8 @@ data class ComandaClienteView(
     val saldoCentavos: Long,
     /** `FINAL` (paga ao fechar a conta) ou `POR_PEDIDO` (o pedido só entra na fila depois de pago). */
     val modoPagamento: String,
+    /** Barraca de treino: a página mostra um aviso de que nada ali é de verdade. */
+    val demo: Boolean,
     val cardapio: List<SecaoView>,
 )
 
@@ -244,6 +246,7 @@ class ClienteController(
                 bloqueio = pedidos.bloqueio(barraca, comanda, saldo)?.let(BloqueioView::of),
                 saldoCentavos = saldo,
                 modoPagamento = barraca.modoPagamento.name,
+                demo = barraca.demo,
                 cardapio = secoes(barraca),
             ),
         )

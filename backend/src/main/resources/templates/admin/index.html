@@ -101,6 +101,33 @@
     </div>
   </section>
 
+  <section class="admin-section" id="demo" aria-labelledby="t-demo">
+    <div class="admin-head">
+      <div>
+        <p class="kicker">Treino · antes de operar de verdade</p>
+        <h2 id="t-demo" class="admin-title">Barraca de demonstração</h2>
+      </div>
+    </div>
+    <p class="form-hint">Uma barraca fictícia com cardápio, guarda-sóis, um dono, uma atendente e dois clientes de exemplo, para treinar o check-in, a fila e o recebimento <strong>sem mexer nos dados de ninguém</strong>. A chave Pix dela é falsa. Reiniciar apaga tudo o que o treino gerou e <strong>troca a senha e o PIN</strong>.</p>
+
+    <div class="invite-created" role="status" th:if="${demoCredenciais}">
+      <p class="invite-created-title">Barraca de demonstração pronta: <strong th:text="${demoCredenciais.barraca}">Barraca Demo (treino)</strong></p>
+      <p class="form-hint">Anote agora: a senha e o PIN não aparecem de novo.</p>
+      <dl class="kv">
+        <div><dt>Painel do dono</dt><dd>/painel (entrar)</dd></div>
+        <div><dt>E-mail do dono</dt><dd class="mono" th:text="${demoCredenciais.emailDono}">demo@treino.invalid</dd></div>
+        <div><dt>Senha do dono</dt><dd class="mono" th:text="${demoCredenciais.senhaDono}">senha</dd></div>
+        <div><dt>Código da barraca (app)</dt><dd class="mono" th:text="${demoCredenciais.codigoBarraca}">barraca-demo-treino</dd></div>
+        <div><dt>Atendente</dt><dd th:text="${demoCredenciais.atendente}">Carla (treino)</dd></div>
+        <div><dt>PIN da atendente</dt><dd class="mono" th:text="${demoCredenciais.pinAtendente}">0000</dd></div>
+      </dl>
+    </div>
+
+    <form method="post" action="/admin/demo" th:action="@{/admin/demo}">
+      <button class="btn btn-line" type="submit" th:text="${demoExiste} ? 'Reiniciar a barraca de demonstração' : 'Criar a barraca de demonstração'">Criar a barraca de demonstração</button>
+    </form>
+  </section>
+
   <section class="admin-section" aria-labelledby="t-sinal">
     <div class="admin-head">
       <div>

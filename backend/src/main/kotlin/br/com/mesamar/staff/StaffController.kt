@@ -46,6 +46,8 @@ data class BarracaView(
     val nome: String,
     val codigo: String,
     val praia: String,
+    /** Barraca de treino: o app mostra uma faixa de aviso. */
+    val demo: Boolean = false,
 )
 
 /** O app chama isto ao abrir: diz se já está logado e entrega o token CSRF para os POSTs. */
@@ -219,7 +221,7 @@ class StaffController(
             logado = true,
             csrf = csrf.token,
             usuario = UsuarioView(principal.nome, principal.papel),
-            barraca = BarracaView(b.nome, b.slug, b.praia.label),
+            barraca = BarracaView(b.nome, b.slug, b.praia.label, b.demo),
         )
     }
 
