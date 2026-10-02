@@ -254,7 +254,7 @@ Use um dia com movimento (ou crie: 3 ou 4 clientes, pedidos, pagamentos em forma
 | 115 | **Baixar em CSV** → abrir no Excel ou Google Planilhas | Olhar | Abre em colunas **Seção, Item, Quantidade, Valor (R$)**, com acentos certos e valores com vírgula (ex.: `49,00`) |
 | 116 | "Dia anterior" / escolher uma data / digitar uma data no futuro na URL (`?dia=2099-01-01`) | Olhar | Mostra os números do dia escolhido (as **contas em aberto** são sempre as de agora); data futura volta para hoje |
 | 117 | Outra conta de dono (outra barraca) | Abrir o relatório | **Nenhum** cliente, valor ou motivo da primeira barraca |
-| 118 | Banco: envelhecer um cliente e rodar o job (ver abaixo) | Abrir o relatório e a página do cliente | Nome vira **"Cliente"** e o WhatsApp some; **os valores do relatório não mudam**. Cliente com conta ainda aberta **não** é anonimizado |
+| 118 | Banco: envelhecer um cliente e rodar o job (ver abaixo) | Abrir o relatório e a página do cliente | Nome vira **"Cliente"** e o WhatsApp some; **os valores do relatório não mudam**. Cliente com conta ainda aberta **também** é anonimizado (o valor devido continua na conta) |
 
 Para o item 118, sem esperar 90 dias, no banco do compose:
 
@@ -305,16 +305,18 @@ Estes itens são **no servidor de produção** (ou num ambiente igual a ele), se
 | 139 | Celular em **modo avião** (ou sem sinal): tentar enviar | Olhar | Mensagem "Não deu para enviar agora. Tente de novo quando o sinal voltar". **Nada** é enviado em segundo plano |
 | 140 | Escrever só "a" | Enviar | "Conte o que aconteceu, com pelo menos 3 letras" |
 | 141 | Mandar 11 avisos seguidos no app | Olhar | A partir do 11º: "Você já mandou vários avisos. Espere um pouco" |
+| 142 | Painel do dono → menu **Avisos** | Abrir depois de mandar os avisos dos itens 136 e 138 | Os avisos **da sua barraca**, do mais novo para o mais antigo, com "Equipe" ou "Cliente", a hora, a tela e a conexão. Sem o navegador de quem avisou. Barraca sem aviso mostra "Nenhum aviso até agora." |
+| 143 | Dono de **outra** barraca → Avisos | Olhar | Só os avisos dele, nunca os da primeira barraca |
 
 ### Revisão final (Fase 7 · checkpoint 7.4)
 
 | # | Onde | O que fazer | Esperado |
 |---|---|---|---|
-| 142 | App do quiosque, uma conta com pedido **já pago** | Tentar cancelar o pedido (ou o único item) | Mensagem "O cliente já pagou por isso… combine a troca ou devolva o valor no balcão". O pedido continua como estava. Antes de qualquer pagamento, cancelar funciona |
-| 143 | Painel aberto no computador **e** app aberto no celular, com o dono logado nos dois. Em outra aba, "Esqueci a senha" e trocar pelo link do e-mail (no log, sem SMTP) | Voltar ao painel e ao app e clicar em qualquer coisa | O painel volta para o **login**; o app pede para entrar de novo. A senha nova entra |
-| 144 | App da atendente, celular A. No celular B (ou outra rede), errar o PIN 5 vezes | Entrar com o PIN certo no celular A | **Entra.** Só o celular B fica bloqueado por 15 minutos. No painel do dono, Equipe, a atendente **não** aparece bloqueada |
-| 145 | /admin → Problemas reportados e uma barraca com mais de 90 dias de uso | (só em produção, depois de 90 dias) | Avisos antigos somem sozinhos de madrugada |
-| 146 | Cliente com comanda de **ontem**, sem saldo, que nunca tocou em "Fechar conta" | Olhar de manhã (depois das 4h) | A comanda está **fechada** e o link já não aceita pedido novo. A que ainda deve continua aberta em "Contas abertas" |
+| 144 | App do quiosque, uma conta com pedido **já pago** | Tentar cancelar o pedido (ou o único item) | Mensagem "O cliente já pagou por isso… combine a troca ou devolva o valor no balcão". O pedido continua como estava. Antes de qualquer pagamento, cancelar funciona |
+| 145 | Painel aberto no computador **e** app aberto no celular, com o dono logado nos dois. Em outra aba, "Esqueci a senha" e trocar pelo link do e-mail (no log, sem SMTP) | Voltar ao painel e ao app e clicar em qualquer coisa | O painel volta para o **login**; o app pede para entrar de novo. A senha nova entra |
+| 146 | App da atendente, celular A. No celular B (ou outra rede), errar o PIN 5 vezes | Entrar com o PIN certo no celular A | **Entra.** Só o celular B fica bloqueado por 15 minutos. No painel do dono, Equipe, a atendente **não** aparece bloqueada |
+| 147 | /admin → Problemas reportados e uma barraca com mais de 90 dias de uso | (só em produção, depois de 90 dias) | Avisos antigos somem sozinhos de madrugada |
+| 148 | Cliente com comanda de **ontem**, sem saldo, que nunca tocou em "Fechar conta" | Olhar de manhã (depois das 4h) | A comanda está **fechada** e o link já não aceita pedido novo. A que ainda deve continua aberta em "Contas abertas" |
 
 ## 5. Testes E2E (os mesmos do CI)
 

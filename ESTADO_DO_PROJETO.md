@@ -1,7 +1,7 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-10-01**. **Fase 3 mergeada na `main`** ([PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4)). Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **4.1 e 4.2 aprovados** (CI verde): **a Fase 4 está completa.** Na mesma `fase-4-fila`: **5.1 e 5.2 aprovados** (CI verde) e **5.3 (relatório do dia e anonimização LGPD) pronto**, **CI verde no PR #5** (359 testes, 10 E2E), **aguardando o "aprovado 5.3"**. **Com o 5.3 a Fase 5 fica completa.** Fase 7 em andamento na branch `fase-7-piloto` (a partir da `fase-4-fila`; PR em rascunho apontando para ela): **7.1 (backup, teste de restauração, health check e logs) aprovado; 7.2 (barraca de demonstração e materiais impressos) aprovado; 7.3 (botão "reportar problema") pronto, CI verde no PR #6 (377 testes, 11 E2E), aguardando aprovação.**
+> Última atualização: **2026-10-02**. **Fases 0 a 3 na `main`.** Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **Fases 4 e 5 completas e aprovadas** (o **5.3 foi aprovado em 2026-10-02**, com a anonimização de regra seca). Fase 7 na branch `fase-7-piloto` (PR #6 em rascunho, apontando para a `fase-4-fila`): **7.1, 7.2, 7.3 e 7.4 aprovados** (CI verde, 388 testes e 11 E2E; depois disso entraram a regra seca da anonimização e a página de Avisos no painel do dono, com testes locais verdes). **Falta a revisão por um agente independente.** A Fase 6 (offline) ainda não começou.
 
 ---
 
@@ -9,7 +9,7 @@
 
 1. **A `main` tem tudo até a Fase 3** (PR #4 mergeado em 2026-10-01, CI verde: 244 testes na época do 3.2 e 10 E2E; o 3.3 fechou com 252). A branch `fase-3-cliente` continua no GitHub, sem uso.
 2. **A branch atual é a `fase-4-fila`** (criada a partir da `main`). Se ela ainda não está no GitHub, `git push -u origin fase-4-fila` e abra o PR da Fase 4 em rascunho (`gh pr create --draft`).
-3. **O 5.3 está pronto, com CI verde, e não foi aprovado.** Apresente o relatório (`docs/relatorios/fase-5.md`, seção do 5.3) e peça o "aprovado 5.3". Depois, **pergunte ao Matheus a ordem**: Fase 6 (modo offline) agora ou Fase 7 (piloto) primeiro, conforme o resultado do Portão A. O PR #5 sai do rascunho e é mergeado só quando o Matheus pedir.
+3. **O 5.3 está aprovado.** Falta decidir com o Matheus a ordem: Fase 6 (modo offline) agora ou depois do Portão A. O PR #5 sai do rascunho e é mergeado só quando o Matheus pedir.
 
 **Dica para o Windows do Matheus:** a porta 5432 pode estar ocupada ou reservada pelo sistema. Para subir o compose, troque o mapeamento do banco para `127.0.0.1:5433:5432` (o app não usa essa porta).
 
@@ -42,9 +42,9 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | 2 — Contas, barraca, equipe, guarda-sóis, cardápio, app | ✅ Na `main` (PR #3) |
 | 3 — Check-in, QR e pedido pelo cliente | ✅ Na `main` (PR #4) |
 | 4 — Fila + tempo real + Web Push | ✅ Completa e aprovada na branch `fase-4-fila` (PR #5, rascunho, ainda não mergeado) |
-| 5 — Fechar conta, Pix, pagamentos, relatório | 🔶 5.1 e 5.2 aprovados; 5.3 pronto (aguardando aprovação) na branch `fase-4-fila` |
+| 5 — Fechar conta, Pix, pagamentos, relatório | ✅ Completa e aprovada (5.1, 5.2 e 5.3) na branch `fase-4-fila` |
 | 6 — Modo atendente offline | ⬜ (pode vir depois do piloto, se o sinal nas praias for bom) |
-| 7 — Preparação do piloto | 🔶 Branch `fase-7-piloto`: 7.1 e 7.2 aprovados, 7.3 pronto (aguardando aprovação); 7.4 ⬜ |
+| 7 — Preparação do piloto | 🔶 Branch `fase-7-piloto`: 7.1 a 7.4 aprovados; falta a revisão por um agente independente |
 
 ### Checkpoints da Fase 2
 
@@ -76,7 +76,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 |---|---|---|---|
 | 5.1 | Aba Conta no cliente (extrato, fechar, Pix com QR, "já paguei", voltar e pedir mais), saldo desconta pagamentos, BR Code Pix | ✅ verde no PR #5 (323 testes, 10 E2E) | ✅ aprovado |
 | 5.2 | Aba Pagamentos no app (receber total, parcial e dividido, troco, bloquear, encerrar, fechar sem receber), aviso "indo pagar" (SSE + push), extrato vence em 7 dias | ✅ verde no PR #5 (347 testes, 10 E2E) | ✅ aprovado |
-| 5.3 | Relatório do dia no painel (+ CSV) e job diário de anonimização LGPD | ✅ verde no PR #5 (359 testes, 10 E2E) | ⏳ pendente |
+| 5.3 | Relatório do dia no painel (+ CSV) e job diário de anonimização LGPD | ✅ verde no PR #5 (359 testes, 10 E2E) | ✅ aprovado |
 
 **Sobre o 2.3:**
 - O CI do commit `ed43ee5` falhou em 3 testes de `CardapioTest`. **Não era bug do app:** o cliente HTTP dos testes não segue redirecionamentos, então a mensagem "flash" de um passo de preparação ficava na sessão e aparecia no lugar da mensagem do passo testado.
@@ -115,7 +115,7 @@ cd e2e && npm ci && E2E_BASE_URL=http://localhost:8080 E2E_ADMIN_PASSWORD=<a do 
 ```
 
 ### Roteiro manual completo (para a entrega final)
-`docs/testar-localmente.md`, itens 1 a 141.
+`docs/testar-localmente.md`, itens 1 a 148.
 
 ### CI (GitHub Actions, `.github/workflows/ci.yml`)
 - ktlint → build e testes → imagem Docker → smoke do compose → E2E (Playwright, Pixel 7) → push para o GHCR (só na `main`).
@@ -290,10 +290,10 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
   - **Aviso "indo pagar":** `PagamentoAvisado` (push, sem nome do cliente) e `ContaMudou` (SSE `conta`, para o app e para a comanda). Só avisa quando a forma ou o troco mudam.
   - **Fechamento forçado só pelo dono** (V12: motivo, `saldo_perdoado_centavos`, `fechada_por_usuario_id`); é o dado do "não recebido" do relatório do 5.3.
   - O extrato do cliente **vence 7 dias** depois de `fechada_em` (`ClienteController.comandaVigente`).
-- **5.3:** ✅ pronto, aguardando aprovação (ver `docs/relatorios/fase-5.md` e [ADR 0014](docs/adr/0014-relatorio-do-dia-e-anonimizacao.md)).
+- **5.3:** ✅ aprovado (ver `docs/relatorios/fase-5.md` e [ADR 0014](docs/adr/0014-relatorio-do-dia-e-anonimizacao.md)).
   - `/painel/relatorio?dia=AAAA-MM-DD` e `/painel/relatorio.csv` (só o dono; `RelatorioService` em SQL puro, sem total guardado). **Dia = dia em Brasília**; pagamento conta pelo `confirmado_em`, pedido por `pedido.dia`. **Vendido = recebido + em aberto + não recebido** (testado).
   - **Contas em aberto são de agora**, não do dia escolhido (reaproveita `PagamentoService.listar`).
-  - **Anonimização:** `AnonimizacaoService.anonimizar()` (um `UPDATE`, às 3h30 de Brasília, `mesamar.anonimizacao.dias|cron`). **Cliente com comanda aberta, aguardando ou bloqueada fica de fora** até encerrar. Texto livre (observação, motivo de cancelamento) não é anonimizado. A política de privacidade foi ajustada.
+  - **Anonimização:** `AnonimizacaoService.anonimizar()` (um `UPDATE`, às 3h30 de Brasília, `mesamar.anonimizacao.dias|cron`). **Regra seca: anonimiza aos 90 dias mesmo com comanda aberta, aguardando ou bloqueada** (decisão do Matheus na aprovação do 5.3). Texto livre (observação, motivo de cancelamento) não é anonimizado. A política de privacidade foi ajustada.
   - Reaproveita o `Csv` do `/admin` (`;`, BOM, proteção contra fórmula).
 
 ### Fase 6: modo atendente offline
@@ -303,9 +303,9 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 ### Fase 7: piloto
 - **7.1:** ✅ aprovado (ver `docs/relatorios/fase-7.md`). `deploy/backup/` (`backup.sh`, `testar-restauracao.sh`, `restaurar.sh`, `comum.sh`): `pg_dump` custom conferido, rotação de 14 dias, teste de restauração (também no CI, depois do E2E), recuperação de desastre com `--producao`; logs do Docker com rotação no compose de produção; guia em `docs/deploy.md`. **O backup fica na mesma VPS; a cópia para fora é manual.** Os scripts usam `docker compose exec` e **precisam de `< /dev/null` em todo `exec -T` que não deva ler a entrada** (já tratado em `comum.sh`).
 - **7.2:** ✅ aprovado (ver `docs/relatorios/fase-7.md` e [ADR 0015](docs/adr/0015-barraca-de-demonstracao-e-materiais.md)). `DemoService` cria/reinicia a barraca `demo` (V13, índice único parcial) pelo botão do `/admin` (credenciais mostradas uma vez; senha e PIN novos a cada reinício; chave Pix fictícia; e-mail `demo@treino.invalid`); faixa de treino no painel, no app e na página do cliente (campo `demo`). Materiais: `/painel/materiais`, `/guia` e `/plaquinha` (A4, `impresso.css`, botão em `js/imprimir.js` por causa da CSP). O guia já menciona o "reportar problema".
-- **7.3:** ✅ pronto, aguardando aprovação (ver `docs/relatorios/fase-7.md`). `POST /api/staff/problemas` e `POST /api/c/{token}/problemas` gravam em `problema_reportado` (V14) com tela, conexão e hora do servidor; `ProblemaService`; lista no `/admin` ("Problemas reportados"). Freio de 10/10 min (quiosque) e 5/10 min (cliente). **Sem sinal o aviso não é reenviado depois** (modo offline é a Fase 6). O nome do cliente não é guardado.
-- **7.4:** 🔶 pronto, **CI verde no PR #6** (388 testes), **aguardando aprovação** (ver `docs/relatorios/fase-7.md` e [ADR 0016](docs/adr/0016-revisao-final-sessoes-pin-e-cancelamento.md)). Sessão do dono cai ao trocar a senha (V15), bloqueio de PIN por origem (contador em memória), cancelar depois de pagar é recusado, cancelar libera o pedido seguinte (`LiberacaoPedidos`), encerramento diário às 4h, avisos de problema apagados aos 90 dias, CSP sem terceiros nos apps. 388 testes e 11 E2E locais.
-- **Falta:** o seu aprovado e a revisão por um agente independente sobre este código.
+- **7.3:** ✅ aprovado (ver `docs/relatorios/fase-7.md`). `POST /api/staff/problemas` e `POST /api/c/{token}/problemas` gravam em `problema_reportado` (V14) com tela, conexão e hora do servidor; `ProblemaService`; lista no `/admin` ("Problemas reportados") e, por barraca, no painel do dono (menu **Avisos**, `/painel/problemas`, sem o navegador de quem avisou). Freio de 10/10 min (quiosque) e 5/10 min (cliente). **Sem sinal o aviso não é reenviado depois** (modo offline é a Fase 6). O nome do cliente não é guardado.
+- **7.4:** 🔶 **aprovado** (CI verde no PR #6 com 388 testes) (ver `docs/relatorios/fase-7.md` e [ADR 0016](docs/adr/0016-revisao-final-sessoes-pin-e-cancelamento.md)). Sessão do dono cai ao trocar a senha (V15), bloqueio de PIN por origem (contador em memória), cancelar depois de pagar é recusado, cancelar libera o pedido seguinte (`LiberacaoPedidos`), encerramento diário às 4h, avisos de problema apagados aos 90 dias, CSP sem terceiros nos apps. 388 testes e 11 E2E locais.
+- **Falta:** a revisão por um agente independente sobre este código.
 
 ---
 
@@ -314,7 +314,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 - **Deploy** em `mesamar.0mega.fun`, seguindo o `docs/deploy.md`.
 - **SMTP em produção**, para o "esqueci a senha" funcionar: escolher o serviço e criar SPF/DKIM na Cloudflare, manualmente.
 - **Portão A:** divulgar a landing, visitar barracas e medir o sinal em ≥3 praias num domingo, das 12h às 15h. O resultado decide se a Fase 6 vem antes do piloto.
-- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 141 até aqui.
+- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 148 até aqui.
 
 ## 9. Riscos conhecidos e decisões de escala
 

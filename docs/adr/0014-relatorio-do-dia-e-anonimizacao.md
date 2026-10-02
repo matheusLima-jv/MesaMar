@@ -30,7 +30,7 @@ O dono precisa fechar o dia: quanto entrou, quanto vendeu, o que mais saiu, o qu
 **Anonimização LGPD**
 - Um `UPDATE` só, todo dia às **3h30 (Brasília)**: clientes com mais de **90 dias** (`criado_em`) ganham `nome = 'Cliente'`, `whatsapp_e164 = NULL` e `anonimizado_em = agora`. Pedidos, itens, pagamentos e comandas **não são tocados**, então o relatório do dia dá o mesmo número antes e depois (testado).
 - **Com mais de um servidor não precisa de trava de tarefa agendada:** o primeiro anonimiza, os outros não encontram mais nada (`anonimizado_em IS NULL`), e rodar de novo não muda a data.
-- **Cliente com comanda aberta, aguardando pagamento ou bloqueada fica de fora**, e é anonimizado na rodada seguinte ao encerramento. Motivo: o dono precisa saber **quem** está devendo; anonimizar essa pessoa apagaria o único jeito de cobrar. É uma exceção à regra de 90 dias, então a política de privacidade passou a dizer isso. Pode ser removida (basta tirar uma condição do SQL) se preferirem a regra seca.
+- **A regra é seca (decisão do dono do projeto, na aprovação do 5.3, em 2026-10-02).** Passou de 90 dias, o cliente é anonimizado, **mesmo com a comanda aberta, aguardando pagamento ou bloqueada**. A primeira versão deixava esses clientes de fora para o dono não perder o nome de quem deve; isso foi removido. Consequência: depois de 90 dias o dono vê "Cliente" nas contas em aberto (o valor devido continua lá). Quem deve precisa ser cobrado antes disso.
 - Os dias são configuráveis (`mesamar.anonimizacao.dias`, padrão 90) e o horário também (`mesamar.anonimizacao.cron`).
 
 ## Consequências

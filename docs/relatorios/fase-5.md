@@ -133,7 +133,7 @@ Itens 97 a 110 de [`docs/testar-localmente.md`](../testar-localmente.md). Os mai
   - **contas em aberto agora** (as maiores primeiro, com o total) e **não recebido** (contas encerradas sem receber, com o motivo).
 - **Exportação em CSV** do mesmo conteúdo (abre direto no Excel: ponto e vírgula, acentos e vírgula decimal certos).
 - **Anonimização LGPD** todo dia às 3h30: depois de **90 dias**, nome vira "Cliente" e o WhatsApp é apagado. Pedidos, pagamentos e valores **não mudam**, e o relatório dá o mesmo número antes e depois.
-- A **política de privacidade** foi ajustada para dizer o que realmente acontece (extrato por 7 dias; quem ainda deve só é anonimizado depois de encerrar a conta).
+- A **política de privacidade** foi ajustada para dizer o que realmente acontece (extrato por 7 dias; a anonimização vale para todos depois de 90 dias, inclusive quem ainda deve).
 
 ### 2. Decisões
 
@@ -141,7 +141,7 @@ Ver o [ADR 0014](../adr/0014-relatorio-do-dia-e-anonimizacao.md). As que merecem
 - **O relatório é calculado na hora, direto dos pedidos e pagamentos.** Não há total guardado, então não tem como ficar errado em relação ao quiosque. **A conta fecha:** vendido = recebido + em aberto + não recebido (testado num cenário gerado).
 - **Dia = dia em Brasília.** Um pagamento às 23h30 conta no dia certo, mesmo já sendo o dia seguinte em UTC (testado).
 - **"Contas em aberto" é de agora**, não do dia escolhido: quem deve é uma foto do momento. A página explica.
-- **Quem ainda deve não é anonimizado** enquanto a comanda estiver aberta, aguardando pagamento ou bloqueada, para o dono não perder o nome de quem deve. É uma exceção à regra seca de 90 dias; se preferir a regra seca, é remover uma condição do SQL.
+- **A regra é seca (decidido na aprovação):** quem ainda deve **também** é anonimizado depois de 90 dias. A exceção que a primeira versão tinha foi removida.
 - **O texto livre não é anonimizado** (observação de item e motivo de cancelamento): o produto não pede dado pessoal ali, mas o cliente poderia escrever um.
 
 ### 3. O que precisa de você
@@ -159,7 +159,7 @@ Ver o [ADR 0014](../adr/0014-relatorio-do-dia-e-anonimizacao.md). As que merecem
   - data inválida mostra hoje com aviso, e data no futuro volta para hoje (página e CSV);
   - sem entrar no painel não há relatório nem CSV (redireciona para o login);
   - **isolamento:** o dono de outra barraca não vê nenhum cliente, valor ou motivo da primeira, nem na página nem no CSV.
-- **Anonimização (`AnonimizacaoTest`, 5 testes):** com 91 dias, nome vira "Cliente" e o WhatsApp some, **e o relatório, os pagamentos e os itens ficam iguais**, e a página do cliente já mostra "Cliente"; com 89 dias nada muda; **quem tem comanda aberta, fechando ou bloqueada fica de fora** e só é anonimizado depois de encerrar; rodar de novo não repete nem muda a data; o job agendado roda de madrugada no fuso de Brasília.
+- **Anonimização (`AnonimizacaoTest`, 5 testes):** com 91 dias, nome vira "Cliente" e o WhatsApp some, **e o relatório, os pagamentos e os itens ficam iguais**, e a página do cliente já mostra "Cliente"; com 89 dias nada muda; **quem tem comanda aberta, fechando ou bloqueada também é anonimizado** e o valor devido continua na conta; rodar de novo não repete nem muda a data; o job agendado roda de madrugada no fuso de Brasília.
 - **E2E (celular):** depois de a atendente receber a conta da Ana, o dono abre o relatório e vê **R$ 49,00 recebidos** (R$ 20,00 no Pix e R$ 29,00 em dinheiro), o **Bruno em aberto com R$ 25,00**, o cancelamento "Esgotou" e o link do CSV. Sem rolagem lateral e sem erro no console.
 
 ### 5. Como validar (na entrega final)

@@ -5,7 +5,7 @@
   - [x] **7.1 — Backup diário, teste de restauração, health check e logs** (aprovado; CI verde no PR #6)
   - [x] **7.2 — Barraca de demonstração e materiais impressos (guia de 1 página e plaquinha de balcão)** (aprovado; CI verde no PR #6)
   - [x] **7.3 — Botão "reportar problema" nos dois apps** (CI verde no PR #6)
-  - [ ] **7.4 — Revisão final** ← checkpoint atual (a revisão por um agente independente vem depois deste, sobre o código já corrigido)
+  - [x] **7.4 — Revisão final** (aprovado; a revisão por um agente independente ainda falta) ← checkpoint atual (a revisão por um agente independente vem depois deste, sobre o código já corrigido)
 - O que **só você** faz (deploy, treino, operação no fim de semana, Portão B) está no `ESTADO_DO_PROJETO.md`, seção 8.
 
 ---
@@ -134,7 +134,7 @@ Itens 126 a 135 de [`docs/testar-localmente.md`](../testar-localmente.md) (seç�
 - **A barraca vem de quem reportou** (o login ou o token da comanda), nunca do pedido: ninguém reporta "em nome" de outra barraca (testado).
 - **Freio contra abuso:** 10 avisos a cada 10 minutos por pessoa no quiosque e 5 por comanda no cliente (depois, 429). Texto de 3 a 500 letras; caracteres de controle e espaços repetidos são limpos.
 - **Sem sinal, o aviso não é guardado para reenviar depois:** o app mostra "tente de novo quando o sinal voltar". O modo offline de verdade é da Fase 6. É o único caso em que o relato de um problema de sinal pode se perder, e o próprio texto avisa.
-- **Só o projeto vê os avisos (no `/admin`).** O dono da barraca não tem uma tela para ler os avisos dos clientes dele; se você quiser, é uma página no painel.
+- **O dono vê os avisos da própria barraca no painel** (menu **Avisos**, `/painel/problemas`), a pedido seu na aprovação do 7.3. Ele vê a hora, se foi "Equipe" ou "Cliente", a tela, a conexão e o texto, **sem o navegador de quem avisou** (esse dado fica só no `/admin`, que continua mostrando os avisos de todas as barracas). A barraca vem do login, nunca da URL. Os avisos somem depois de 90 dias.
 - **O texto aparece escapado no `/admin`:** um aviso com HTML não vira HTML (testado).
 
 ### 3. O que precisa de você
@@ -154,7 +154,7 @@ Itens 126 a 135 de [`docs/testar-localmente.md`](../testar-localmente.md) (seç�
 
 ### 5. Como validar (na entrega final)
 
-Itens 136 a 141 de [`docs/testar-localmente.md`](../testar-localmente.md).
+Itens 136 a 143 de [`docs/testar-localmente.md`](../testar-localmente.md).
 
 ### 6. Antes de aprovar
 
@@ -187,7 +187,7 @@ Sete correções que a revisão apontou, todas descritas no [ADR 0016](../adr/00
 
 ### 3. O que precisa de você
 
-- **Decidir se a regra do cancelamento serve** para a barraca: "o cliente já pagou, combine no balcão" (item 142).
+- **Decidir se a regra do cancelamento serve** para a barraca: "o cliente já pagou, combine no balcão" (item 144).
 - Lembrar que, se duas barracas saírem pelo mesmo IP, elas dividem o contador de 5 erros por origem.
 
 ### 4. Testes automatizados novos
@@ -205,8 +205,17 @@ Sete correções que a revisão apontou, todas descritas no [ADR 0016](../adr/00
 
 ### 5. Como validar (na entrega final)
 
-Itens 142 a 146 de [`docs/testar-localmente.md`](../testar-localmente.md).
+Itens 144 a 148 de [`docs/testar-localmente.md`](../testar-localmente.md).
 
 ### 6. Antes de aprovar
 
 - Este checkpoint estava solto na árvore de trabalho (sem teste nem relatório) e agora está fechado, mas **ainda não passou pelo CI do GitHub**. A revisão por um agente independente deve ser rodada **depois** dele, sobre este código.
+
+---
+
+## Depois das aprovações (2026-10-02)
+
+- **5.3, 7.3 e 7.4 aprovados.** Duas mudanças pedidas na aprovação:
+  1. **Anonimização com regra seca** (5.3): depois de 90 dias, anonimiza também quem ainda deve. Ver o [ADR 0014](../adr/0014-relatorio-do-dia-e-anonimizacao.md). O valor devido continua na conta; só o nome vira "Cliente". Política de privacidade ajustada.
+  2. **Avisos de problema no painel do dono** (7.3): menu **Avisos**, itens 142 e 143 do roteiro. Testes: `ProblemasPainelTest` (4, com isolamento entre barracas e texto escapado) e um passo novo no E2E do painel.
+- **Falta** a revisão por um agente independente sobre este código.
