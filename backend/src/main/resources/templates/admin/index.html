@@ -128,6 +128,33 @@
     </form>
   </section>
 
+  <section class="admin-section" id="problemas" aria-labelledby="t-problemas">
+    <div class="admin-head">
+      <div>
+        <p class="kicker">Piloto · o que a equipe e os clientes avisaram</p>
+        <h2 id="t-problemas" class="admin-title">Problemas reportados</h2>
+      </div>
+    </div>
+    <p class="admin-empty" th:if="${problemas.isEmpty()}">Nenhum problema reportado.</p>
+    <div class="table-wrap" th:unless="${problemas.isEmpty()}">
+      <table>
+        <thead>
+          <tr><th>Quando</th><th>Barraca</th><th>De</th><th>Tela</th><th>Conexão</th><th>O que aconteceu</th></tr>
+        </thead>
+        <tbody>
+          <tr th:each="p : ${problemas}">
+            <td th:text="${p.quando}">01/10/2026 14:00</td>
+            <td th:text="${p.barraca}">Barraca do Zé</td>
+            <td th:text="${p.origem}">Cliente</td>
+            <td th:text="${p.tela}">fila</td>
+            <td th:text="${p.conexao}" th:title="${p.agente}">online</td>
+            <td th:text="${p.mensagem}">Texto</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="admin-section" aria-labelledby="t-sinal">
     <div class="admin-head">
       <div>

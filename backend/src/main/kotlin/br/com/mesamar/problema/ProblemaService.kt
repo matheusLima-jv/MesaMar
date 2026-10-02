@@ -1,0 +1,119 @@
+package br.com.mesamar.problema
+
+import org.slf4j.LoggerFactory
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.stereotype.Service
+import java.sql.Timestamp
+import java.time.Clock
+import java.time.Instant
+import java.util.UUID
+
+/** O que o app mandou: o texto da pessoa e o contexto que ele mesmo conhece. */
+data class ProblemaRequest(
+    val mensagem: String? = null,
+    /** Em que tela estava (ex.: `fila`, `conta`). */
+    val tela: String? = null,
+    /** `online` ou `offline`, e o tipo de rede se o navegador souber. */
+    val conexao: String? = null,
+)
+
+sealed interface ResultadoProblema {
+    data object Ok : ResultadoProblema
+
+    data class Invalido(
+        val mensagem: String,
+    ) : ResultadoProblema
+}
+
+data class ProblemaRow(
+    val criadoEm: Instant,
+    val barraca: String,
+    val origem: String,
+    val tela: String,
+    val conexao: String,
+    val mensagem: String,
+    val agente: String?,
+)
+
+/**
+ * "Reportar problema" (Fase 7 · checkpoint 7.3). Grava o texto e o contexto (tela, horário do servidor, conexão, navegador)
+ * para o projeto ver no /admin. A barraca vem sempre de quem reportou (o login ou o token da comanda), nunca do pedido.
+ */
+@Service
+class ProblemaService(
+    private val jdbc: JdbcTemplate,
+    private val clock: Clock,
+) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    fun registrar(
+        barracaId: UUID,
+        origem: String,
+        req: ProblemaRequest,
+        agente: String?,
+        usuarioId: UUID? = null,
+        atendenteId: UUID? = null,
+        comandaId: UUID? = null,
+    ): ResultadoProblema {
+        val mensagem = limpar(req.mensagem, MENSAGEM_MAX)
+        if (mensagem.length < MENSAGEM_MIN) return ResultadoProblema.Invalido("Conte o que aconteceu, com pelo menos $MENSAGEM_MIN letras.")
+        val tela = limpar(req.tela, 40).ifEmpty { "desconhecida" }
+        val conexao = limpar(req.conexao, 60).ifEmpty { "desconhecida" }
+        jdbc.update(
+            """
+            INSERT INTO problema_reportado (id, barraca_id, origem, usuario_id, atendente_id, comanda_id, tela, mensagem, conexao, agente, criado_em)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent(),
+            UUID.randomUUID(),
+            barracaId,
+            origem,
+            usuarioId,
+            atendenteId,
+            comandaId,
+            tela,
+            mensagem,
+            conexao,
+            agente?.let { limpar(it, 200) }?.ifEmpty { null },
+            Timestamp.from(Instant.now(clock)),
+        )
+        log.warn("Problema reportado: origem={} barraca={} tela={} conexao={}", origem, barracaId, tela, conexao)
+        return ResultadoProblema.Ok
+    }
+
+    fun recentes(limit: Int = 100): List<ProblemaRow> =
+        jdbc.query(
+            """
+            SELECT p.criado_em, b.nome AS barraca, p.origem, p.tela, p.conexao, p.mensagem, p.agente
+            FROM problema_reportado p JOIN barraca b ON b.id = p.barraca_id
+            ORDER BY p.criado_em DESC LIMIT ?
+            """.trimIndent(),
+            { rs, _ ->
+                ProblemaRow(
+                    rs.getTimestamp("criado_em").toInstant(),
+                    rs.getString("barraca"),
+                    rs.getString("origem"),
+                    rs.getString("tela"),
+                    rs.getString("conexao"),
+                    rs.getString("mensagem"),
+                    rs.getString("agente"),
+                )
+            },
+            limit,
+        )
+
+    /** Sem caractere de controle, espaços repetidos viram um, e cabe no tamanho do banco. */
+    private fun limpar(
+        texto: String?,
+        max: Int,
+    ): String =
+        (texto ?: "")
+            .replace(Regex("[\\p{Cntrl}&&[^\\n]]"), " ")
+            .replace(Regex("[ \\t]+"), " ")
+            .trim()
+            .take(max)
+
+    companion object {
+        const val MENSAGEM_MIN = 3
+        const val MENSAGEM_MAX = 500
+    }
+}

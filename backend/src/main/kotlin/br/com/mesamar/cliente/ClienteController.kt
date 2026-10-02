@@ -19,6 +19,9 @@ import br.com.mesamar.pedido.PedidoDetalhe
 import br.com.mesamar.pedido.PedidoRequest
 import br.com.mesamar.pedido.PedidoService
 import br.com.mesamar.pedido.ResultadoPedido
+import br.com.mesamar.problema.ProblemaRequest
+import br.com.mesamar.problema.ProblemaService
+import br.com.mesamar.problema.ResultadoProblema
 import br.com.mesamar.staff.ErroValidacaoView
 import br.com.mesamar.staff.ErroView
 import br.com.mesamar.staff.ProdutoView
@@ -223,6 +226,7 @@ class ClienteController(
     private val barracas: BarracaRepository,
     private val pedidos: PedidoService,
     private val conta: FechamentoService,
+    private val problemas: ProblemaService,
     private val hub: HubEventos,
     private val rateLimiter: RateLimiter,
     private val clock: Clock,
@@ -351,6 +355,24 @@ class ClienteController(
             is ResultadoConta.Recusado -> ResponseEntity.status(HttpStatus.CONFLICT).body(ErroView(r.codigo, r.mensagem))
         }
 
+    /** "Reportar problema": o texto e o contexto (tela, conexão). A barraca e a comanda vêm do token. */
+    @PostMapping("/problemas")
+    fun reportarProblema(
+        @PathVariable token: String,
+        @RequestBody body: ProblemaRequest,
+        request: HttpServletRequest,
+    ): ResponseEntity<Any> {
+        val comanda = comandaVigente(token) ?: return recusado(request)
+        if (!rateLimiter.tryAcquire("c-problema:${comanda.id}", LIMITE_PROBLEMAS, JANELA_PROBLEMAS)) return muitas()
+        return when (
+            val r = problemas.registrar(comanda.barracaId, "CLIENTE", body, request.getHeader("User-Agent"), comandaId = comanda.id)
+        ) {
+            ResultadoProblema.Ok -> ResponseEntity.status(HttpStatus.CREATED).body(mapOf("ok" to true))
+            is ResultadoProblema.Invalido ->
+                ResponseEntity.badRequest().body(ErroValidacaoView("validacao", r.mensagem, mapOf("mensagem" to r.mensagem)))
+        }
+    }
+
     @PostMapping("/pedidos")
     fun pedir(
         @PathVariable token: String,
@@ -427,6 +449,8 @@ class ClienteController(
         const val LIMITE_GERAL = 90
         const val LIMITE_PEDIDOS = 20
         const val LIMITE_CONTA = 20
+        const val LIMITE_PROBLEMAS = 5
+        val JANELA_PROBLEMAS: Duration = Duration.ofMinutes(10)
 
         /** Por quantos dias, depois de paga, a conta continua abrindo para o cliente rever o extrato. */
         const val EXTRATO_DIAS = 7L
