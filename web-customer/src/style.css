@@ -140,7 +140,7 @@ button, input { font: inherit; }
 .conta { margin-top: 0.25rem; color: #c9d6d9; font-weight: 600; }
 .conta strong { color: var(--sun); font: 800 1.15rem/1 var(--display); }
 
-.abas { display: grid; grid-template-columns: 1fr 1fr; background: #fff; border-bottom: 2px solid var(--ink); }
+.abas { display: grid; grid-template-columns: repeat(3, 1fr); background: #fff; border-bottom: 2px solid var(--ink); }
 .abas a {
   display: flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 0.5rem;
   color: var(--ink-2); font-weight: 700; text-decoration: none; border-bottom: 4px solid transparent;
@@ -167,3 +167,33 @@ button, input { font: inherit; }
 .order-items li:first-child { border-top: 0; }
 .order-total { margin-top: 0.5rem; text-align: right; color: var(--ink-2); }
 .order-total strong { color: var(--ink); font-family: var(--display); font-size: 1.15rem; }
+
+/* ---------- Avisos do quiosque (cancelamentos) ---------- */
+.avisos { margin: 0 0 1rem; padding: 0.9rem 1rem; background: #fff; border: 2px solid var(--late); border-radius: 14px; }
+.avisos p { margin: 0 0 0.6rem; font-weight: 700; color: var(--late); }
+.avisos .btn { min-height: 48px; }
+
+/* ---------- Conta: fechar e pagar ---------- */
+.sub { font-size: 1.25rem; margin: 1.5rem 0 0.6rem; }
+.resumo { margin: 1rem 0 0; padding: 0.9rem 1rem; background: #fff; border: 2px solid var(--ink); border-radius: 16px; }
+.resumo-linha { display: flex; justify-content: space-between; gap: 1rem; padding: 0.2rem 0; }
+.resumo-linha dt, .resumo-linha dd { margin: 0; }
+.resumo-linha.forte { margin-top: 0.4rem; padding-top: 0.6rem; border-top: 2px solid var(--ink); font-weight: 800; }
+.resumo-linha.forte dd { font: 800 1.5rem/1 var(--display); }
+.formas { display: grid; gap: 0.6rem; }
+.forma {
+  display: grid; gap: 0.1rem; width: 100%; min-height: 64px; padding: 0.7rem 1rem; text-align: left;
+  background: #fff; color: var(--ink); border: 2px solid var(--rule); border-radius: 14px; cursor: pointer;
+}
+.forma strong { font-size: 1.1rem; }
+.forma span { color: var(--ink-2); font-size: 0.95rem; }
+.forma.on { border-color: var(--ink); box-shadow: 0 0 0 3px var(--sun); }
+.wait { padding: 0.5rem 0 1rem; border-bottom: 2px solid var(--ink); margin-bottom: 1rem; }
+.wait h2 { font-size: 1.6rem; margin-bottom: 0.4rem; }
+.pix { margin: 0.5rem 0 1rem; text-align: center; }
+.pix .qr { width: min(100%, 16rem); height: auto; border: 2px solid var(--ink); border-radius: 12px; }
+.pix-valor { margin-top: 0.6rem; font: 800 1.8rem/1 var(--display); }
+.codigo-pix { margin: 0.75rem 0 1rem; }
+.codigo-pix summary { min-height: 44px; display: flex; align-items: center; font-weight: 700; cursor: pointer; }
+.codigo-pix textarea { width: 100%; padding: 0.6rem; font: 0.85rem/1.3 ui-monospace, Menlo, Consolas, monospace; color: var(--ink); background: #fff; border: 2px solid var(--rule); border-radius: 12px; overflow-wrap: anywhere; }
+.fora-da-tela { position: fixed; left: -9999px; top: 0; }

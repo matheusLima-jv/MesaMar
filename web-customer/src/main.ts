@@ -1,12 +1,16 @@
 import './style.css'
-import { ApiError, comanda, enviarPedido, meusPedidos, novoId, tokenDaUrl, type Comanda, type Pedido, type Produto } from './api'
+import {
+  ApiError, comanda, conta, enviarPedido, fecharConta, lerReais, meusPedidos, novoId, ouvirComanda, pixPago, reabrirConta, tokenDaUrl,
+  type Comanda, type Conta, type Metodo, type Pedido, type Produto
+} from './api'
 import { Carrinho, pendente } from './carrinho'
-import { h, mount } from './dom'
+import { h, lembrar, mount } from './dom'
 import { type Contexto } from './views/casca'
 import { telaCardapio } from './views/cardapio'
 import { telaCarrinho } from './views/carrinho'
 import { telaConfirmacao, telaEnvio } from './views/envio'
 import { telaPedidos } from './views/pedidos'
+import { telaConta, type AcoesConta, type EstadoConta } from './views/conta'
 
 const root = document.getElementById('app') as HTMLElement
 const ATUALIZAR_APOS_MS = 30_000
@@ -26,13 +30,21 @@ let atualizadoEm = 0
 let meus: Pedido[] | null = null
 let meusSemSinal = false
 let timerPedidos: number | undefined
+/** Conectado ao tempo real (SSE)? Se não, a lista de pedidos volta a se atualizar a cada 15 s. */
+let tempoReal = false
+let timerSincronia: number | undefined
+/** Cancelamentos que o cliente já leu (ids de pedido e de item), guardados no navegador. */
+let avisados = new Set<string>()
+let idsDosAvisos: string[] = []
+/** A tela "Conta": o extrato, a forma escolhida e o que o cliente digitou. */
+const estadoConta: EstadoConta = { conta: null, semSinal: false, erro: null, ocupado: false, metodo: null, troco: '', trocando: false, copiado: false }
 
 function indexar (dados: Comanda): Map<string, Produto> {
   return new Map(dados.cardapio.flatMap((s) => s.produtos).map((p) => [p.id, p]))
 }
 
 function usar (dados: Comanda): void {
-  ctx = { dados, carrinho: ctx?.carrinho ?? new Carrinho(token), produtos: indexar(dados) }
+  ctx = { dados, carrinho: ctx?.carrinho ?? new Carrinho(token), produtos: indexar(dados), avisos: ctx?.avisos ?? [], dispensarAvisos }
   atualizadoEm = Date.now()
 }
 
@@ -48,6 +60,8 @@ function desenhar (topo = true): void {
     mount(root, ...telaCarrinho(ctx, erroCarrinho, () => { void enviar() }, () => { desenhar() }))
   } else if (location.hash === '#pedidos') {
     mount(root, ...telaPedidos(ctx, meus, meusSemSinal))
+  } else if (location.hash === '#conta') {
+    mount(root, ...telaConta(ctx, estadoConta, acoesConta))
   } else if (location.hash === '#pedido' && confirmado !== null) {
     mount(root, ...telaConfirmacao(ctx, confirmado, () => { location.hash = '' }))
   } else {
@@ -57,27 +71,175 @@ function desenhar (topo = true): void {
   if (topo) window.scrollTo(0, 0)
 }
 
-/** Atualiza a lista de pedidos e o saldo. Se falhar (sem sinal), segue com a última lista que a página tem. */
+/** Só o cardápio e "Meus pedidos" se redesenham sozinhos: carrinho, envio e confirmação não podem mudar debaixo do cliente. */
+function redesenharSeLivre (): void {
+  if (pendente.ler(token) === null && (location.hash === '' || location.hash === '#pedidos')) desenhar(false)
+}
+
+const motivoDe = (m: string | null): string => (m !== null && m !== '' ? `: ${m}` : '')
+
+/** Cancelamentos do quiosque que o cliente ainda não leu viram avisos no topo, com o motivo. */
+function calcularAvisos (): void {
+  const textos: string[] = []
+  const ids: string[] = []
+  for (const p of meus ?? []) {
+    if (p.status === 'CANCELADO') {
+      if (avisados.has(p.id)) continue
+      textos.push(`O quiosque cancelou o pedido nº ${p.numero}${motivoDe(p.motivoCancelamento)}.`)
+      ids.push(p.id, ...p.itens.map((i) => i.id))
+      continue
+    }
+    for (const i of p.itens) {
+      if (!i.cancelado || avisados.has(i.id)) continue
+      textos.push(`O quiosque cancelou ${i.quantidade}× ${i.nome} do pedido nº ${p.numero}${motivoDe(i.motivoCancelamento)}.`)
+      ids.push(i.id)
+    }
+  }
+  ctx.avisos = textos
+  idsDosAvisos = ids
+}
+
+function dispensarAvisos (): void {
+  idsDosAvisos.forEach((id) => avisados.add(id))
+  lembrar.set(`avisados.${token}`, JSON.stringify([...avisados]))
+  ctx.avisos = []
+  idsDosAvisos = []
+  desenhar(false)
+}
+
+/** Atualiza a lista de pedidos, o saldo e os avisos. Se falhar (sem sinal), segue com a última lista que a página tem. */
 async function carregarPedidos (): Promise<void> {
   try {
     const r = await meusPedidos(token)
     meus = r.pedidos
     meusSemSinal = false
     ctx.dados.saldoCentavos = r.saldoCentavos
+    calcularAvisos()
   } catch {
     meusSemSinal = true
   }
-  if (location.hash === '#pedidos' && pendente.ler(token) === null) desenhar(false)
+  redesenharSeLivre()
 }
 
-/** Enquanto "Meus pedidos" está aberta: carrega agora e de novo a cada 15 s (o SSE vem na Fase 4). */
+/** Busca o extrato da conta e redesenha a tela só se algo mudou (para não atrapalhar quem está digitando o troco). */
+async function carregarConta (): Promise<void> {
+  const eraSemSinal = estadoConta.semSinal
+  const antes = JSON.stringify(estadoConta.conta)
+  try {
+    aplicarConta(await conta(token))
+  } catch {
+    estadoConta.semSinal = true
+  }
+  if (location.hash === '#conta' && (eraSemSinal !== estadoConta.semSinal || antes !== JSON.stringify(estadoConta.conta))) desenhar(false)
+}
+
+/** Guarda a conta nova e acerta o que depende dela: o saldo do cabeçalho e a forma já escolhida. */
+function aplicarConta (nova: Conta): void {
+  estadoConta.conta = nova
+  estadoConta.semSinal = false
+  ctx.dados.saldoCentavos = nova.saldoCentavos
+  if (nova.status !== 'AGUARDANDO_PAGAMENTO') estadoConta.trocando = false
+  // Conta já fechada em outro momento (ou em outro celular): a forma escolhida volta a aparecer marcada
+  if (estadoConta.metodo === null || (nova.metodo !== null && !estadoConta.trocando)) estadoConta.metodo = nova.metodo ?? estadoConta.metodo
+}
+
+/** Uma ação da conta por vez: os botões ficam desligados enquanto ela viaja, e a recusa do servidor vira aviso na tela. */
+async function agir (acao: () => Promise<Conta>): Promise<void> {
+  if (estadoConta.ocupado) return
+  estadoConta.ocupado = true
+  estadoConta.erro = null
+  desenhar(false)
+  try {
+    aplicarConta(await acao())
+    estadoConta.trocando = false
+  } catch (e) {
+    estadoConta.erro = e instanceof ApiError ? e.message : 'Algo deu errado. Tente de novo.'
+    // 409: a situação da conta mudou (outro celular, o quiosque): mostra a conta como está agora
+    if (e instanceof ApiError && e.status === 409) await carregarConta().catch(() => undefined)
+  } finally {
+    estadoConta.ocupado = false
+  }
+  // O cardápio passa a avisar (ou deixa de avisar) que a conta está sendo fechada
+  await atualizar(false)
+  if (location.hash === '#conta') desenhar(false)
+}
+
+async function copiarCodigo (codigo: string): Promise<void> {
+  let ok = false
+  try {
+    await navigator.clipboard.writeText(codigo)
+    ok = true
+  } catch {
+    // Sem permissão ou sem HTTPS: tenta o jeito antigo, com um campo escondido
+    const campo = document.createElement('textarea')
+    campo.value = codigo
+    campo.setAttribute('readonly', '')
+    campo.className = 'fora-da-tela'
+    document.body.append(campo)
+    campo.select()
+    try { ok = document.execCommand('copy') } catch { ok = false }
+    campo.remove()
+  }
+  estadoConta.erro = ok ? null : 'Não deu para copiar. Abra "Ver o código" abaixo do QR e copie à mão.'
+  estadoConta.copiado = ok
+  desenhar(false)
+  if (ok) window.setTimeout(() => { estadoConta.copiado = false; if (location.hash === '#conta') desenhar(false) }, 3_000)
+}
+
+const acoesConta: AcoesConta = {
+  escolher: (m: Metodo) => {
+    estadoConta.metodo = m
+    estadoConta.erro = null
+    desenhar(false)
+  },
+  digitarTroco: (texto: string) => { estadoConta.troco = texto },
+  fechar: () => {
+    const metodo = estadoConta.metodo
+    if (metodo === null) return
+    let troco: number | null = null
+    if (metodo === 'DINHEIRO' && estadoConta.troco.trim() !== '') {
+      troco = lerReais(estadoConta.troco)
+      if (troco === null || troco <= 0) {
+        estadoConta.erro = 'Não entendemos o valor do troco. Digite em reais, por exemplo: 100 ou 50,00.'
+        desenhar(false)
+        return
+      }
+    }
+    void agir(async () => await fecharConta(token, metodo, troco))
+  },
+  jaPaguei: () => { void agir(async () => await pixPago(token)) },
+  reabrir: () => { void agir(async () => await reabrirConta(token)) },
+  trocar: () => {
+    estadoConta.trocando = !estadoConta.trocando
+    estadoConta.erro = null
+    desenhar(false)
+  },
+  copiar: (codigo: string) => { void copiarCodigo(codigo) }
+}
+
+/** Algo mudou no quiosque (status, item cancelado, conta): busca tudo de novo. */
+async function sincronizar (): Promise<void> {
+  if (enviando) return
+  await atualizar(false)
+  await carregarPedidos()
+  if (location.hash === '#conta') await carregarConta()
+}
+
+/** Vários avisos seguidos viram uma busca só. */
+function agendarSincronia (): void {
+  window.clearTimeout(timerSincronia)
+  timerSincronia = window.setTimeout(() => { void sincronizar() }, 250)
+}
+
+/** Enquanto "Meus pedidos" ou "Conta" está aberta: carrega agora e, sem o tempo real, de novo a cada 15 s. */
 function acompanharPedidos (): void {
   window.clearTimeout(timerPedidos)
-  if (location.hash !== '#pedidos') return
-  void carregarPedidos()
+  const aba = location.hash
+  if (aba !== '#pedidos' && aba !== '#conta') return
+  void (aba === '#conta' ? carregarConta() : carregarPedidos())
   const volta = (): void => {
-    if (location.hash !== '#pedidos') return
-    if (document.visibilityState === 'visible') void carregarPedidos()
+    if (location.hash !== aba) return
+    if (document.visibilityState === 'visible' && !tempoReal) void (aba === '#conta' ? carregarConta() : carregarPedidos())
     timerPedidos = window.setTimeout(volta, ATUALIZAR_PEDIDOS_MS)
   }
   timerPedidos = window.setTimeout(volta, ATUALIZAR_PEDIDOS_MS)
@@ -203,16 +365,26 @@ async function iniciar (): Promise<void> {
     else telaErro('Sem sinal', 'Não deu para abrir a sua comanda. Confira a internet e tente de novo.', true)
     return
   }
+  try {
+    avisados = new Set(JSON.parse(lembrar.get(`avisados.${token}`) ?? '[]') as string[])
+  } catch { avisados = new Set() }
   window.onhashchange = trocouDeTela
   desenhar()
   acompanharPedidos()
+  // Tempo real: o quiosque avisa quando um pedido muda. Sem conexão, "Meus pedidos" volta a consultar a cada 15 s.
+  ouvirComanda(token, agendarSincronia, (conectado) => {
+    tempoReal = conectado
+    if (conectado) agendarSincronia()
+  })
+  // Cancelamentos que aconteceram com a página fechada também viram aviso
+  void carregarPedidos()
   // Pedido que não chegou antes de a página fechar: continua de onde parou
   if (pendente.ler(token) !== null) void tentarEnviar()
 }
 
 // Voltou para a página depois de um tempo (trocou de app, bloqueou a tela): confere se algo acabou
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && ctx !== undefined && location.hash === '#pedidos') acompanharPedidos()
+  if (document.visibilityState === 'visible' && ctx !== undefined && (location.hash === '#pedidos' || location.hash === '#conta')) acompanharPedidos()
   if (document.visibilityState === 'visible' && ctx !== undefined && !enviando && Date.now() - atualizadoEm > ATUALIZAR_APOS_MS) {
     // Só redesenha o cardápio e o carrinho: a confirmação do pedido fica como está
     void atualizar(location.hash === '#carrinho' || location.hash === '')

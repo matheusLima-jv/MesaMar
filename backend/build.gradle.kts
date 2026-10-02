@@ -31,7 +31,7 @@ dependencies {
     implementation(libs.flyway.database.postgresql)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.kotlin.reflect)
-    runtimeOnly(libs.postgresql)
+    implementation(libs.postgresql)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.spring.boot.starter.webmvc.test)
@@ -73,6 +73,19 @@ tasks.withType<Test> {
 // -PskipFrontendBuild pula o npm (usado no Docker, onde os fronts são buildados
 // num estágio Node separado e o `dist/` já existe). A cópia acontece sempre.
 // ---------------------------------------------------------------------------
+// Há mais de uma função main (a do app e a do gerador de chaves VAPID): o Spring Boot precisa saber qual é a do app.
+springBoot {
+    mainClass.set("br.com.mesamar.MesaMarApplicationKt")
+}
+
+// Gera um par de chaves VAPID para o Web Push. Nada é gravado: copie a saída para o .env do servidor.
+tasks.register<JavaExec>("gerarVapid") {
+    group = "mesamar"
+    description = "Imprime um par de chaves VAPID (MESAMAR_VAPID_PUBLIC_KEY e MESAMAR_VAPID_PRIVATE_KEY)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("br.com.mesamar.push.GerarChavesVapidKt")
+}
+
 val skipFrontendBuild = providers.gradleProperty("skipFrontendBuild").isPresent
 val npmCommand = if (Os.isFamily(Os.FAMILY_WINDOWS)) "npm.cmd" else "npm"
 val generatedStaticDir = layout.buildDirectory.dir("generated-frontend")

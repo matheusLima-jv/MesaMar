@@ -13,6 +13,8 @@ import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.comanda.TipoContador
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.Money
+import br.com.mesamar.eventos.PublicadorEventos
+import br.com.mesamar.pagamento.PagamentoRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -85,7 +87,9 @@ class PedidoService(
     private val comandas: ComandaRepository,
     private val cardapio: CardapioService,
     private val contador: ContadorDiario,
+    private val pagamentos: PagamentoRepository,
     private val eventos: ApplicationEventPublisher,
+    private val tempoReal: PublicadorEventos,
     private val clock: Clock,
 ) {
     @Transactional
@@ -162,6 +166,8 @@ class PedidoService(
                     )
                 },
             )
+        // Avisa o app do quiosque (fila) e a página do cliente. O NOTIFY só sai se esta transação der commit.
+        tempoReal.pedidoMudou(barraca.id, comanda.id, pedido.id)
         eventos.publishEvent(PedidoCriado(pedido.id, barraca.id, comanda.id, pedido.numeroPedido, pedido.status))
         return ResultadoPedido.Ok(PedidoDetalhe(pedido, gravados), nova = true)
     }
@@ -170,9 +176,9 @@ class PedidoService(
     @Transactional(readOnly = true)
     fun cardapioDoCliente(barraca: Barraca): List<SecaoCardapio> = cardapio.secoes(barraca).filter { it.noCardapio.isNotEmpty() }
 
-    /** Quanto a comanda já pediu (itens não cancelados). Ainda sem pagamentos: eles chegam na Fase 5. */
+    /** Quanto a comanda ainda deve: o que pediu (itens não cancelados) menos o que o quiosque já confirmou de pagamento. */
     @Transactional(readOnly = true)
-    fun saldoCentavos(comandaId: UUID): Long = itens.totalCentavos(comandaId)
+    fun saldoCentavos(comandaId: UUID): Long = itens.totalCentavos(comandaId) - pagamentos.totalCentavos(comandaId)
 
     /** Os pedidos da comanda, do mais antigo para o mais novo, com os itens. */
     @Transactional(readOnly = true)
@@ -192,14 +198,21 @@ class PedidoService(
         return when {
             !barraca.ativa -> Bloqueio("barraca-inativa", "Esta barraca não está atendendo pelo MesaMar agora. Fale com um atendente.")
             comanda.status == StatusComanda.AGUARDANDO_PAGAMENTO ->
-                Bloqueio("aguardando-pagamento", "Sua conta está sendo fechada. Para pedir mais, fale com um atendente.")
+                Bloqueio(
+                    "aguardando-pagamento",
+                    "Sua conta está sendo fechada. Para pedir mais, abra a aba Conta e toque em Voltar e pedir mais.",
+                )
             comanda.status == StatusComanda.BLOQUEADA ->
                 Bloqueio("comanda-bloqueada", "Sua comanda está bloqueada. Fale com um atendente.")
             comanda.status == StatusComanda.FECHADA ->
                 Bloqueio("comanda-fechada", "Esta comanda foi encerrada. Obrigado pela visita!")
             comanda.status == StatusComanda.CANCELADA -> Bloqueio("comanda-cancelada", "Esta comanda foi cancelada. Fale com um atendente.")
             barraca.pedidosPausados ->
-                Bloqueio("pedidos-pausados", "O quiosque pausou os pedidos por agora. Chame um atendente ou tente de novo daqui a pouco.")
+                Bloqueio(
+                    "pedidos-pausados",
+                    barraca.mensagemPausa?.let { "O quiosque pausou os pedidos: $it" }
+                        ?: "O quiosque pausou os pedidos por agora. Chame um atendente ou tente de novo daqui a pouco.",
+                )
             // Limite atingido: a conta chegou ao valor que o dono definiu, então paga uma parte antes de pedir mais
             limite != null && saldoCentavos >= limite ->
                 Bloqueio("limite-saldo", "Sua conta chegou a ${Money.format(limite)}. Para pedir mais, pague uma parte com um atendente.")

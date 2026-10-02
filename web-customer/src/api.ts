@@ -46,6 +46,7 @@ export interface PedidoEnvio {
 }
 
 export interface ItemPedido {
+  id: string
   produtoId: string
   nome: string
   precoCentavos: number
@@ -54,6 +55,8 @@ export interface ItemPedido {
   subtotalCentavos: number
   /** Item que o quiosque cancelou: continua na lista, mas não entra no total. */
   cancelado: boolean
+  /** Por que o quiosque cancelou (ex.: "Esgotou"). */
+  motivoCancelamento: string | null
 }
 
 export interface Pedido {
@@ -63,11 +66,49 @@ export interface Pedido {
   hora: string
   itens: ItemPedido[]
   totalCentavos: number
+  /** Quando o pedido todo foi cancelado, por quê. */
+  motivoCancelamento: string | null
 }
 
 export interface MeusPedidos {
   saldoCentavos: number
   pedidos: Pedido[]
+}
+
+export type Metodo = 'PIX' | 'DINHEIRO' | 'CARTAO'
+
+export interface Pix {
+  /** O "copia e cola" do Pix; o mesmo texto vira o QR. */
+  codigo: string
+  chave: string
+  nomeRecebedor: string
+  cidade: string
+  valorCentavos: number
+}
+
+export interface PagamentoFeito {
+  metodo: Metodo
+  rotulo: string
+  valorCentavos: number
+  /** Dinheiro: quanto o cliente entregou, para mostrar o troco. */
+  valorRecebidoCentavos: number | null
+  hora: string
+}
+
+/** O extrato da conta e em que ponto do fechamento ela está. */
+export interface Conta {
+  status: 'ABERTA' | 'AGUARDANDO_PAGAMENTO' | 'FECHADA' | 'CANCELADA' | 'BLOQUEADA'
+  pedidoCentavos: number
+  pagoCentavos: number
+  saldoCentavos: number
+  metodo: Metodo | null
+  trocoParaCentavos: number | null
+  /** Hora em que o cliente avisou o quiosque (dinheiro e cartão: ao fechar; Pix: no "já paguei"). */
+  avisadoEm: string | null
+  pix: Pix | null
+  aceitaPix: boolean
+  pedidos: Pedido[]
+  pagamentos: PagamentoFeito[]
 }
 
 export class ApiError extends Error {
@@ -133,6 +174,60 @@ export async function enviarPedido (token: string, pedido: PedidoEnvio): Promise
   return await chamar<Pedido>('POST', token, '/pedidos', pedido)
 }
 
+/** O extrato e o ponto do fechamento da conta. */
+export async function conta (token: string): Promise<Conta> {
+  return await chamar<Conta>('GET', token, '/conta')
+}
+
+/** "Fechar conta": a comanda passa a aguardar o pagamento. Repetir troca a forma de pagamento. */
+export async function fecharConta (token: string, metodo: Metodo, trocoParaCentavos: number | null): Promise<Conta> {
+  return await chamar<Conta>('POST', token, '/conta/fechar', { metodo, trocoParaCentavos })
+}
+
+/** Pix: "já paguei". */
+export async function pixPago (token: string): Promise<Conta> {
+  return await chamar<Conta>('POST', token, '/conta/pix-pago', {})
+}
+
+/** "Voltar e pedir mais": só enquanto nenhum pagamento foi confirmado. */
+export async function reabrirConta (token: string): Promise<Conta> {
+  return await chamar<Conta>('POST', token, '/conta/reabrir', {})
+}
+
+/**
+ * Tempo real: o servidor avisa quando um pedido ou a conta da comanda muda (status, item cancelado, pagamento) e a página busca de novo.
+ * `aoMudar` roda a cada aviso; `aoEstado(true)` quando conectou e `aoEstado(false)` quando caiu (o navegador reconecta sozinho).
+ * Devolve a função que encerra a conexão.
+ */
+export function ouvirComanda (token: string, aoMudar: () => void, aoEstado: (conectado: boolean) => void): () => void {
+  let es: EventSource | null = null
+  let timer: number | undefined
+  let fechado = false
+  const abrir = (): void => {
+    if (fechado) return
+    es = new EventSource(`/api/c/${encodeURIComponent(token)}/eventos`)
+    es.onopen = () => { aoEstado(true) }
+    es.addEventListener('pedido', aoMudar)
+    // A conta mudou (o quiosque recebeu um pagamento, bloqueou a comanda…)
+    es.addEventListener('conta', aoMudar)
+    es.addEventListener('ressincronizar', aoMudar)
+    es.onerror = () => {
+      aoEstado(false)
+      // Recusada de vez (muito uso, link inválido): o navegador não tenta mais. Tenta de novo daqui a pouco.
+      if (es?.readyState === EventSource.CLOSED) {
+        es = null
+        timer = window.setTimeout(abrir, 30_000)
+      }
+    }
+  }
+  abrir()
+  return () => {
+    fechado = true
+    window.clearTimeout(timer)
+    es?.close()
+  }
+}
+
 /** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */
 export function novoId (): string {
   const b = crypto.getRandomValues(new Uint8Array(16))
@@ -146,4 +241,12 @@ export function novoId (): string {
 export function reais (centavos: number): string {
   const inteiro = String(Math.floor(centavos / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
   return `R$ ${inteiro},${String(centavos % 100).padStart(2, '0')}`
+}
+
+/** "100", "100,50" ou "R$ 1.250,00" → centavos. `null` se não for um valor em reais. */
+export function lerReais (texto: string): number | null {
+  const limpo = texto.replace(/R\$/g, '').replace(/\s/g, '')
+  const m = /^(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,2}))?$/.exec(limpo)
+  if (m === null) return null
+  return Number(m[1].replace(/\./g, '')) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
 }

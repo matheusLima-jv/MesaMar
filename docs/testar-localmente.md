@@ -155,6 +155,41 @@ docker compose exec db psql -U mesamar -c "update item_pedido set cancelado = tr
 docker compose exec db psql -U mesamar -c "update barraca set pedidos_pausados = true;"
 ```
 
+### Fila e tempo real (Fase 4 · checkpoint 4.1)
+
+Use o app do quiosque (Carla) no **celular A** e três clientes (check-in de Ana, Bruno e Carol) nos **celulares B, C e D**. Se tiver só um celular de cliente, use abas anônimas diferentes.
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 67 | Celular A: abrir a aba **Fila** | Olhar | "Tudo em dia" e o indicador verde "Ao vivo" |
+| 68 | Celulares B, C e D | Pedir um item cada, **com 10 s de intervalo** | No celular A, **sem recarregar**, os pedidos aparecem na ordem em que foram feitos, com o selo "Novo", **bip e vibração** (toque na tela uma vez antes, para o navegador liberar o som). Guarda-sol em destaque, nome, itens e observações. A aba mostra a contagem |
+| 69 | Painel → Regras → "Alerta de pedido parado" `2` min; deixar um pedido parado | Esperar | Faixa **verde**, depois **amarela** (1 min) e **vermelha** com a etiqueta "Atrasado" (2 min). A cor muda sozinha |
+| 70 | Celular A: "Em preparo" num pedido, depois "Entregue" | Olhar o celular do cliente, **sem recarregar** | O status muda em até 2 segundos. O pedido entregue some da fila |
+| 71 | Celular A: "Cancelar…" num pedido com 2 itens, escolher 1 item e **não** escolher o motivo | Tocar em "Confirmar cancelamento" | "Escolha o motivo do cancelamento." |
+| 72 | Mesmo diálogo, motivo "Esgotou" | Confirmar e olhar o celular do cliente | Aviso vermelho "O quiosque cancelou 1× … do pedido nº …: Esgotou.", item riscado e **a conta baixa**. "Entendi" fecha o aviso |
+| 73 | Celular A: cancelar um pedido inteiro com "Outro" e escrever um detalhe | Olhar o cliente | Aviso com "Outro: o detalhe" e o pedido "Cancelado" |
+| 74 | Celular A: filtros "Pendentes" e o seletor de guarda-sol | Tocar | Só os pedidos que combinam aparecem |
+| 75 | Celular A: **modo avião por 20 s**, e um cliente pedindo nesse tempo. Depois, desligar o modo avião | Olhar | "Reconectando…" em vermelho e, ao voltar, "Ao vivo" e **o pedido feito no meio aparece sozinho** |
+
+Também vale conferir o botão **"Som: ligado"** (alterna e continua assim depois de recarregar) e, em dois celulares do quiosque, tocar em "Entregue" no mesmo pedido quase juntos: só um aplica, e o outro mostra "Esse pedido já foi entregue." sem quebrar nada.
+
+### Avisos de pedido, atraso e pausa (Fase 4 · checkpoint 4.2)
+
+**Precisa do servidor publicado em HTTPS** (`https://mesamar.0mega.fun`) e das chaves VAPID no `.env` (passo a passo no `docs/deploy.md`). O push não funciona em `http://IP-DO-PC`.
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 76 | App do quiosque (celular A), aba Mais | Olhar o cartão "Avisos de pedido" | Com as chaves configuradas: botão **"Ativar os avisos"**. Sem elas: "Os avisos ainda não foram configurados no servidor" |
+| 77 | Android, Chrome: "Ativar os avisos" | Permitir as notificações | "Ativados neste celular", com "Mandar um aviso de teste" |
+| 78 | "Mandar um aviso de teste", depois **bloquear a tela** | Esperar | Chega a notificação "MesaMar: avisos funcionando", também com a tela bloqueada |
+| 79 | **Fechar o app e bloquear a tela do celular A.** No celular B (cliente), fazer um pedido com 3 itens | Olhar o celular A | Notificação **"Pedido nº X · Guarda-sol 12" / "3 itens"**, com vibração. **Tocar abre a Fila** no pedido |
+| 80 | iPhone, **sem** instalar o app: aba Mais | Olhar | "No iPhone, os avisos só funcionam com o app instalado na tela inicial". Instalando (itens 41) e abrindo pelo ícone, o botão aparece e os avisos funcionam (iOS 16.4 ou mais novo) |
+| 81 | Painel → Regras → "Alerta de pedido parado" `1` min. Deixar um pedido parado | Esperar até 90 s | Notificação **"Pedido nº X está parado"**. Com o app aberto: três bips graves e um aviso vermelho. O cartão fica **vermelho com "Atrasado"**. O aviso sai **uma vez só** |
+| 82 | App aberto e à vista, cliente pede | Olhar | Bip duplo e vibração, selo "Novo" e a notificação também aparece |
+| 83 | Fila → "Pausar pedidos", recado `Voltamos em 10 minutos` | Olhar o celular B, **sem recarregar**; tentar pedir | Banner "O quiosque pausou os pedidos: Voltamos em 10 minutos" e o pedido é recusado. "Voltar a receber pedidos" libera na hora |
+| 84 | Painel → Equipe: desativar a Carla. Cliente faz um pedido | Olhar o celular da Carla | A Carla **não recebe** o aviso (e o app dela volta para o login) |
+| 85 | Aba Mais → "Sair deste celular". Cliente faz um pedido | Olhar o celular | **Nenhuma** notificação nesse celular |
+
 > A instalação na tela inicial (item 41) exige **HTTPS** fora do `localhost`. No celular pela rede local (`http://IP-DO-PC`), o app abre, mas o Chrome não oferece "Instalar". Para testar a instalação de verdade, use o ambiente publicado (`https://mesamar.0mega.fun/staff/`).
 
 Consultar direto no banco, se quiser:
@@ -162,6 +197,72 @@ Consultar direto no banco, se quiser:
 ```bash
 docker compose exec db psql -U mesamar -c "select nome, nome_barraca, praia, whatsapp, criado_em from lead order by criado_em desc;"
 ```
+
+### Fechar conta e Pix (Fase 5 · checkpoint 5.1)
+
+Precisa de uma barraca com a chave Pix configurada (Painel → Pix) e de um cliente com pedidos. Para ler o QR no app do banco, use o celular do cliente **e outro aparelho** para ler a tela (o app do banco não lê a própria tela).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 86 | Celular do cliente → aba **Meus pedidos** | Olhar embaixo da lista | Botão **"Fechar conta"**, que abre a aba **Conta** |
+| 87 | Aba **Conta** | Olhar o extrato | Todos os pedidos, itens cancelados **riscados**, e **"Falta pagar"** igual ao saldo do cabeçalho. O botão "Fechar a conta" fica desligado até escolher a forma |
+| 88 | Escolher **Dinheiro**, digitar `abc` em "Vou pagar com R$", tocar em "Fechar a conta" | Olhar | Aviso "Não entendemos o valor do troco". Com `100`: **"Aguardando confirmação do quiosque"** e "Vá ao quiosque pagar R$ … em dinheiro (troco para R$ 100,00)". Valor de troco **menor que a conta** é recusado |
+| 89 | Aba **Cardápio**, depois **Conta → "Voltar e pedir mais"** | Tentar pedir antes e depois | Com a conta fechando, o cardápio avisa "Sua conta está sendo fechada…" e **não deixa pedir**. Depois de "Voltar e pedir mais", dá para pedir de novo e a escolha de forma some |
+| 90 | Escolher **Cartão** e fechar | Olhar | "Vá ao quiosque pagar … na maquininha" e "O quiosque foi avisado às HH:MM" |
+| 91 | Escolher **Pix** e fechar | Olhar a tela e **ler o QR com o app de um banco** (ou colar o código em "Pix copia e cola") | O banco mostra **o nome e a cidade da barraca e o valor da conta**. Conferir também que a **chave** é a do dono |
+| 92 | Tocar em **"Copiar código Pix"** | Colar num bloco de notas | O texto começa com `000201` e termina com `6304` e 4 letras/números. Em `http://IP-DO-PC` o navegador pode bloquear a cópia: o aviso manda abrir **"Ver o código"** e copiar à mão |
+| 93 | Tocar em **"Já paguei"** | Olhar | "Você avisou às HH:MM. O quiosque vai conferir o Pix no app do banco." O botão some |
+| 94 | **"Trocar a forma de pagamento"** → Dinheiro → "Trocar a forma de pagamento" | Olhar | Volta a "Aguardando confirmação", agora em dinheiro, **sem** o QR |
+| 95 | Painel do dono sem chave Pix, cliente fecha a conta | Olhar as formas | Só **Dinheiro** e **Cartão** aparecem |
+| 96 | Cliente com a conta zerada (nenhum pedido) | Abrir a aba Conta | "Não há nada para pagar agora" e nenhuma forma de pagamento |
+
+> No 5.1 o app do quiosque **ainda não mostra** a comanda aguardando pagamento, e o dono não é avisado: isso chega no 5.2. Hoje só dá para ver pelo celular do cliente.
+
+### Pagamentos: receber, bloquear e fechar a conta (Fase 5 · checkpoint 5.2)
+
+Use dois celulares: **A** (cliente, pela página do QR) e **B** (dono ou atendente, no app do quiosque). Os itens 100 e 101 precisam do servidor em HTTPS e das chaves VAPID (como os itens 76 a 85).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 97 | B, aba **Pagamentos** | Olhar com nenhuma conta fechando | "Ninguém avisou que vai pagar" e, embaixo, **"Contas abertas com saldo"** com quem tem pedidos, as maiores primeiro |
+| 98 | A: Conta → Dinheiro, "vou pagar com" `100` → Fechar a conta | Olhar o B **sem recarregar** | A conta aparece na aba (com o número na aba), **som de três notas** e aviso "Guarda-sol 12 · Ana está indo pagar · R$ … · Dinheiro (troco para R$ 100,00)". O cartão mostra "Troco para R$ 100,00: devolver R$ …" |
+| 99 | A: "Trocar a forma de pagamento" → Pix → "Já paguei" | Olhar o B | A conta passa a dizer **"Pix · avisou que pagou agora"** e **"Confira no app do banco antes de confirmar"** |
+| 100 | **Fechar o app no B e bloquear a tela.** No A, fechar a conta em Cartão | Olhar o B | Notificação **"Guarda-sol 12 · indo pagar" / "R$ … · Cartão"**, sem o nome do cliente. Tocar abre a aba **Pagamentos** |
+| 101 | Mesmo teste, no Pix, tocando em "Já paguei" | Olhar o B | **"Guarda-sol 12 · Pix enviado" / "R$ … · confira no app do banco"**. Escolher o Pix, sem tocar em "Já paguei", **não** avisa |
+| 102 | No A, tocar duas vezes seguidas no mesmo botão de fechar | Olhar o B | Um aviso só |
+| 103 | B: **Receber** na conta do Pix (confira antes no app do seu banco) | Ver o diálogo | Vem com **Pix** marcado e o aviso "Confira no app do seu banco antes de confirmar". "Valor recebido agora" já traz o que falta |
+| 104 | B: receber **uma parte** (ex.: R$ 20,00 no Pix) | Olhar o A, **sem recarregar** | "Recebido R$ 20,00… Ainda falta R$ …". No A, **"Já pago"** e "Falta pagar" mudam na hora, e o Pix mostra só o que falta |
+| 105 | B: receber o resto **em dinheiro**, "entregou" um valor maior | Olhar o diálogo antes de confirmar | **"Devolver de troco: R$ …"** com a conta certa. Ao confirmar: "Conta de Ana paga e encerrada. Troco: R$ …". No A: **"Conta paga"** com o extrato |
+| 106 | B: tocar duas vezes em "Confirmar" (ou confirmar de novo depois de tirar o celular do sinal e voltar) | Olhar o extrato do A | **Um pagamento só** |
+| 107 | B: tentar receber **mais do que falta**, ou deixar o valor vazio | Olhar | Mensagem "O valor passa do que falta pagar" ou "Digite quanto o cliente pagou", sem registrar nada |
+| 108 | B: **Bloquear** o cliente. No A, tentar pedir | Olhar o A | O cardápio mostra "Sua comanda está bloqueada" e **não deixa pedir**. **Desbloquear** libera na hora |
+| 109 | Modo "pagar a cada pedido" (Painel → Regras): A faz um pedido de R$ 24,00 | Olhar a Fila no B, depois receber R$ 10,00 e o resto | O pedido **não** está na fila; com R$ 10,00 continua fora; ao completar R$ 24,00 **entra na fila** com o aviso de pedido novo, e o tempo de espera **começa nessa hora** |
+| 110 | B como **dono**: **Fechar sem receber…** numa conta com saldo. Depois, entrar como **atendente** | Olhar | O dono precisa escrever o motivo (mín. 3 letras); a conta some e fica registrado o valor não recebido. **O atendente não vê** o botão "Fechar sem receber" |
+
+> Link de uma conta **paga há mais de 7 dias** deixa de abrir ("Esse link não vale mais"). Para ver isso sem esperar, mude `fechada_em` no banco: `docker compose exec db psql -U mesamar -c "update comanda set fechada_em = now() - interval '8 days' where status = 'FECHADA';"`.
+
+### Relatório do dia e LGPD (Fase 5 · checkpoint 5.3)
+
+Use um dia com movimento (ou crie: 3 ou 4 clientes, pedidos, pagamentos em formas diferentes, um cancelamento e uma conta fechada sem receber).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 111 | Painel → **Relatório** | Abrir | "Hoje, DD/MM/AAAA" com Resumo, Recebido por forma, Mais vendidos, Cancelamentos, Contas em aberto e Não recebido. Sem rolagem lateral no celular |
+| 112 | Mesma página | Somar o **caixa do dia** (o que você recebeu em Pix, dinheiro e cartão) | **Recebido no dia** e **cada forma** batem com o seu caixa. O troco devolvido **não** entra no dinheiro |
+| 113 | Mesma página | Conferir "Vendido", "Clientes" e os pedidos | **Vendido** = soma dos pedidos sem os itens cancelados. **Vendido = Recebido + Contas em aberto + Não recebido** (se o dia está todo fechado) |
+| 114 | Mesma página | Olhar "Mais vendidos", "Cancelamentos" e "Tempo médio" | A quantidade de cada item confere com a fila; os cancelamentos mostram o motivo (Esgotou, Cliente desistiu, Outro); o tempo médio vai da entrada na fila até "Entregue" |
+| 115 | **Baixar em CSV** → abrir no Excel ou Google Planilhas | Olhar | Abre em colunas **Seção, Item, Quantidade, Valor (R$)**, com acentos certos e valores com vírgula (ex.: `49,00`) |
+| 116 | "Dia anterior" / escolher uma data / digitar uma data no futuro na URL (`?dia=2099-01-01`) | Olhar | Mostra os números do dia escolhido (as **contas em aberto** são sempre as de agora); data futura volta para hoje |
+| 117 | Outra conta de dono (outra barraca) | Abrir o relatório | **Nenhum** cliente, valor ou motivo da primeira barraca |
+| 118 | Banco: envelhecer um cliente e rodar o job (ver abaixo) | Abrir o relatório e a página do cliente | Nome vira **"Cliente"** e o WhatsApp some; **os valores do relatório não mudam**. Cliente com conta ainda aberta **não** é anonimizado |
+
+Para o item 118, sem esperar 90 dias, no banco do compose:
+
+```bash
+docker compose exec db psql -U mesamar -c "update cliente set criado_em = now() - interval '91 days' where nome = 'Ana';"
+```
+
+O job roda todo dia às 3h30 (Brasília): depois de envelhecer o cliente, confira no dia seguinte (o `AnonimizacaoTest` já cobre o comportamento; aqui você só confere que ele rodou de madrugada no servidor de verdade, procurando "LGPD: N clientes anonimizados" em `docker compose logs app`).
 
 ## 5. Testes E2E (os mesmos do CI)
 
@@ -183,7 +284,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 252 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 359 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 

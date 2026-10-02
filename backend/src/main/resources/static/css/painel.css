@@ -196,3 +196,12 @@
 .menu-off h2 { font-size: 1.3rem; margin: 0 0 0.25rem; }
 .optional { font-weight: 500; color: var(--ink-2); }
 .form-second { margin-top: 0.75rem; }
+
+/* ---------- Relatório do dia (Fase 5 · 5.3) ---------- */
+.relatorio-dia { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 1rem 0; }
+.relatorio-dia input[type='date'] { min-height: 48px; padding: 0 0.75rem; font: inherit; color: var(--ink); background: #fff; border: 2px solid var(--rule); border-radius: 12px; }
+.tabela { width: 100%; border-collapse: collapse; margin: 0 0 1rem; font-variant-numeric: tabular-nums; }
+.tabela th, .tabela td { padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--rule); text-align: right; vertical-align: top; }
+.tabela thead th { color: var(--ink-2); font-size: 0.85rem; font-weight: 700; }
+.tabela th[scope='col']:first-child, .tabela th[scope='row'] { text-align: left; font-weight: 600; overflow-wrap: anywhere; }
+.tabela tfoot th, .tabela tfoot td { border-bottom: 0; border-top: 2px solid var(--ink); font-weight: 800; }

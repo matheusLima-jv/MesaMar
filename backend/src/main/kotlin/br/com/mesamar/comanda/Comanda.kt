@@ -1,5 +1,6 @@
 package br.com.mesamar.comanda
 
+import br.com.mesamar.pagamento.MetodoPagamento
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -83,6 +84,23 @@ class Comanda(
     val abertaEm: Instant,
     @Column(name = "fechada_em")
     var fechadaEm: Instant? = null,
+    /** Como o cliente escolheu pagar ao fechar a conta. Só tem valor enquanto a comanda aguarda o pagamento. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "metodo_pagamento_pretendido", length = 10)
+    var metodoPagamentoPretendido: MetodoPagamento? = null,
+    /** Dinheiro: "vou pagar com R$ 100,00", para o dono separar o troco. */
+    @Column(name = "troco_para_centavos")
+    var trocoParaCentavos: Long? = null,
+    /** Quando o cliente avisou que está indo pagar (ou que já pagou o Pix). Ordena a aba Pagamentos. */
+    @Column(name = "aviso_pagamento_em")
+    var avisoPagamentoEm: Instant? = null,
+    /** Conta encerrada pelo dono com saldo pendente: por quê, quanto ficou sem pagar e quem fechou (auditoria). */
+    @Column(name = "fechamento_forcado_motivo", length = 120)
+    var fechamentoForcadoMotivo: String? = null,
+    @Column(name = "saldo_perdoado_centavos")
+    var saldoPerdoadoCentavos: Long? = null,
+    @Column(name = "fechada_por_usuario_id")
+    var fechadaPorUsuarioId: UUID? = null,
 )
 
 interface ClienteRepository : JpaRepository<Cliente, UUID>

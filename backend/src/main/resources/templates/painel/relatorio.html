@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{painel/fragments :: head('Relatório')}"></head>
+<body class="painel">
+<header th:replace="~{painel/fragments :: appHeader('relatorio')}"></header>
+
+<main id="conteudo" class="wrap app-main">
+  <section class="app-section" aria-labelledby="t-relatorio">
+    <p class="kicker">Relatório do dia</p>
+    <h1 id="t-relatorio" class="app-title" th:text="${ehHoje} ? |Hoje, ${diaTexto}| : ${diaTexto}">Hoje, 01/10/2026</h1>
+
+    <form class="relatorio-dia" method="get" action="/painel/relatorio" th:action="@{/painel/relatorio}">
+      <a class="link-button" th:href="@{/painel/relatorio(dia=${anteriorIso})}" rel="prev">← Dia anterior</a>
+      <label class="sr-only" for="dia">Escolher o dia</label>
+      <input id="dia" name="dia" type="date" th:value="${diaIso}" th:max="${hojeIso}" required>
+      <button class="btn btn-ink" type="submit">Ver</button>
+      <a class="link-button" th:if="${proximoIso}" th:href="@{/painel/relatorio(dia=${proximoIso})}" rel="next">Dia seguinte →</a>
+      <a class="link-button" th:unless="${ehHoje}" th:href="@{/painel/relatorio}">Hoje</a>
+    </form>
+    <p class="field-error" role="alert" th:if="${dataInvalida}">Não entendemos essa data. Mostrando hoje.</p>
+    <p><a class="link-button" th:href="@{/painel/relatorio.csv(dia=${diaIso})}" download>Baixar em CSV</a></p>
+  </section>
+
+  <section class="app-section app-grid">
+    <div class="app-card">
+      <h2>Resumo</h2>
+      <dl class="kv">
+        <div th:each="linha : ${resumo}"><dt th:text="${linha.first}">Recebido</dt><dd th:text="${linha.second}">R$ 0,00</dd></div>
+      </dl>
+    </div>
+
+    <div class="app-card">
+      <h2>Recebido por forma</h2>
+      <table class="tabela">
+        <caption class="sr-only">Quanto entrou em cada forma de pagamento</caption>
+        <thead><tr><th scope="col">Forma</th><th scope="col">Pagamentos</th><th scope="col">Valor</th></tr></thead>
+        <tbody>
+          <tr th:each="f : ${formas}"><th scope="row" th:text="${f.rotulo}">Pix</th><td th:text="${f.detalhe}">0</td><td th:text="${f.valor}">R$ 0,00</td></tr>
+        </tbody>
+        <tfoot><tr><th scope="row" colspan="2">Total recebido</th><td th:text="${totalRecebido}">R$ 0,00</td></tr></tfoot>
+      </table>
+      <p class="form-hint">O que entrou no dia, pelo horário em que o pagamento foi confirmado no quiosque.</p>
+    </div>
+  </section>
+
+  <section class="app-section app-grid">
+    <div class="app-card">
+      <h2>Mais vendidos</h2>
+      <p th:if="${#lists.isEmpty(maisVendidos)}">Nenhum item vendido neste dia.</p>
+      <table class="tabela" th:unless="${#lists.isEmpty(maisVendidos)}">
+        <caption class="sr-only">Os dez itens mais vendidos</caption>
+        <thead><tr><th scope="col">Item</th><th scope="col">Quantidade</th><th scope="col">Valor</th></tr></thead>
+        <tbody>
+          <tr th:each="i : ${maisVendidos}"><th scope="row" th:text="${i.rotulo}">Água de coco</th><td th:text="${i.detalhe}">3 un.</td><td th:text="${i.valor}">R$ 36,00</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="app-card">
+      <h2>Cancelamentos</h2>
+      <p th:if="${#lists.isEmpty(cancelamentos)}">Nada foi cancelado neste dia.</p>
+      <table class="tabela" th:unless="${#lists.isEmpty(cancelamentos)}">
+        <caption class="sr-only">Itens cancelados por motivo</caption>
+        <thead><tr><th scope="col">Motivo</th><th scope="col">Quantidade</th><th scope="col">Valor</th></tr></thead>
+        <tbody>
+          <tr th:each="c : ${cancelamentos}"><th scope="row" th:text="${c.rotulo}">Esgotou</th><td th:text="${c.detalhe}">2 un.</td><td th:text="${c.valor}">R$ 24,00</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="app-section app-grid">
+    <div class="app-card">
+      <h2>Contas em aberto agora</h2>
+      <p th:if="${#lists.isEmpty(emAberto)}">Ninguém está devendo.</p>
+      <table class="tabela" th:unless="${#lists.isEmpty(emAberto)}">
+        <caption class="sr-only">Comandas que ainda devem, as maiores primeiro</caption>
+        <thead><tr><th scope="col">Cliente</th><th scope="col">Situação</th><th scope="col">Falta pagar</th></tr></thead>
+        <tbody>
+          <tr th:each="c : ${emAberto}"><th scope="row" th:text="${c.rotulo}">Guarda-sol 12 · Ana</th><td th:text="${c.detalhe}">aberta</td><td th:text="${c.valor}">R$ 49,00</td></tr>
+        </tbody>
+        <tfoot><tr><th scope="row" colspan="2">Total em aberto</th><td th:text="${totalEmAberto}">R$ 0,00</td></tr></tfoot>
+      </table>
+      <p class="form-hint">Vale para hoje, não para o dia escolhido: é o que cada comanda ainda deve neste momento.</p>
+    </div>
+
+    <div class="app-card">
+      <h2>Não recebido</h2>
+      <p th:if="${#lists.isEmpty(naoRecebidos)}">Nenhuma conta foi encerrada sem receber neste dia.</p>
+      <table class="tabela" th:unless="${#lists.isEmpty(naoRecebidos)}">
+        <caption class="sr-only">Contas encerradas sem receber o que faltava</caption>
+        <thead><tr><th scope="col">Cliente</th><th scope="col">Motivo</th><th scope="col">Valor</th></tr></thead>
+        <tbody>
+          <tr th:each="c : ${naoRecebidos}"><th scope="row" th:text="${c.rotulo}">Guarda-sol 12 · Ana</th><td th:text="${c.detalhe}">foi embora</td><td th:text="${c.valor}">R$ 49,00</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+</body>
+</html>

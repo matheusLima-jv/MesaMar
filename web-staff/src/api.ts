@@ -49,6 +49,88 @@ export interface NovoCliente {
   consentimento: boolean
 }
 
+export type StatusPedido = 'AGUARDANDO_PAGAMENTO' | 'RECEBIDO' | 'EM_PREPARO' | 'ENTREGUE' | 'CANCELADO'
+export type Motivo = 'ESGOTOU' | 'CLIENTE_DESISTIU' | 'OUTRO'
+
+export interface ItemFila {
+  id: string
+  nome: string
+  quantidade: number
+  observacao: string | null
+  cancelado: boolean
+  motivoCancelamento: string | null
+}
+
+/** Um pedido na fila. `criadoEm` é o horário do SERVIDOR: a ordem e a espera nunca dependem do relógio do celular. */
+export interface PedidoFila {
+  id: string
+  numero: number
+  status: StatusPedido
+  criadoEm: string
+  guardaSol: number | null
+  cliente: string
+  itens: ItemFila[]
+}
+
+export interface Fila {
+  /** Horário do servidor no momento da resposta. */
+  agora: string
+  tempoAlertaMin: number
+  /** O quiosque está sem receber pedidos pelo celular dos clientes. */
+  pedidosPausados: boolean
+  mensagemPausa: string | null
+  pedidos: PedidoFila[]
+}
+
+export interface Pausa {
+  pedidosPausados: boolean
+  mensagemPausa: string | null
+}
+
+export interface PushConfig {
+  /** Falso enquanto o servidor não tem as chaves VAPID. */
+  habilitado: boolean
+  chavePublica: string | null
+}
+
+export type Metodo = 'PIX' | 'DINHEIRO' | 'CARTAO'
+
+/** Uma comanda vista pela aba Pagamentos: quanto deve, como o cliente disse que vai pagar e desde quando. */
+export interface ContaAPagar {
+  comandaId: string
+  cliente: string
+  guardaSol: number | null
+  status: 'ABERTA' | 'AGUARDANDO_PAGAMENTO' | 'BLOQUEADA' | 'FECHADA'
+  pedidoCentavos: number
+  pagoCentavos: number
+  saldoCentavos: number
+  metodo: Metodo | null
+  /** Dinheiro: "vou pagar com R$ …", para separar o troco. */
+  trocoParaCentavos: number | null
+  /** Horário do SERVIDOR em que o cliente avisou. `null` se ainda não avisou (no Pix, é o "já paguei"). */
+  avisoEm: string | null
+  abertaEm: string
+  /** Pedidos que só entram na fila depois de pagos (modo "pagar a cada pedido"). */
+  pedidosAguardando: number
+  saldoPerdoadoCentavos: number | null
+}
+
+export interface Pagamentos {
+  /** Horário do servidor no momento da resposta. */
+  agora: string
+  /** Quem tocou em "fechar a conta", por ordem de aviso. */
+  aguardando: ContaAPagar[]
+  /** Contas abertas ou bloqueadas com saldo, as maiores primeiro. */
+  abertas: ContaAPagar[]
+}
+
+export interface Confirmacao {
+  conta: ContaAPagar
+  pagamento: { id: string, metodo: Metodo, valorCentavos: number, valorRecebidoCentavos: number | null, trocoCentavos: number }
+  /** A conta chegou a zero e se encerrou. */
+  fechada: boolean
+}
+
 export class ApiError extends Error {
   constructor (
     readonly status: number,
@@ -161,6 +243,93 @@ export async function novoCliente (c: NovoCliente): Promise<Comanda> {
     }
   }
   return await chamar<Comanda>('POST', '/clientes', c)
+}
+
+/** A fila: pedidos pendentes, o mais antigo primeiro. */
+export async function fila (): Promise<Fila> {
+  return await chamar<Fila>('GET', '/fila')
+}
+
+/** "Em preparo" ou "Entregue". Repetir a mesma ação não faz mal. */
+export async function mudarStatus (pedidoId: string, status: 'EM_PREPARO' | 'ENTREGUE'): Promise<PedidoFila> {
+  return await chamar<PedidoFila>('POST', `/pedidos/${pedidoId}/status`, { status })
+}
+
+export async function cancelarPedido (pedidoId: string, motivo: Motivo, detalhe: string): Promise<PedidoFila> {
+  return await chamar<PedidoFila>('POST', `/pedidos/${pedidoId}/cancelar`, { motivo, detalhe })
+}
+
+export async function cancelarItem (pedidoId: string, itemId: string, motivo: Motivo, detalhe: string): Promise<PedidoFila> {
+  return await chamar<PedidoFila>('POST', `/pedidos/${pedidoId}/itens/${itemId}/cancelar`, { motivo, detalhe })
+}
+
+/** "Pausar pedidos" (com um recado opcional para os clientes) e "Voltar a receber". */
+export async function pausar (pausado: boolean, mensagem = ''): Promise<Pausa> {
+  return await chamar<Pausa>('POST', '/pausa', { pausado, mensagem })
+}
+
+export async function pushConfig (): Promise<PushConfig> {
+  return await chamar<PushConfig>('GET', '/push')
+}
+
+export async function inscreverPush (inscricao: unknown): Promise<void> {
+  await chamar<void>('POST', '/push/inscrever', inscricao)
+}
+
+export async function cancelarPush (endpoint: string): Promise<void> {
+  await chamar<void>('POST', '/push/cancelar', { endpoint })
+}
+
+export async function testarPush (endpoint: string): Promise<void> {
+  await chamar<void>('POST', '/push/testar', { endpoint })
+}
+
+/** O que está para pagar: quem avisou que vai pagar e as contas abertas com saldo. */
+export async function pagamentos (): Promise<Pagamentos> {
+  return await chamar<Pagamentos>('GET', '/pagamentos')
+}
+
+/**
+ * Confirma o que o cliente pagou. O `id` nasce no celular: reenviar a mesma confirmação (sem sinal, toque duplo)
+ * devolve o pagamento que já existe em vez de cobrar duas vezes.
+ */
+export async function receberPagamento (
+  comandaId: string,
+  pagamento: { id: string, metodo: Metodo, valorCentavos: number, valorRecebidoCentavos: number | null }
+): Promise<Confirmacao> {
+  return await chamar<Confirmacao>('POST', `/comandas/${comandaId}/pagamentos`, pagamento)
+}
+
+export async function bloquearComanda (comandaId: string): Promise<ContaAPagar> {
+  return await chamar<ContaAPagar>('POST', `/comandas/${comandaId}/bloquear`)
+}
+
+export async function desbloquearComanda (comandaId: string): Promise<ContaAPagar> {
+  return await chamar<ContaAPagar>('POST', `/comandas/${comandaId}/desbloquear`)
+}
+
+/** Encerra uma conta que não deve nada. */
+export async function encerrarComanda (comandaId: string): Promise<ContaAPagar> {
+  return await chamar<ContaAPagar>('POST', `/comandas/${comandaId}/encerrar`)
+}
+
+/** Fechamento forçado com motivo (só o dono): o cliente foi embora sem pagar. */
+export async function fecharSemReceber (comandaId: string, motivo: string): Promise<ContaAPagar> {
+  return await chamar<ContaAPagar>('POST', `/comandas/${comandaId}/fechamento-forcado`, { motivo })
+}
+
+/** 12300 → "R$ 123,00" (o mesmo formato do servidor: Money.format). */
+export function reais (centavos: number): string {
+  const inteiro = String(Math.floor(centavos / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  return `R$ ${inteiro},${String(centavos % 100).padStart(2, '0')}`
+}
+
+/** "100", "100,50" ou "R$ 1.250,00" → centavos. `null` se não for um valor em reais. */
+export function lerReais (texto: string): number | null {
+  const limpo = texto.replace(/R\$/g, '').replace(/\s/g, '')
+  const m = /^(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,2}))?$/.exec(limpo)
+  if (m === null) return null
+  return Number(m[1].replace(/\./g, '')) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
 }
 
 /** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */

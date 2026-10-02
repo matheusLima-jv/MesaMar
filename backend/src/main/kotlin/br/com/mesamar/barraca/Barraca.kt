@@ -52,6 +52,9 @@ class Barraca(
     var tempoAlertaPedidoMin: Int = 10,
     @Column(name = "pedidos_pausados", nullable = false)
     var pedidosPausados: Boolean = false,
+    /** Recado opcional que o cliente vê enquanto os pedidos estão pausados (ex.: "Voltamos em 10 minutos"). */
+    @Column(name = "mensagem_pausa", length = 80)
+    var mensagemPausa: String? = null,
     @Column(nullable = false)
     var ativa: Boolean = true,
     @Column(name = "criada_em", nullable = false)

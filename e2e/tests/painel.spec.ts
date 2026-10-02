@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { expectNoHorizontalScroll, failOnConsoleErrors } from './helpers'
+import { expectNoHorizontalScroll, failOnConsoleErrors, randomWhatsapp } from './helpers'
 
 const password = process.env.E2E_ADMIN_PASSWORD ?? ''
 
@@ -203,6 +203,199 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(cliente.locator('.order').last()).toContainText('Recebido')
   await expect(cliente.getByText('Total da conta R$ 99,00')).toBeVisible()
   await expectNoHorizontalScroll(cliente)
+
+  // 9) Fila do quiosque (Fase 4): o Bruno faz check-in e pede, e a fila da atendente se atualiza sozinha
+  await app.getByRole('link', { name: 'Clientes' }).click()
+  await app.getByRole('button', { name: '+ Novo cliente' }).click()
+  await app.getByLabel('Nome do cliente').fill('Bruno')
+  await app.getByRole('button', { name: 'Guarda-sol 5', exact: true }).click()
+  await app.getByLabel(/^WhatsApp/).fill(randomWhatsapp())
+  await app.getByLabel(/O cliente concorda/).check()
+  await app.getByRole('button', { name: 'Gerar QR' }).click()
+  const qrBruno = app.getByRole('dialog', { name: 'Bruno' })
+  const zapBruno = await qrBruno.getByRole('link', { name: /Enviar pelo WhatsApp/ }).getAttribute('href') ?? ''
+  const linkBruno = /https?:\/\/\S+\/c\/[A-Za-z0-9_-]{22}/.exec(decodeURIComponent(zapBruno))?.[0] ?? ''
+  expect(linkBruno).not.toBe('')
+  await qrBruno.getByRole('button', { name: 'Pronto' }).click()
+
+  // A fila mostra os 3 pedidos da Ana por ordem de chegada, com o guarda-sol em destaque
+  await app.getByRole('link', { name: /^Fila/ }).click()
+  await expect(app.getByRole('heading', { name: 'Fila' })).toBeVisible()
+  await expect(app.getByText('Ao vivo')).toBeVisible()
+  const cartoes = app.locator('.pedido')
+  await expect(cartoes).toHaveCount(3)
+  await expect(cartoes.first()).toContainText('#1')
+  await expect(cartoes.first()).toContainText('Guarda-sol 12')
+  await expect(cartoes.first()).toContainText('2× Água de coco')
+  await expect(cartoes.first()).toContainText('sem gelo')
+  await expect(cartoes.last()).toContainText('#3')
+  await expectNoHorizontalScroll(app)
+
+  // O Bruno pede em outro celular: o pedido aparece no fim da fila, sem recarregar nada
+  const bruno = await novoAparelho()
+  await bruno.goto(caminho(linkBruno))
+  await expect(bruno.getByRole('heading', { name: 'Olá, Bruno · Guarda-sol 5' })).toBeVisible()
+  await bruno.getByRole('button', { name: 'Adicionar Pastel' }).click()
+  await bruno.getByRole('link', { name: /Ver pedido/ }).click()
+  await bruno.getByRole('button', { name: 'Enviar pedido' }).click()
+  await expect(bruno.getByRole('heading', { name: 'Pedido nº 4 enviado' })).toBeVisible()
+  await expect(cartoes).toHaveCount(4)
+  await expect(cartoes.last()).toContainText('Bruno')
+  await expect(cartoes.last()).toContainText('Guarda-sol 5')
+  await expect(cartoes.last()).toContainText('Novo')
+  await expect(app.getByRole('link', { name: /^Fila/ })).toContainText('4')
+
+  // Filtro por guarda-sol
+  await app.locator('#filtro-gs').selectOption({ label: 'Guarda-sol 5' })
+  await expect(cartoes).toHaveCount(1)
+  await app.locator('#filtro-gs').selectOption({ label: 'Todos' })
+  await expect(cartoes).toHaveCount(4)
+
+  // "Em preparo": a Ana, em outro celular, vê na hora e sem recarregar (tempo real, não os 15 s do plano B)
+  await app.getByRole('button', { name: 'Em preparo: pedido 1' }).click()
+  await expect(cliente.locator('.order').last()).toContainText('Em preparo')
+  await app.getByRole('button', { name: 'Pendentes (3)' }).click()
+  await expect(cartoes).toHaveCount(3)
+  await app.getByRole('button', { name: 'Todos (4)' }).click()
+
+  // Cancelar um item exige motivo. A Ana recebe o aviso com o motivo, a conta baixa de R$ 99 para R$ 74
+  // e o limite de R$ 90 deixa de bloquear
+  await app.getByRole('button', { name: 'Cancelar: pedido 1' }).click()
+  const dialogo = app.getByRole('dialog', { name: /Cancelar o pedido nº 1/ })
+  await dialogo.getByLabel('1× Pastel').check()
+  await dialogo.getByRole('button', { name: 'Confirmar cancelamento' }).click()
+  await expect(dialogo.getByText('Escolha o motivo do cancelamento.')).toBeVisible()
+  await dialogo.getByLabel('Esgotou').check()
+  await dialogo.getByRole('button', { name: 'Confirmar cancelamento' }).click()
+  await expect(app.getByText('Item cancelado no pedido nº 1.')).toBeVisible()
+  await expect(cliente.getByText('O quiosque cancelou 1× Pastel do pedido nº 1: Esgotou.')).toBeVisible()
+  await expect(cliente.getByText('Sua conta: R$ 74,00')).toBeVisible()
+  await expect(cliente.getByText('Sua conta chegou a R$ 90,00')).toBeHidden()
+  await expect(cliente.locator('.order').last()).toContainText('Cancelado: Esgotou')
+  await cliente.getByRole('button', { name: 'Entendi' }).click()
+  await expect(cliente.getByText('O quiosque cancelou 1× Pastel')).toBeHidden()
+
+  // Entregue: sai da fila e a Ana vê
+  await app.getByRole('button', { name: 'Entregue: pedido 1' }).click()
+  await expect(cliente.locator('.order').last()).toContainText('Entregue')
+  await expect(cartoes).toHaveCount(3)
+
+  // Cancelar o pedido inteiro, com "Outro" e um detalhe
+  await app.getByRole('button', { name: 'Cancelar: pedido 3' }).click()
+  const dialogo3 = app.getByRole('dialog', { name: /Cancelar o pedido nº 3/ })
+  await dialogo3.getByLabel('Outro').check()
+  await dialogo3.getByLabel('Detalhe').fill('cliente foi embora')
+  await dialogo3.getByRole('button', { name: 'Confirmar cancelamento' }).click()
+  await expect(cliente.getByText('O quiosque cancelou o pedido nº 3: Outro: cliente foi embora.')).toBeVisible()
+  await expect(cliente.getByText('Sua conta: R$ 49,00')).toBeVisible()
+  await expect(cartoes).toHaveCount(2)
+  await expectNoHorizontalScroll(app)
+
+  // 10) Avisos de pedido (4.2): sem as chaves VAPID no servidor, o app diz o que falta em vez de mostrar um botão que não funciona
+  await app.getByRole('link', { name: 'Mais' }).click()
+  await expect(app.getByRole('heading', { name: 'Avisos de pedido' })).toBeVisible()
+  await expect(app.getByText('ainda não foram configurados no servidor')).toBeVisible()
+  await expectNoHorizontalScroll(app)
+
+  // 11) "Pausar pedidos": a Ana, que está em "Meus pedidos", vê o recado na hora, e ao voltar ele some
+  await app.getByRole('link', { name: /^Fila/ }).click()
+  await app.getByRole('button', { name: 'Pausar pedidos' }).click()
+  const dialogoPausa = app.getByRole('dialog', { name: 'Pausar pedidos' })
+  await dialogoPausa.getByLabel(/Recado para os clientes/).fill('Voltamos em 10 minutos')
+  await dialogoPausa.getByRole('button', { name: 'Pausar pedidos' }).click()
+  await expect(app.getByText('Pedidos pausados.', { exact: true })).toBeVisible()
+  await expect(cliente.getByText('O quiosque pausou os pedidos: Voltamos em 10 minutos')).toBeVisible()
+  await app.getByRole('button', { name: 'Voltar a receber pedidos' }).click()
+  await expect(cliente.getByText('O quiosque pausou os pedidos')).toBeHidden()
+  await expect(app.getByRole('button', { name: 'Pausar pedidos' })).toBeVisible()
+  await expectNoHorizontalScroll(app)
+
+  // 12) Fechar conta (5.1): a Ana tem R$ 49,00 a pagar. Dinheiro com troco, desiste, e depois escolhe o Pix
+  await cliente.getByRole('link', { name: 'Conta', exact: true }).click()
+  await expect(cliente.getByRole('heading', { name: 'Conta', exact: true })).toBeVisible()
+  await expect(cliente.locator('.resumo-linha.forte')).toContainText('R$ 49,00')
+  await expect(cliente.getByRole('button', { name: 'Fechar a conta' })).toBeDisabled()
+  await cliente.getByRole('radio', { name: /^Dinheiro/ }).click()
+  await cliente.getByLabel(/Vou pagar com R\$/).fill('abc')
+  await cliente.getByRole('button', { name: 'Fechar a conta' }).click()
+  await expect(cliente.getByText('Não entendemos o valor do troco')).toBeVisible()
+  await cliente.getByLabel(/Vou pagar com R\$/).fill('100')
+  await cliente.getByRole('button', { name: 'Fechar a conta' }).click()
+  await expect(cliente.getByRole('heading', { name: 'Aguardando confirmação do quiosque' })).toBeVisible()
+  await expect(cliente.getByText('Vá ao quiosque pagar R$ 49,00 em dinheiro (troco para R$ 100,00).')).toBeVisible()
+  await expectNoHorizontalScroll(cliente)
+
+  // Com a conta fechando, o cardápio não deixa pedir e explica o caminho de volta
+  await cliente.getByRole('link', { name: 'Cardápio' }).click()
+  await expect(cliente.getByText('Sua conta está sendo fechada.')).toBeVisible()
+  await expect(cliente.getByRole('button', { name: /^Adicionar / })).toHaveCount(0)
+
+  await cliente.getByRole('link', { name: 'Conta', exact: true }).click()
+  await cliente.getByRole('button', { name: 'Voltar e pedir mais' }).click()
+  await expect(cliente.getByRole('button', { name: 'Fechar a conta' })).toBeVisible()
+  await cliente.getByRole('link', { name: 'Cardápio' }).click()
+  await expect(cliente.getByText('Sua conta está sendo fechada.')).toBeHidden()
+  await expect(cliente.getByRole('button', { name: /^Adicionar / }).first()).toBeVisible()
+
+  // Pix: o QR e o código aparecem no celular da Ana, com o valor da conta e o recebedor da barraca
+  await cliente.getByRole('link', { name: 'Conta', exact: true }).click()
+  await cliente.getByRole('radio', { name: /^Pix/ }).click()
+  await cliente.getByRole('button', { name: 'Fechar a conta' }).click()
+  await expect(cliente.getByRole('heading', { name: 'Aguardando confirmação do quiosque' })).toBeVisible()
+  await expect(cliente.locator('.pix svg.qr')).toBeVisible()
+  await expect(cliente.locator('.pix-valor')).toHaveText('R$ 49,00')
+  await expect(cliente.getByRole('button', { name: 'Copiar código Pix' })).toBeVisible()
+  await cliente.getByText('Ver o código').click()
+  await expect(cliente.getByLabel('Código Pix copia e cola')).toHaveValue(/^000201.*6304[0-9A-F]{4}$/)
+  await cliente.getByRole('button', { name: 'Já paguei' }).click()
+  await expect(cliente.getByText(/Você avisou às \d\d:\d\d\./)).toBeVisible()
+  await expectNoHorizontalScroll(cliente)
+
+  // 13) Pagamentos (5.2): a conta da Ana chega sozinha à aba, a atendente recebe em duas partes (Pix e dinheiro
+  // com troco) e a Ana vê, em outro celular e sem recarregar, o abate e depois "Conta paga"
+  await expect(app.getByRole('link', { name: /^Pagamentos/ })).toContainText('1')
+  await app.getByRole('link', { name: /^Pagamentos/ }).click()
+  await expect(app.getByRole('heading', { name: 'Pagamentos', exact: true })).toBeVisible()
+  const contaAna = app.locator('.pag-aguarda')
+  await expect(contaAna).toHaveCount(1)
+  await expect(contaAna).toContainText('Guarda-sol 12')
+  await expect(contaAna).toContainText('R$ 49,00')
+  await expect(contaAna).toContainText('avisou que pagou')
+  await expect(contaAna).toContainText('Confira no app do banco antes de confirmar.')
+  await expect(app.getByRole('heading', { name: 'Contas abertas com saldo (1)' })).toBeVisible()
+  await expectNoHorizontalScroll(app)
+
+  await app.getByRole('button', { name: 'Receber de Ana' }).click()
+  const receberPix = app.getByRole('dialog', { name: 'Receber de Ana' })
+  await expect(receberPix.getByText('Confira no app do seu banco antes de confirmar.')).toBeVisible()
+  await receberPix.getByLabel(/Valor recebido agora/).fill('20')
+  await receberPix.getByRole('button', { name: 'Confirmar R$ 20,00 recebido' }).click()
+  await expect(app.getByText('Recebido R$ 20,00 de Ana. Ainda falta R$ 29,00.')).toBeVisible()
+  await expect(cliente.locator('.resumo-linha.forte')).toContainText('R$ 29,00')
+  await expect(cliente.getByText('Pago em pix')).toBeVisible()
+
+  await app.getByRole('button', { name: 'Receber de Ana' }).click()
+  const receberDinheiro = app.getByRole('dialog', { name: 'Receber de Ana' })
+  await receberDinheiro.getByLabel('Dinheiro').check()
+  await receberDinheiro.getByLabel(/O cliente entregou/).fill('50')
+  await expect(receberDinheiro.getByText('Devolver de troco: R$ 21,00')).toBeVisible()
+  await receberDinheiro.getByRole('button', { name: 'Confirmar R$ 29,00 recebido' }).click()
+  await expect(app.getByText('Conta de Ana paga e encerrada. Troco: R$ 21,00.')).toBeVisible()
+  await expect(cliente.getByRole('heading', { name: 'Conta paga' })).toBeVisible()
+  await expect(contaAna).toHaveCount(0)
+  await expectNoHorizontalScroll(cliente)
+
+  // 14) Relatório do dia (5.3): o dono vê o que entrou (R$ 20,00 no Pix + R$ 29,00 em dinheiro) e quem ainda deve (Bruno)
+  await dono.goto('/painel/relatorio')
+  await expect(dono.getByRole('heading', { name: /^Hoje, \d\d\/\d\d\/\d{4}$/ })).toBeVisible()
+  await expect(dono.locator('.kv').first()).toContainText('Recebido no dia')
+  await expect(dono.locator('.kv').first()).toContainText('R$ 49,00')
+  await expect(dono.getByRole('row', { name: /Pix 1 pagamento\(s\) R\$ 20,00/ })).toBeVisible()
+  await expect(dono.getByRole('row', { name: /Dinheiro 1 pagamento\(s\) R\$ 29,00/ })).toBeVisible()
+  await expect(dono.getByRole('row', { name: /Bruno.*R\$ 25,00/ })).toBeVisible()
+  await expect(dono.getByRole('row', { name: /Esgotou/ })).toBeVisible()
+  await expect(dono.getByRole('link', { name: 'Baixar em CSV' })).toHaveAttribute('href', /relatorio\.csv\?dia=\d{4}-\d\d-\d\d$/)
+  await expectNoHorizontalScroll(dono)
 
   await dono.reload()
   await expect(dono.getByRole('link', { name: 'Equipe', exact: true })).toBeVisible()
