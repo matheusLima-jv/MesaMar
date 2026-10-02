@@ -40,13 +40,13 @@ class CheckinApiTest(
 ) {
     private val painel = PainelTestSupport(port, convites)
 
-    /** Barraca com os guarda-sóis 1 a 15 e a atendente Carla (PIN 2580). Devolve o e-mail do dono. */
+    /** Barraca com os guarda-sóis 1 a 15 e a atendente Carla (PIN 258014). Devolve o e-mail do dono. */
     private fun barracaComGuardaSois(nome: String = "Barraca Check-in"): String {
         val email = painel.novoEmail("checkin")
         val http = painel.donoComBarraca(nomeBarraca = nome, email = email)
         painel.post(http, "/painel/guarda-sois", "/painel/guarda-sois", mapOf("de" to "1", "ate" to "15"))
         http.get("/painel/guarda-sois")
-        painel.post(http, "/painel/equipe", "/painel/equipe", mapOf("nome" to "Carla", "pin" to "2580"))
+        painel.post(http, "/painel/equipe", "/painel/equipe", mapOf("nome" to "Carla", "pin" to "258014"))
         http.get("/painel/equipe")
         return email
     }
@@ -65,7 +65,7 @@ class CheckinApiTest(
         val codigo = assertNotNull(Regex("""<span class="mono">([a-z0-9-]+)</span>""").find(donoPainel(email))).groupValues[1]
         val carla = atendentes.findAllByBarracaIdOrderByNome(barracaId(email)).first { it.nome == "Carla" }
         return StaffApp(port).also {
-            val r = it.post("/api/staff/entrar/atendente", """{"codigo":"$codigo","atendenteId":"${carla.id}","pin":"2580"}""")
+            val r = it.post("/api/staff/entrar/atendente", """{"codigo":"$codigo","atendenteId":"${carla.id}","pin":"258014"}""")
             assertEquals(200, r.statusCode(), r.body())
         }
     }

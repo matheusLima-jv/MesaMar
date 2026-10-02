@@ -92,7 +92,7 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   // 8) Equipe + app do quiosque em outro celular: atendente entra com código, nome e PIN
   await dono.getByRole('link', { name: 'Equipe', exact: true }).click()
   await dono.getByLabel('Nome ou apelido').fill('Carla')
-  await dono.getByLabel('PIN (4 a 6 números)').fill('2580')
+  await dono.getByLabel('PIN (6 números)').fill('258014')
   await dono.getByRole('button', { name: 'Adicionar à equipe' }).click()
   await expect(dono.getByText('Carla foi adicionado.')).toBeVisible()
   const codigo = (await dono.locator('.app-lead .mono').first().textContent())?.trim() ?? ''
@@ -105,7 +105,7 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await app.getByLabel('Código da barraca').fill(codigo)
   await app.getByRole('button', { name: 'Continuar' }).click()
   await app.getByRole('button', { name: 'Carla' }).click()
-  await app.getByLabel('Seu PIN').fill('2580')
+  await app.getByLabel('Seu PIN').fill('258014')
   await app.getByRole('button', { name: 'Entrar' }).click()
   await expect(app.getByRole('heading', { name: 'Clientes' })).toBeVisible()
   await expectNoHorizontalScroll(app)

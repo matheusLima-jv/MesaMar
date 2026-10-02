@@ -61,10 +61,10 @@ class PagamentosApiTest(
             assertEquals(200, it.post("/api/staff/entrar/dono", """{"email":"${q.email}","senha":"$SENHA"}""").statusCode())
         }
 
-    /** A atendente Carla (PIN 2580) entra no app da barraca. */
+    /** A atendente Carla (PIN 258014) entra no app da barraca. */
     private fun carla(q: Quiosque): StaffApp {
         val http = painel.session().also { painel.login(it, q.email) }
-        painel.post(http, "/painel/equipe", "/painel/equipe", mapOf("nome" to "Carla", "pin" to "2580"))
+        painel.post(http, "/painel/equipe", "/painel/equipe", mapOf("nome" to "Carla", "pin" to "258014"))
         http.get("/painel/equipe")
         val codigo =
             assertNotNull(
@@ -72,7 +72,7 @@ class PagamentosApiTest(
             ).groupValues[1]
         val atendente = atendentes.findAllByBarracaIdOrderByNome(q.barracaId).first { it.nome == "Carla" }
         return StaffApp(port).also {
-            val r = it.post("/api/staff/entrar/atendente", """{"codigo":"$codigo","atendenteId":"${atendente.id}","pin":"2580"}""")
+            val r = it.post("/api/staff/entrar/atendente", """{"codigo":"$codigo","atendenteId":"${atendente.id}","pin":"258014"}""")
             assertEquals(200, r.statusCode(), r.body())
         }
     }

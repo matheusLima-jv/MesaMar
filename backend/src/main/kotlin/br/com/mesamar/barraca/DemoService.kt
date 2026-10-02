@@ -207,7 +207,7 @@ class DemoService(
 
     private fun pinAleatorio(): String {
         while (true) {
-            val pin = (1..4).map { aleatorio.nextInt(10) }.joinToString("")
+            val pin = (1..6).map { aleatorio.nextInt(10) }.joinToString("")
             if (PinRules.problema(pin) == null) return pin
         }
     }

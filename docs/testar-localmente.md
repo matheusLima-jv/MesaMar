@@ -79,7 +79,7 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 26 | Painel → Guarda-sóis | Criar "do 1 ao 20" | "Pronto: 20 criados." e a sugestão passa para 21 a 30 |
 | 27 | Mesma tela | Criar "do 21 ao 40" (limite padrão é 30) | "…cabem só mais 10" e nada é criado |
 | 28 | Grade de números | Tocar no 5, depois criar "do 1 ao 20" de novo | O 5 fica riscado; depois volta ("1 reativado") |
-| 29 | Painel → Equipe | Adicionar "Carla" com PIN `1234` | Recusa por ser sequência; com `2580` entra |
+| 29 | Painel → Equipe | Adicionar "Carla" com PIN `123456` | Recusa por ser sequência; `1234` (4 números) também é recusado; com `258014` entra |
 | 30 | Mesma tela | Adicionar "carla" de novo | "Já existe um atendente com esse nome." |
 | 31 | Regras | Baixar o limite de guarda-sóis para 5 | Recusa: "Você tem 20 guarda-sóis ativos…" |
 | 32 | Painel → Cardápio | Criar "Bebidas" e "Porções"; cadastrar 15 itens com "Adicionar e cadastrar outro" | Cada item volta ao formulário já na mesma categoria; anote quanto tempo levou |
@@ -87,9 +87,9 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 34 | Cardápio | Subir e descer itens e categorias (↑ ↓) | A ordem muda na hora |
 | 35 | Cardápio | "Tirar do cardápio" num item | Some da categoria e aparece em "Fora do cardápio" |
 | 36 | Cardápio → Editar "Bebidas" | Tentar excluir com produtos dentro | Recusa: "ainda tem N produtos" |
-| 37 | Painel → Equipe | Adicionar "Carla" com PIN `2580` e anotar o código da barraca | Aparece na lista como "Ativo" |
+| 37 | Painel → Equipe | Adicionar "Carla" com PIN `258014` e anotar o código da barraca | Aparece na lista como "Ativo" |
 | 38 | Celular: `http://IP-DO-PC:8080/staff/` | "Sou da equipe" → código → Carla → PIN `1111` | "PIN errado. Restam 4 tentativas…" |
-| 39 | Mesmo celular | PIN `2580` | Abre o app na aba Cardápio |
+| 39 | Mesmo celular | PIN `258014` | Abre o app na aba Cardápio |
 | 40 | Aba Cardápio | Tocar "Esgotou" num item; conferir no painel do computador | O item fica riscado nos dois |
 | 41 | Aba Mais | Seguir o passo a passo de instalação (Android: Chrome; iPhone: Safari) | Ícone do MesaMar na tela inicial; abre sem barra do navegador |
 | 42 | Painel → Equipe → desativar a Carla; tocar em qualquer coisa no app | — | O app volta para a tela de entrada |

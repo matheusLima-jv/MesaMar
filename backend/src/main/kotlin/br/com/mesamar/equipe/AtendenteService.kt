@@ -12,16 +12,16 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-/** PIN de 4 a 6 números. Recusa os que qualquer um chuta primeiro (1111, 1234, 4321…). */
+/** PIN de exatamente 6 números (quem já tem PIN de 4 continua entrando; só um PIN novo exige 6). Recusa os que qualquer um chuta primeiro (1111, 1234, 4321…). */
 object PinRules {
-    private val digits = Regex("^\\d{4,6}$")
+    private val digits = Regex("^\\d{6}$")
 
     fun problema(pin: String): String? {
         val p = pin.trim()
         return when {
-            !digits.matches(p) -> "O PIN precisa ter de 4 a 6 números."
+            !digits.matches(p) -> "O PIN precisa ter 6 números."
             p.all { it == p[0] } -> "PIN com todos os números iguais é fácil de adivinhar. Escolha outro."
-            sequencia(p) -> "PIN em sequência (como 1234) é fácil de adivinhar. Escolha outro."
+            sequencia(p) -> "PIN em sequência (como 123456) é fácil de adivinhar. Escolha outro."
             else -> null
         }
     }

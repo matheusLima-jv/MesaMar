@@ -23,7 +23,7 @@ test('o projeto cria a barraca de demonstração e a equipe treina nela, com avi
   const codigo = await valor('Código da barraca')
   const pin = await valor('PIN da atendente')
   expect(senha).toHaveLength(12)
-  expect(pin).toMatch(/^\d{4}$/)
+  expect(pin).toMatch(/^\d{6}$/)
   await page.reload()
   await expect(page.getByText(senha)).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Reiniciar a barraca de demonstração' })).toBeVisible()
