@@ -4,8 +4,8 @@
 - A Fase 7 está dividida em checkpoints, aprovados um por vez:
   - [x] **7.1 — Backup diário, teste de restauração, health check e logs** (aprovado; CI verde no PR #6)
   - [x] **7.2 — Barraca de demonstração e materiais impressos (guia de 1 página e plaquinha de balcão)** (aprovado; CI verde no PR #6)
-  - [ ] **7.3 — Botão "reportar problema" nos dois apps** ← checkpoint atual
-  - [ ] 7.4 — Revisão final por um agente independente
+  - [x] **7.3 — Botão "reportar problema" nos dois apps** (CI verde no PR #6)
+  - [ ] **7.4 — Revisão final** ← checkpoint atual (a revisão por um agente independente vem depois deste, sobre o código já corrigido)
 - O que **só você** faz (deploy, treino, operação no fim de semana, Portão B) está no `ESTADO_DO_PROJETO.md`, seção 8.
 
 ---
@@ -159,3 +159,54 @@ Itens 136 a 141 de [`docs/testar-localmente.md`](../testar-localmente.md).
 ### 6. Antes de aprovar
 
 - O 7.3 está na `fase-7-piloto`, no PR #6 (rascunho, apontando para a `fase-4-fila`). Não mergeado.
+
+---
+
+## Checkpoint 7.4 — Revisão final: sessões, PIN, cancelamento depois de pagar e encerramento diário
+
+- **Data:** 2026-10-02
+- **CI:** ⏳ ainda não rodou no GitHub. **Localmente, tudo verde:** ktlint, **388 testes de backend** (377 + 11 novos), `docker compose up --build` saudável e **11 E2E** passando contra a imagem nova.
+
+### 1. O que foi feito
+
+Sete correções que a revisão apontou, todas descritas no [ADR 0016](../adr/0016-revisao-final-sessoes-pin-e-cancelamento.md):
+
+1. **Trocar a senha do dono derruba as sessões abertas** (painel e app). Migração V15.
+2. **O bloqueio de PIN é por origem**: errar o PIN de outro lugar não tranca mais a atendente no celular do quiosque. Há um teto de 20 erros por atendente.
+3. **Cancelar o que o cliente já pagou é recusado** (409), para a conta nunca ficar negativa.
+4. **Cancelar também libera o pedido seguinte** no modo "pagar a cada pedido" (`LiberacaoPedidos`), com as travas sempre na mesma ordem.
+5. **Encerramento diário às 4h** das comandas antigas sem saldo.
+6. **A anonimização apaga os avisos de problema** com mais de 90 dias.
+7. **CSP sem serviços de terceiros** nas páginas dos apps.
+
+### 2. Decisões
+
+- **Contador de PIN em memória** (um servidor só no piloto). Está no ADR.
+- **Cancelar depois de pagar passa a ser uma conversa no balcão**, não uma tela. Se for frequente no piloto, registrar devolução é o próximo passo.
+- **Atendente que perde o celular:** o dono desativa no painel e a sessão cai na hora (já era assim). Trocar o PIN não derruba a sessão aberta.
+
+### 3. O que precisa de você
+
+- **Decidir se a regra do cancelamento serve** para a barraca: "o cliente já pagou, combine no balcão" (item 142).
+- Lembrar que, se duas barracas saírem pelo mesmo IP, elas dividem o contador de 5 erros por origem.
+
+### 4. Testes automatizados novos
+
+- **`RevisaoFinalTest` (7):**
+  - cancelar pedido pago é recusado e nada muda; cancelar item que deixaria a conta negativa também;
+  - **isolamento:** o dono de outra barraca recebe 404 ao cancelar pedido alheio;
+  - cancelar o pedido da frente libera o seguinte, já coberto pelo pago;
+  - o encerramento diário fecha as antigas sem saldo e deixa as devedoras e as de hoje;
+  - trocar a senha pelo link derruba o painel (redireciona ao login) e o app (401), e o login novo funciona;
+  - sessão aberta depois da troca continua valendo.
+- **`EquipeTest`:** o bloqueio vale só para a origem, a atendente entra por outra origem e o painel não mostra bloqueio; 20 erros de várias origens bloqueiam todos e o dono desbloqueia; acertar zera as outras origens. Os dois testes antigos que contavam 5 erros por atendente foram reescritos.
+- **`SecurityHeadersTest`:** `/staff/` e `/cliente/` sem Cloudflare na CSP, a landing com ela, e um cabeçalho só por resposta.
+- **`AnonimizacaoTest`:** aviso de 91 dias some, o de 89 fica.
+
+### 5. Como validar (na entrega final)
+
+Itens 142 a 146 de [`docs/testar-localmente.md`](../testar-localmente.md).
+
+### 6. Antes de aprovar
+
+- Este checkpoint estava solto na árvore de trabalho (sem teste nem relatório) e agora está fechado, mas **ainda não passou pelo CI do GitHub**. A revisão por um agente independente deve ser rodada **depois** dele, sobre este código.

@@ -306,6 +306,16 @@ Estes itens são **no servidor de produção** (ou num ambiente igual a ele), se
 | 140 | Escrever só "a" | Enviar | "Conte o que aconteceu, com pelo menos 3 letras" |
 | 141 | Mandar 11 avisos seguidos no app | Olhar | A partir do 11º: "Você já mandou vários avisos. Espere um pouco" |
 
+### Revisão final (Fase 7 · checkpoint 7.4)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 142 | App do quiosque, uma conta com pedido **já pago** | Tentar cancelar o pedido (ou o único item) | Mensagem "O cliente já pagou por isso… combine a troca ou devolva o valor no balcão". O pedido continua como estava. Antes de qualquer pagamento, cancelar funciona |
+| 143 | Painel aberto no computador **e** app aberto no celular, com o dono logado nos dois. Em outra aba, "Esqueci a senha" e trocar pelo link do e-mail (no log, sem SMTP) | Voltar ao painel e ao app e clicar em qualquer coisa | O painel volta para o **login**; o app pede para entrar de novo. A senha nova entra |
+| 144 | App da atendente, celular A. No celular B (ou outra rede), errar o PIN 5 vezes | Entrar com o PIN certo no celular A | **Entra.** Só o celular B fica bloqueado por 15 minutos. No painel do dono, Equipe, a atendente **não** aparece bloqueada |
+| 145 | /admin → Problemas reportados e uma barraca com mais de 90 dias de uso | (só em produção, depois de 90 dias) | Avisos antigos somem sozinhos de madrugada |
+| 146 | Cliente com comanda de **ontem**, sem saldo, que nunca tocou em "Fechar conta" | Olhar de manhã (depois das 4h) | A comanda está **fechada** e o link já não aceita pedido novo. A que ainda deve continua aberta em "Contas abertas" |
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:
@@ -326,7 +336,7 @@ Esperado: **11 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 377 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: todos os testes passando (a contagem está no relatório do último checkpoint). Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 
