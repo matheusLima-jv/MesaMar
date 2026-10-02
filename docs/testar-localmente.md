@@ -264,6 +264,22 @@ docker compose exec db psql -U mesamar -c "update cliente set criado_em = now() 
 
 O job roda todo dia às 3h30 (Brasília): depois de envelhecer o cliente, confira no dia seguinte (o `AnonimizacaoTest` já cobre o comportamento; aqui você só confere que ele rodou de madrugada no servidor de verdade, procurando "LGPD: N clientes anonimizados" em `docker compose logs app`).
 
+### Backup e restauração na VPS (Fase 7 · checkpoint 7.1)
+
+Estes itens são **no servidor de produção** (ou num ambiente igual a ele), seguindo a seção "Backup diário, restauração e monitoramento" do `docs/deploy.md`.
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 119 | VPS: `./deploy/backup/backup.sh` | Rodar à mão | `backup ok: /opt/mesamar/backups/mesamar-AAAA-MM-DD_HHMM.dump (…)` e `rotação: … backup(s) guardado(s)`. O arquivo existe e é só seu (`ls -l`: `-rw-------`) |
+| 120 | VPS: `./deploy/backup/testar-restauracao.sh` | Rodar fora do horário de movimento | No fim: **`RESTAURAÇÃO OK: N tabelas, M linhas, esquema V12, idêntico ao banco original`**. O banco de produção continua intacto |
+| 121 | VPS: `crontab -l` e, **no dia seguinte**, `ls -lh /opt/mesamar/backups` e `tail /opt/mesamar/backups/backup.log` | Conferir o cron | Um backup novo da madrugada (3h15) e a linha `backup ok` no log |
+| 122 | VPS: `./deploy/backup/restaurar.sh <um backup>` (sem `--producao`) | Abrir o banco de treino (`docker compose … exec db psql -U mesamar -d mesamar_restauracao`, `select count(*) from pedido;`) e depois `./deploy/backup/restaurar.sh --limpar` | Os dados do backup estão lá; o banco de produção **não mudou**; `--limpar` apaga o de treino |
+| 123 | UptimeRobot (ou outro) | Criar o monitor de `https://mesamar.0mega.fun/actuator/health` com a palavra-chave `"status":"UP"`. Para testar: `docker compose -f docker-compose.prod.yml stop app`, esperar 5 a 10 min, depois `start app` | Você recebe o alerta de "fora do ar" e depois o de "voltou" |
+| 124 | healthchecks.io (opcional) | Criar um monitor com período de 1 dia e colocar a URL em `MESAMAR_BACKUP_PING_URL` no cron | O monitor fica verde depois do backup; se você **comentar o cron por 2 dias**, ele alerta |
+| 125 | Seu computador | Copiar um backup para fora: `scp usuario@vps:/opt/mesamar/backups/mesamar-*.dump ~/backups-mesamar/` e rodar `restaurar.sh` com ele (sem `--producao`) | O backup copiado também restaura. Defina **onde** e **com que frequência** você guarda cópias fora da VPS |
+
+> **Não** teste `restaurar.sh --producao` no servidor de verdade só por curiosidade: ele apaga o banco. Para ensaiar, use uma cópia da VPS ou o ambiente local (`docker compose up`), onde o comando é seguro.
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:

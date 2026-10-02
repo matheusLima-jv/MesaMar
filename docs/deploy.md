@@ -164,14 +164,90 @@ docker compose -f docker-compose.prod.yml --env-file .env up -d
 
 As migrações do Flyway só adicionam coisas nesta fase, então voltar a imagem não quebra o banco.
 
-## Backup manual (até a Fase 7, que automatiza)
+## Backup diário, restauração e monitoramento
+
+O banco é o único lugar onde os pedidos e os pagamentos existem. Este bloco liga o backup, prova que ele restaura e avisa quando algo para.
+
+### Backup automático (pg_dump + 14 dias)
+
+Os scripts ficam em `deploy/backup/` e rodam **dentro do container do banco** (não precisam de nada instalado na VPS, não abrem porta). Cada backup é um arquivo comprimido, conferido na hora (se o arquivo sair truncado ou ilegível, o script falha e **não** o guarda), com permissão só do seu usuário; os de mais de 14 dias são apagados.
+
+```bash
+# uma vez, na VPS (a pasta é a do deploy: /opt/mesamar)
+cd /opt/mesamar
+sudo mkdir -p /opt/mesamar/backups && sudo chown "$USER" /opt/mesamar/backups
+chmod +x deploy/backup/*.sh        # só se ainda não estiverem executáveis (git já guarda o bit)
+
+# teste à mão primeiro
+export MESAMAR_COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env"
+./deploy/backup/backup.sh
+ls -lh /opt/mesamar/backups
+```
+
+Saída esperada: `backup ok: /opt/mesamar/backups/mesamar-AAAA-MM-DD_HHMM.dump (…)` e `rotação: … backup(s) guardado(s)`.
+
+**Agende no cron** (`crontab -e`), de madrugada, **fora do horário de praia** (aqui, 3h15):
+
+```cron
+15 3 * * * cd /opt/mesamar && MESAMAR_COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env" MESAMAR_BACKUP_PING_URL="https://hc-ping.com/SEU-ID" ./deploy/backup/backup.sh >> /opt/mesamar/backups/backup.log 2>&1
+```
+
+- `MESAMAR_BACKUP_PING_URL` é **opcional**: se você criar um monitor do tipo "healthcheck" (ex.: healthchecks.io, plano grátis, com "período: 1 dia, tolerância: 2 h"), o script avisa que deu certo, e **você recebe um alerta quando o backup PARAR de rodar** (um backup que não roda não faz barulho). Sem a variável, o script simplesmente não avisa ninguém.
+- Variáveis opcionais: `MESAMAR_BACKUP_DIR` (padrão `/opt/mesamar/backups`) e `MESAMAR_BACKUP_DIAS` (padrão 14).
+- O backup fica **na mesma VPS**: protege de erro de operação, não de perder o servidor. **Copie para fora** pelo menos uma vez por semana: `scp usuario@vps:/opt/mesamar/backups/mesamar-*.dump ~/backups-mesamar/` (ou um `rclone` para um armazenamento seu). Isto não é automático de propósito: depende de uma conta sua.
+
+### Teste de restauração (faça agora e uma vez por mês)
+
+Um backup que nunca foi restaurado é uma esperança, não um backup. Este teste gera um dump, restaura num **banco descartável** ao lado do de produção e compara, tabela por tabela, a quantidade de linhas e a versão do esquema. **Não altera o banco de verdade.**
 
 ```bash
 cd /opt/mesamar
-docker compose -f docker-compose.prod.yml exec -T db pg_dump -U mesamar mesamar | gzip > backup-$(date +%F).sql.gz
+export MESAMAR_COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env"
+./deploy/backup/testar-restauracao.sh                                    # com um dump novo
+./deploy/backup/testar-restauracao.sh /opt/mesamar/backups/mesamar-AAAA-MM-DD_0315.dump   # com um backup já guardado
 ```
 
-Guarde uma cópia fora da VPS (ex.: `scp` para o seu computador).
+Esperado, no fim: `RESTAURAÇÃO OK: N tabelas, M linhas, esquema V12, idêntico ao banco original.` Qualquer outra coisa (erro do `pg_restore`, tabela faltando, contagem diferente) termina com `ERRO` e código 1: **esse backup não serve.** Rode fora do horário de movimento: se alguém fizer um pedido entre o dump e a conferência, as tabelas movimentadas podem diferir em poucas linhas, e o teste acusa (rode de novo).
+
+O CI roda esse mesmo teste a cada push, no banco que acabou de passar pelo E2E, então o script em si está sempre testado.
+
+### Recuperação de desastre (restaurar de verdade)
+
+Use quando o banco foi perdido ou corrompido. **Apaga o banco de produção** e o troca pelo backup; o que entrou depois do backup se perde.
+
+```bash
+cd /opt/mesamar
+export MESAMAR_COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env"
+./deploy/backup/restaurar.sh /opt/mesamar/backups/mesamar-AAAA-MM-DD_0315.dump --producao
+# pede para digitar RESTAURAR; para a aplicação, restaura, sobe a aplicação de novo
+```
+
+Depois: abra `https://mesamar.0mega.fun/actuator/health` (deve dizer `"status":"UP"`), entre no `/admin` e num painel de dono, e confira uma comanda recente. Sem `--producao`, o script restaura num banco de **treino** (`mesamar_restauracao`) sem tocar no de produção, e `./deploy/backup/restaurar.sh --limpar` o apaga.
+
+Se o servidor inteiro se perder: instale o Docker, refaça os passos 1 a 6 deste guia (o `.env` precisa estar guardado fora da VPS: **guarde uma cópia dele num cofre de senhas**), suba só o `db`, e restaure o último backup que você copiou para fora com o comando acima.
+
+### Health check externo (UptimeRobot)
+
+A aplicação responde a `GET /actuator/health` com `{"status":"UP"}` (sem detalhes, é seguro deixar público). Num monitor externo (UptimeRobot, plano grátis):
+
+1. **Add New Monitor** → tipo **HTTP(s)** → URL `https://mesamar.0mega.fun/actuator/health`.
+2. Em "Keyword", escolha **"Keyword exists"** com `"status":"UP"` (assim um 200 com erro dentro também alerta).
+3. Intervalo de **5 minutos** e **alerta para o seu e-mail ou WhatsApp**.
+
+Isto avisa quando o site, o Nginx, a aplicação ou o banco caem. Ele **não** avisa se o backup parou: para isso, é o `MESAMAR_BACKUP_PING_URL` acima.
+
+### Logs de erro
+
+Em produção a aplicação escreve **uma linha JSON por evento** na saída do container, e o Docker guarda no máximo **5 arquivos de 10 MB** por serviço (o disco da VPS não enche com log).
+
+```bash
+cd /opt/mesamar
+docker compose -f docker-compose.prod.yml logs --since 24h app | grep '"level":"ERROR"'      # erros das últimas 24 h
+docker compose -f docker-compose.prod.yml logs --since 1h app | grep -c '"level":"WARN"'      # quantos avisos na última hora
+docker compose -f docker-compose.prod.yml logs -f app                                          # acompanhar ao vivo
+```
+
+Erros que valem uma olhada: `Falha ao anonimizar`, `Falha ao verificar pedidos atrasados`, `Não deu para avisar` (push) e qualquer `ERROR` com stack trace. O resumo diário pode ser um `cron` que manda esse `grep` por e-mail; o mínimo é olhar antes de cada fim de semana de operação.
 
 ## O que este deploy NÃO faz (de propósito)
 
