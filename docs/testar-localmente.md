@@ -295,6 +295,17 @@ Estes itens são **no servidor de produção** (ou num ambiente igual a ele), se
 | 134 | Barraca **de verdade** (painel, app e página do cliente) | Olhar | **Nenhuma** faixa de treino |
 | 135 | Dono de **outra** barraca: abrir Materiais | Olhar o guia e a plaquinha | Mostram **o nome e o código da barraca dele**, nunca os de outra |
 
+### Reportar problema (Fase 7 · checkpoint 7.3)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 136 | App do quiosque → aba **Mais** | Ver o cartão "Reportar problema", escrever uma frase e tocar em **Enviar aviso** | "Aviso enviado. Obrigado!" e a caixa esvazia |
+| 137 | /admin → **Problemas reportados** (recarregue a página) | Procurar o aviso | A linha traz **quando**, a **barraca**, "Quiosque", a **tela** em que você estava antes de abrir "Mais" (ex.: `fila`) e a **conexão** (ex.: `online · 4g · tempo real conectado`). Passando o mouse na conexão, aparece o navegador |
+| 138 | Página do cliente (celular B) → rodapé → **Reportar um problema** | Escrever e enviar | "Aviso enviado. Obrigado!". No /admin, a linha aparece como "Cliente" e **sem o nome do cliente** |
+| 139 | Celular em **modo avião** (ou sem sinal): tentar enviar | Olhar | Mensagem "Não deu para enviar agora. Tente de novo quando o sinal voltar". **Nada** é enviado em segundo plano |
+| 140 | Escrever só "a" | Enviar | "Conte o que aconteceu, com pelo menos 3 letras" |
+| 141 | Mandar 11 avisos seguidos no app | Olhar | A partir do 11º: "Você já mandou vários avisos. Espere um pouco" |
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:
@@ -315,7 +326,7 @@ Esperado: **11 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 371 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 377 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 

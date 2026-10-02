@@ -1,7 +1,7 @@
 # Estado do projeto MesaMar: onde paramos e como continuar
 
 > **Leia isto antes de qualquer outra coisa.** Este arquivo é a passagem de bastão entre sessões de trabalho: diz exatamente o que existe, o que está verificado, o que não está e qual é o próximo passo.
-> Última atualização: **2026-10-01**. **Fase 3 mergeada na `main`** ([PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4)). Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **4.1 e 4.2 aprovados** (CI verde): **a Fase 4 está completa.** Na mesma `fase-4-fila`: **5.1 e 5.2 aprovados** (CI verde) e **5.3 (relatório do dia e anonimização LGPD) pronto**, **CI verde no PR #5** (359 testes, 10 E2E), **aguardando o "aprovado 5.3"**. **Com o 5.3 a Fase 5 fica completa.** Fase 7 em andamento na branch `fase-7-piloto` (a partir da `fase-4-fila`; PR em rascunho apontando para ela): **7.1 (backup, teste de restauração, health check e logs) aprovado; 7.2 (barraca de demonstração e materiais impressos) pronto, CI verde no PR #6 (371 testes, 11 E2E), aguardando aprovação.**
+> Última atualização: **2026-10-01**. **Fase 3 mergeada na `main`** ([PR #4](https://github.com/matheusLima-jv/MesaMar/pull/4)). Na branch `fase-4-fila` ([PR #5](https://github.com/matheusLima-jv/MesaMar/pull/5), rascunho): **4.1 e 4.2 aprovados** (CI verde): **a Fase 4 está completa.** Na mesma `fase-4-fila`: **5.1 e 5.2 aprovados** (CI verde) e **5.3 (relatório do dia e anonimização LGPD) pronto**, **CI verde no PR #5** (359 testes, 10 E2E), **aguardando o "aprovado 5.3"**. **Com o 5.3 a Fase 5 fica completa.** Fase 7 em andamento na branch `fase-7-piloto` (a partir da `fase-4-fila`; PR em rascunho apontando para ela): **7.1 (backup, teste de restauração, health check e logs) aprovado; 7.2 (barraca de demonstração e materiais impressos) aprovado; 7.3 (botão "reportar problema") pronto, verde localmente (377 testes, 11 E2E), aguardando push, CI e aprovação.**
 
 ---
 
@@ -44,7 +44,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | 4 — Fila + tempo real + Web Push | ✅ Completa e aprovada na branch `fase-4-fila` (PR #5, rascunho, ainda não mergeado) |
 | 5 — Fechar conta, Pix, pagamentos, relatório | 🔶 5.1 e 5.2 aprovados; 5.3 pronto (aguardando aprovação) na branch `fase-4-fila` |
 | 6 — Modo atendente offline | ⬜ (pode vir depois do piloto, se o sinal nas praias for bom) |
-| 7 — Preparação do piloto | 🔶 Branch `fase-7-piloto`: 7.1 aprovado, 7.2 pronto (aguardando aprovação); 7.3 e 7.4 ⬜ |
+| 7 — Preparação do piloto | 🔶 Branch `fase-7-piloto`: 7.1 e 7.2 aprovados, 7.3 pronto (aguardando aprovação); 7.4 ⬜ |
 
 ### Checkpoints da Fase 2
 
@@ -115,7 +115,7 @@ cd e2e && npm ci && E2E_BASE_URL=http://localhost:8080 E2E_ADMIN_PASSWORD=<a do 
 ```
 
 ### Roteiro manual completo (para a entrega final)
-`docs/testar-localmente.md`, itens 1 a 135.
+`docs/testar-localmente.md`, itens 1 a 141.
 
 ### CI (GitHub Actions, `.github/workflows/ci.yml`)
 - ktlint → build e testes → imagem Docker → smoke do compose → E2E (Playwright, Pixel 7) → push para o GHCR (só na `main`).
@@ -186,7 +186,7 @@ backend/src/main/kotlin/br/com/mesamar/
 ├── push/         WebPushCripto (RFC 8291, só JDK), Vapid (RFC 8292), PushService (inscrições, envio, 410), DestinoPush (anti-SSRF), NotificadorPush, GerarChavesVapid
 └── staff/        API do app do quiosque (/api/staff): login, cardápio, check-in
 backend/src/main/resources/
-├── db/migration/ V1…V13 (Flyway)
+├── db/migration/ V1…V14 (Flyway)
 ├── templates/    landing/, admin/, painel/ (Thymeleaf)
 └── static/css/   landing.css (base), painel.css (painel)
 web-staff/        app do quiosque (TS puro + Vite): src/api.ts, src/dom.ts, src/fila-store.ts (SSE + fila), src/pagamentos-store.ts (aba Pagamentos), src/push.ts (inscrição Web Push), src/som.ts, src/views/* (clientes, fila, cancelar, pausar, pagamentos, receber, cardapio, mais), public/sw.js (push e notificationclick), public/manifest.json
@@ -302,9 +302,9 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 
 ### Fase 7: piloto
 - **7.1:** ✅ aprovado (ver `docs/relatorios/fase-7.md`). `deploy/backup/` (`backup.sh`, `testar-restauracao.sh`, `restaurar.sh`, `comum.sh`): `pg_dump` custom conferido, rotação de 14 dias, teste de restauração (também no CI, depois do E2E), recuperação de desastre com `--producao`; logs do Docker com rotação no compose de produção; guia em `docs/deploy.md`. **O backup fica na mesma VPS; a cópia para fora é manual.** Os scripts usam `docker compose exec` e **precisam de `< /dev/null` em todo `exec -T` que não deva ler a entrada** (já tratado em `comum.sh`).
-- **7.2:** ✅ pronto, aguardando aprovação (ver `docs/relatorios/fase-7.md` e [ADR 0015](docs/adr/0015-barraca-de-demonstracao-e-materiais.md)). `DemoService` cria/reinicia a barraca `demo` (V13, índice único parcial) pelo botão do `/admin` (credenciais mostradas uma vez; senha e PIN novos a cada reinício; chave Pix fictícia; e-mail `demo@treino.invalid`); faixa de treino no painel, no app e na página do cliente (campo `demo`). Materiais: `/painel/materiais`, `/guia` e `/plaquinha` (A4, `impresso.css`, botão em `js/imprimir.js` por causa da CSP). **O guia ainda não menciona o "reportar problema": acrescentar no 7.3.**
-- **7.3 e 7.4 (falta):**
-- Botão "reportar problema" nos dois apps.
+- **7.2:** ✅ aprovado (ver `docs/relatorios/fase-7.md` e [ADR 0015](docs/adr/0015-barraca-de-demonstracao-e-materiais.md)). `DemoService` cria/reinicia a barraca `demo` (V13, índice único parcial) pelo botão do `/admin` (credenciais mostradas uma vez; senha e PIN novos a cada reinício; chave Pix fictícia; e-mail `demo@treino.invalid`); faixa de treino no painel, no app e na página do cliente (campo `demo`). Materiais: `/painel/materiais`, `/guia` e `/plaquinha` (A4, `impresso.css`, botão em `js/imprimir.js` por causa da CSP). O guia já menciona o "reportar problema".
+- **7.3:** ✅ pronto, aguardando aprovação (ver `docs/relatorios/fase-7.md`). `POST /api/staff/problemas` e `POST /api/c/{token}/problemas` gravam em `problema_reportado` (V14) com tela, conexão e hora do servidor; `ProblemaService`; lista no `/admin` ("Problemas reportados"). Freio de 10/10 min (quiosque) e 5/10 min (cliente). **Sem sinal o aviso não é reenviado depois** (modo offline é a Fase 6). O nome do cliente não é guardado.
+- **7.4 (falta):**
 - Revisão final por um agente independente.
 
 ---
@@ -314,7 +314,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 - **Deploy** em `mesamar.0mega.fun`, seguindo o `docs/deploy.md`.
 - **SMTP em produção**, para o "esqueci a senha" funcionar: escolher o serviço e criar SPF/DKIM na Cloudflare, manualmente.
 - **Portão A:** divulgar a landing, visitar barracas e medir o sinal em ≥3 praias num domingo, das 12h às 15h. O resultado decide se a Fase 6 vem antes do piloto.
-- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 135 até aqui.
+- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 141 até aqui.
 
 ## 9. Riscos conhecidos e decisões de escala
 

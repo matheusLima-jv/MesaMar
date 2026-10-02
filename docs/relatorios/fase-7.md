@@ -3,8 +3,8 @@
 - **Branch:** `fase-7-piloto` (criada a partir da `fase-4-fila`, que tem as Fases 4 e 5 no PR #5 ainda não mergeado)
 - A Fase 7 está dividida em checkpoints, aprovados um por vez:
   - [x] **7.1 — Backup diário, teste de restauração, health check e logs** (aprovado; CI verde no PR #6)
-  - [ ] **7.2 — Barraca de demonstração e materiais impressos (guia de 1 página e plaquinha de balcão)** ← checkpoint atual
-  - [ ] 7.3 — Botão "reportar problema" nos dois apps
+  - [x] **7.2 — Barraca de demonstração e materiais impressos (guia de 1 página e plaquinha de balcão)** (aprovado; CI verde no PR #6)
+  - [ ] **7.3 — Botão "reportar problema" nos dois apps** ← checkpoint atual
   - [ ] 7.4 — Revisão final por um agente independente
 - O que **só você** faz (deploy, treino, operação no fim de semana, Portão B) está no `ESTADO_DO_PROJETO.md`, seção 8.
 
@@ -108,3 +108,54 @@ Itens 126 a 135 de [`docs/testar-localmente.md`](../testar-localmente.md) (seç�
 ### 6. Antes de aprovar
 
 - O 7.2 está na `fase-7-piloto`, no PR #6 (rascunho, apontando para a `fase-4-fila`, não mergeado).
+
+---
+
+## Checkpoint 7.3 — Botão "reportar problema" nos dois apps
+
+- **Data:** 2026-10-02
+- **Verificado localmente:** ktlint, **377 testes de backend** (371 do 7.2 + 6 novos), build dos dois fronts e **11 E2E** (os dois E2E do painel e da demonstração ganharam o passo novo), com a imagem Docker construída do zero. **O CI do GitHub ainda não rodou para o 7.3** (os commits ainda não foram enviados).
+
+### 1. O que foi feito
+
+- **App do quiosque:** na aba **Mais**, o cartão **"Reportar problema"**: uma caixa de texto e **"Enviar aviso"**. Vale para o dono e para os atendentes.
+- **Página do cliente:** no rodapé, **"Reportar um problema"** (uma tela com uma caixa de texto, sem pedir nome).
+- **O aviso leva junto o contexto**, sem a pessoa precisar descrever:
+  - **a tela** em que estava (a última aba aberta antes de "Mais"; no cliente, cardápio, carrinho, conta…);
+  - **a hora**, pelo relógio do **servidor** (não do celular);
+  - **o estado da conexão**: online ou offline, o tipo de rede se o navegador disser (ex.: 4g) e se o tempo real estava conectado;
+  - o navegador (`User-Agent`, só no `/admin`, ao passar o mouse na conexão).
+- **No `/admin`**, a seção **"Problemas reportados"** lista os 100 mais recentes: quando, barraca, se foi do cliente ou do quiosque, tela, conexão e o texto. Cada aviso também vai para o **log** do servidor (nível WARN).
+- **O guia da equipe** ganhou a linha "Mais → Reportar problema" (pendência do 7.2).
+
+### 2. Decisões
+
+- **Sem dado pessoal além do necessário:** o nome do cliente **não** é guardado (testado); a barraca e a comanda já dizem de onde veio. O texto livre pode conter o que a pessoa escrever, então a política de privacidade vale para ele como para o resto.
+- **A barraca vem de quem reportou** (o login ou o token da comanda), nunca do pedido: ninguém reporta "em nome" de outra barraca (testado).
+- **Freio contra abuso:** 10 avisos a cada 10 minutos por pessoa no quiosque e 5 por comanda no cliente (depois, 429). Texto de 3 a 500 letras; caracteres de controle e espaços repetidos são limpos.
+- **Sem sinal, o aviso não é guardado para reenviar depois:** o app mostra "tente de novo quando o sinal voltar". O modo offline de verdade é da Fase 6. É o único caso em que o relato de um problema de sinal pode se perder, e o próprio texto avisa.
+- **Só o projeto vê os avisos (no `/admin`).** O dono da barraca não tem uma tela para ler os avisos dos clientes dele; se você quiser, é uma página no painel.
+- **O texto aparece escapado no `/admin`:** um aviso com HTML não vira HTML (testado).
+
+### 3. O que precisa de você
+
+- **Olhar o `/admin#problemas` durante o piloto** (item 136 em diante), de preferência todo dia de operação: é a lista do que travou a barraca e do que fez o cliente desistir. Se quiser alerta por e-mail ou WhatsApp a cada aviso, me diga.
+
+### 4. Testes automatizados novos
+
+- **`ProblemasApiTest` (6 testes):**
+  - o quiosque reporta com tela e conexão e **fica ligado à barraca de quem reportou**, não à outra;
+  - o cliente reporta **pelo token**, ligado à comanda, e o **nome não é guardado**;
+  - mensagem curta, ausente ou JSON inválido são recusados; texto de 900 letras é cortado em 500; tela e conexão ausentes viram "desconhecida";
+  - **freio**: no 11º aviso do quiosque e no 6º do cliente, 429;
+  - sem login 401; sem o token de segurança 403; token de comanda inventado 404; nada é gravado;
+  - o `/admin` exige login, mostra barraca, tela, conexão e origem, e **um aviso com `<script>` aparece escapado**.
+- **E2E (celular):** a atendente da demonstração envia um aviso em Mais → Reportar problema, e o admin o vê na lista com a barraca, a tela "fila" e "online"; no fluxo do painel, a Ana reporta um problema pela página do cliente. Sem rolagem lateral e sem erro no console.
+
+### 5. Como validar (na entrega final)
+
+Itens 136 a 141 de [`docs/testar-localmente.md`](../testar-localmente.md).
+
+### 6. Antes de aprovar
+
+- O 7.3 está na `fase-7-piloto`, no PR #6 (rascunho, apontando para a `fase-4-fila`). Os commits do 7.3 ainda são locais.
