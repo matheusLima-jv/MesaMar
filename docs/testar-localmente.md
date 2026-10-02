@@ -241,6 +241,29 @@ Use dois celulares: **A** (cliente, pela página do QR) e **B** (dono ou atenden
 
 > Link de uma conta **paga há mais de 7 dias** deixa de abrir ("Esse link não vale mais"). Para ver isso sem esperar, mude `fechada_em` no banco: `docker compose exec db psql -U mesamar -c "update comanda set fechada_em = now() - interval '8 days' where status = 'FECHADA';"`.
 
+### Relatório do dia e LGPD (Fase 5 · checkpoint 5.3)
+
+Use um dia com movimento (ou crie: 3 ou 4 clientes, pedidos, pagamentos em formas diferentes, um cancelamento e uma conta fechada sem receber).
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 111 | Painel → **Relatório** | Abrir | "Hoje, DD/MM/AAAA" com Resumo, Recebido por forma, Mais vendidos, Cancelamentos, Contas em aberto e Não recebido. Sem rolagem lateral no celular |
+| 112 | Mesma página | Somar o **caixa do dia** (o que você recebeu em Pix, dinheiro e cartão) | **Recebido no dia** e **cada forma** batem com o seu caixa. O troco devolvido **não** entra no dinheiro |
+| 113 | Mesma página | Conferir "Vendido", "Clientes" e os pedidos | **Vendido** = soma dos pedidos sem os itens cancelados. **Vendido = Recebido + Contas em aberto + Não recebido** (se o dia está todo fechado) |
+| 114 | Mesma página | Olhar "Mais vendidos", "Cancelamentos" e "Tempo médio" | A quantidade de cada item confere com a fila; os cancelamentos mostram o motivo (Esgotou, Cliente desistiu, Outro); o tempo médio vai da entrada na fila até "Entregue" |
+| 115 | **Baixar em CSV** → abrir no Excel ou Google Planilhas | Olhar | Abre em colunas **Seção, Item, Quantidade, Valor (R$)**, com acentos certos e valores com vírgula (ex.: `49,00`) |
+| 116 | "Dia anterior" / escolher uma data / digitar uma data no futuro na URL (`?dia=2099-01-01`) | Olhar | Mostra os números do dia escolhido (as **contas em aberto** são sempre as de agora); data futura volta para hoje |
+| 117 | Outra conta de dono (outra barraca) | Abrir o relatório | **Nenhum** cliente, valor ou motivo da primeira barraca |
+| 118 | Banco: envelhecer um cliente e rodar o job (ver abaixo) | Abrir o relatório e a página do cliente | Nome vira **"Cliente"** e o WhatsApp some; **os valores do relatório não mudam**. Cliente com conta ainda aberta **não** é anonimizado |
+
+Para o item 118, sem esperar 90 dias, no banco do compose:
+
+```bash
+docker compose exec db psql -U mesamar -c "update cliente set criado_em = now() - interval '91 days' where nome = 'Ana';"
+```
+
+O job roda todo dia às 3h30 (Brasília): depois de envelhecer o cliente, confira no dia seguinte (o `AnonimizacaoTest` já cobre o comportamento; aqui você só confere que ele rodou de madrugada no servidor de verdade, procurando "LGPD: N clientes anonimizados" em `docker compose logs app`).
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:
@@ -261,7 +284,7 @@ Esperado: **10 passaram**. O teste de 4G imprime o tempo de carregamento. Rode o
 ./gradlew ktlintCheck build     # precisa de JDK 21, Node 22 e Docker rodando (Testcontainers)
 ```
 
-Esperado: 347 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
+Esperado: 359 testes passando. Relatório em `backend/build/reports/tests/test/index.html`.
 
 ## 7. Simular produção (opcional)
 

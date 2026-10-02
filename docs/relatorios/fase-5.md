@@ -3,9 +3,9 @@
 - **Branch:** `fase-4-fila` (o 5.1 foi feito em cima da Fase 4, ainda no PR #5; ver a nota em "Antes de aprovar")
 - A Fase 5 está dividida em 3 checkpoints, aprovados um por vez:
   - [x] **5.1 — Fechar conta pelo cliente e Pix** (aprovado; CI verde no PR #5)
-  - [ ] **5.2 — Aviso "indo pagar", aba Pagamentos e confirmação** ← checkpoint atual
-  - [ ] 5.3 — Relatório do dia e anonimização LGPD
-- Decisões de arquitetura: [ADR 0012](../adr/0012-fechar-conta-e-pix.md) (fechar conta e Pix) e [ADR 0013](../adr/0013-receber-pagamentos-e-fechar-conta.md) (receber, bloquear e encerrar)
+  - [x] **5.2 — Aviso "indo pagar", aba Pagamentos e confirmação** (aprovado; CI verde no PR #5)
+  - [ ] **5.3 — Relatório do dia e anonimização LGPD** ← checkpoint atual
+- Decisões de arquitetura: [ADR 0012](../adr/0012-fechar-conta-e-pix.md) (fechar conta e Pix) e [ADR 0013](../adr/0013-receber-pagamentos-e-fechar-conta.md) (receber, bloquear e encerrar) e [ADR 0014](../adr/0014-relatorio-do-dia-e-anonimizacao.md) (relatório e LGPD)
 
 ---
 
@@ -116,6 +116,60 @@ Ver o [ADR 0013](../adr/0013-receber-pagamentos-e-fechar-conta.md). As que merec
 
 Itens 97 a 110 de [`docs/testar-localmente.md`](../testar-localmente.md). Os mais importantes: **o aviso chegar com a tela bloqueada** (item 100), **conta dividida com troco** (itens 104 e 105) e **o cliente bloqueado não conseguir pedir** (item 108).
 
-### 6. Antes de aprovar
+---
 
-- O 5.2 está na `fase-4-fila`, no PR #5 (rascunho, não mergeado).
+## Checkpoint 5.3 — Relatório do dia e anonimização LGPD
+
+- **Data:** 2026-10-01
+- **Verificado localmente:** ktlint, **359 testes de backend** (347 do 5.2 + 12 novos), build dos dois fronts e **10 E2E** (o do painel ganhou o passo do relatório), com a imagem Docker construída do zero. **O CI do GitHub ainda não rodou para o 5.3** (os commits ainda não foram enviados).
+
+### 1. O que foi feito
+
+- **Relatório do dia** no painel do dono (`/painel/relatorio`, aba "Relatório"), com seletor de data e "dia anterior / dia seguinte":
+  - **Recebido no dia**, total e **por forma** (Pix, dinheiro, cartão);
+  - **Vendido no dia**; **clientes** do dia; **pedidos feitos pelo cliente × lançados pelo atendente**; cancelados e entregues;
+  - **tempo médio do pedido à entrega**;
+  - **itens mais vendidos** (10 primeiros) e **cancelamentos por motivo**, com quantidade e valor;
+  - **contas em aberto agora** (as maiores primeiro, com o total) e **não recebido** (contas encerradas sem receber, com o motivo).
+- **Exportação em CSV** do mesmo conteúdo (abre direto no Excel: ponto e vírgula, acentos e vírgula decimal certos).
+- **Anonimização LGPD** todo dia às 3h30: depois de **90 dias**, nome vira "Cliente" e o WhatsApp é apagado. Pedidos, pagamentos e valores **não mudam**, e o relatório dá o mesmo número antes e depois.
+- A **política de privacidade** foi ajustada para dizer o que realmente acontece (extrato por 7 dias; quem ainda deve só é anonimizado depois de encerrar a conta).
+
+### 2. Decisões
+
+Ver o [ADR 0014](../adr/0014-relatorio-do-dia-e-anonimizacao.md). As que merecem o seu olho:
+- **O relatório é calculado na hora, direto dos pedidos e pagamentos.** Não há total guardado, então não tem como ficar errado em relação ao quiosque. **A conta fecha:** vendido = recebido + em aberto + não recebido (testado num cenário gerado).
+- **Dia = dia em Brasília.** Um pagamento às 23h30 conta no dia certo, mesmo já sendo o dia seguinte em UTC (testado).
+- **"Contas em aberto" é de agora**, não do dia escolhido: quem deve é uma foto do momento. A página explica.
+- **Quem ainda deve não é anonimizado** enquanto a comanda estiver aberta, aguardando pagamento ou bloqueada, para o dono não perder o nome de quem deve. É uma exceção à regra seca de 90 dias; se preferir a regra seca, é remover uma condição do SQL.
+- **O texto livre não é anonimizado** (observação de item e motivo de cancelamento): o produto não pede dado pessoal ali, mas o cliente poderia escrever um.
+
+### 3. O que precisa de você
+
+- **Conferir o relatório contra o seu caixa** num dia de teste (itens 111 a 114 do roteiro): é onde você vai notar qualquer diferença com o jeito que a barraca conta o dia.
+- **Abrir o CSV no seu Excel ou Google Planilhas** (item 115): os acentos e a vírgula decimal dependem do programa.
+
+### 4. Testes automatizados novos
+
+- **Relatório (`RelatorioTest`, 7 testes)**, num cenário gerado com quatro clientes (uma conta paga em duas formas, uma em aberto, uma com item cancelado e fechada sem receber, uma lançada pelo atendente e entregue):
+  - **os números batem:** recebido por forma, vendido, clientes, pedidos do cliente × do atendente, entregues, **tempo médio de 7 min 30 s**, mais vendidos, cancelamento por motivo, contas em aberto e não recebido; e **vendido = recebido + em aberto + não recebido**;
+  - a página mostra os valores formatados e o **CSV traz as mesmas linhas** (cabeçalho, BOM, nome do arquivo, tipo);
+  - **outro dia não mistura os números**, mas as contas em aberto são as de agora;
+  - **o dia do pagamento é o de Brasília, não o do UTC**;
+  - data inválida mostra hoje com aviso, e data no futuro volta para hoje (página e CSV);
+  - sem entrar no painel não há relatório nem CSV (redireciona para o login);
+  - **isolamento:** o dono de outra barraca não vê nenhum cliente, valor ou motivo da primeira, nem na página nem no CSV.
+- **Anonimização (`AnonimizacaoTest`, 5 testes):** com 91 dias, nome vira "Cliente" e o WhatsApp some, **e o relatório, os pagamentos e os itens ficam iguais**, e a página do cliente já mostra "Cliente"; com 89 dias nada muda; **quem tem comanda aberta, fechando ou bloqueada fica de fora** e só é anonimizado depois de encerrar; rodar de novo não repete nem muda a data; o job agendado roda de madrugada no fuso de Brasília.
+- **E2E (celular):** depois de a atendente receber a conta da Ana, o dono abre o relatório e vê **R$ 49,00 recebidos** (R$ 20,00 no Pix e R$ 29,00 em dinheiro), o **Bruno em aberto com R$ 25,00**, o cancelamento "Esgotou" e o link do CSV. Sem rolagem lateral e sem erro no console.
+
+### 5. Como validar (na entrega final)
+
+Itens 111 a 118 de [`docs/testar-localmente.md`](../testar-localmente.md). Os mais importantes: **o relatório bater com o seu caixa** (itens 112 a 114) e **o CSV abrir certo na sua planilha** (item 115).
+
+### 6. Fim da Fase 5
+
+Com o 5.3, a Fase 5 está completa (fechar conta e Pix, receber, bloquear e fechar a conta, relatório e LGPD). O próximo é a **Fase 6** (modo atendente offline), que o plano deixa para depois do piloto se o sinal nas praias for bom, e a **Fase 7** (preparação do piloto). **Antes de começar a Fase 6, quero a sua decisão** sobre a ordem (ver "O que precisa de você" no resumo).
+
+### 7. Antes de aprovar
+
+- O 5.3 está na `fase-4-fila`, no PR #5 (rascunho). Os commits do 5.3 ainda são locais.
