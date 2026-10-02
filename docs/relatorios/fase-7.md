@@ -165,7 +165,7 @@ Itens 136 a 141 de [`docs/testar-localmente.md`](../testar-localmente.md).
 ## Checkpoint 7.4 — Revisão final: sessões, PIN, cancelamento depois de pagar e encerramento diário
 
 - **Data:** 2026-10-02
-- **CI:** ⏳ ainda não rodou no GitHub. **Localmente, tudo verde:** ktlint, **388 testes de backend** (377 + 11 novos), `docker compose up --build` saudável e **11 E2E** passando contra a imagem nova.
+- **CI:** ✅ verde no GitHub (PR #6, commit `9243396`): lint, testes e build, imagem Docker e E2E. **Localmente também:** ktlint, **388 testes de backend** (377 + 11 novos), `docker compose up --build` saudável e **11 E2E** passando contra a imagem nova.
 
 ### 1. O que foi feito
 
