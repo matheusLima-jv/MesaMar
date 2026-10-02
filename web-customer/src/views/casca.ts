@@ -43,7 +43,8 @@ export function casca (ctx: Contexto, aba: Aba, ...conteudo: Array<Node | string
         : '',
       ...conteudo),
     h('footer', { class: 'foot' },
-      h('a', { href: '/privacidade', target: '_blank', rel: 'noopener' }, 'Política de privacidade')
+      h('a', { href: '/privacidade', target: '_blank', rel: 'noopener' }, 'Política de privacidade'),
+      h('a', { href: '#problema', class: 'foot-link' }, 'Reportar um problema')
     )
   ]
 }

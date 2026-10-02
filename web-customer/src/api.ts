@@ -171,6 +171,11 @@ export async function meusPedidos (token: string): Promise<MeusPedidos> {
   return await chamar<MeusPedidos>('GET', token, '/pedidos')
 }
 
+/** "Reportar problema": o texto e o contexto que a página conhece (tela, conexão). */
+export async function reportarProblema (token: string, mensagem: string, tela: string, conexao: string): Promise<void> {
+  await chamar<unknown>('POST', token, '/problemas', { mensagem, tela, conexao })
+}
+
 /** Uma tentativa de envio. Quem chama repete com o MESMO `id` até dar certo: o servidor não duplica. */
 export async function enviarPedido (token: string, pedido: PedidoEnvio): Promise<Pedido> {
   return await chamar<Pedido>('POST', token, '/pedidos', pedido)

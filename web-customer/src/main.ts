@@ -10,6 +10,7 @@ import { telaCardapio } from './views/cardapio'
 import { telaCarrinho } from './views/carrinho'
 import { telaConfirmacao, telaEnvio } from './views/envio'
 import { telaPedidos } from './views/pedidos'
+import { telaProblema } from './views/problema'
 import { telaConta, type AcoesConta, type EstadoConta } from './views/conta'
 
 const root = document.getElementById('app') as HTMLElement
@@ -60,6 +61,8 @@ function desenhar (topo = true): void {
     mount(root, ...telaCarrinho(ctx, erroCarrinho, () => { void enviar() }, () => { desenhar() }))
   } else if (location.hash === '#pedidos') {
     mount(root, ...telaPedidos(ctx, meus, meusSemSinal))
+  } else if (location.hash === '#problema') {
+    mount(root, ...telaProblema(ctx, token, telaAnterior, tempoReal))
   } else if (location.hash === '#conta') {
     mount(root, ...telaConta(ctx, estadoConta, acoesConta))
   } else if (location.hash === '#pedido' && confirmado !== null) {
@@ -245,7 +248,12 @@ function acompanharPedidos (): void {
   timerPedidos = window.setTimeout(volta, ATUALIZAR_PEDIDOS_MS)
 }
 
+/** A tela onde a pessoa estava antes de abrir "Reportar problema" (vai junto no aviso). */
+let telaAnterior = 'cardapio'
+
 function trocouDeTela (): void {
+  const atual = location.hash === '' ? 'cardapio' : location.hash.slice(1)
+  if (atual !== 'problema') telaAnterior = atual
   desenhar()
   acompanharPedidos()
   // Voltando ao cardápio depois de um tempo: confere se algo acabou ou se o limite da conta mudou

@@ -332,6 +332,11 @@ export function lerReais (texto: string): number | null {
   return Number(m[1].replace(/\./g, '')) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
 }
 
+/** "Reportar problema": o texto e o contexto que o app conhece (tela, conexão). */
+export async function reportarProblema (mensagem: string, tela: string, conexao: string): Promise<void> {
+  await chamar<unknown>('POST', '/problemas', { mensagem, tela, conexao })
+}
+
 /** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */
 export function novoId (): string {
   const b = crypto.getRandomValues(new Uint8Array(16))

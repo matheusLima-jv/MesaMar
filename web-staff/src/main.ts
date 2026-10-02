@@ -10,6 +10,7 @@ import { abaFila } from './views/fila'
 import { abaPagamentos } from './views/pagamentos'
 import { aguardando, iniciarPagamentos, observar as observarPagamentos, pararPagamentos } from './pagamentos-store'
 import { telaLogin } from './views/login'
+import { lembrarTela } from './views/problema'
 import { abaMais } from './views/mais'
 import { limparAviso } from './toast'
 
@@ -50,6 +51,7 @@ function app (s: Sessao): void {
         a.id === 'pagamentos' ? h('span', { class: 'contagem', hidden: aguardando() === 0, 'aria-label': `${aguardando()} para receber` }, String(aguardando())) : null)
     ))
     conteudo.scrollTop = 0
+    lembrarTela(aba)
     limparAviso()
     switch (aba) {
       case 'clientes': abaClientes(conteudo, s); break

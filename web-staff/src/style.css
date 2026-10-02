@@ -283,3 +283,7 @@ button { font: inherit; }
 
 /* Barraca de demonstração (treino) */
 .demo-faixa { position: sticky; top: 0; z-index: 4; margin: 0; padding: 0.35rem 1rem; background: var(--sun); color: var(--ink); font-weight: 800; font-size: 0.9rem; text-align: center; border-bottom: 2px solid var(--ink); }
+
+/* Reportar problema */
+.field textarea { width: 100%; padding: 0.6rem 0.9rem; font: inherit; color: var(--ink); background: #fff; border: 2px solid var(--rule); border-radius: 12px; resize: vertical; }
+.field textarea:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--sun); }
