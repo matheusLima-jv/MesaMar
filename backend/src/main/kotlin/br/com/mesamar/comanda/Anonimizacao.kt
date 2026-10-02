@@ -21,10 +21,11 @@ class AnonimizacaoService(
     private val jdbc: JdbcTemplate,
     @Value("\${mesamar.anonimizacao.dias:90}") private val dias: Int,
 ) {
-    /** Devolve quantos clientes foram anonimizados agora. */
+    /** Devolve quantos clientes foram anonimizados agora. Os avisos de "reportar problema" com mais de [dias] dias são apagados. */
     @Transactional
-    fun anonimizar(): Int =
-        jdbc.update(
+    fun anonimizar(): Int {
+        jdbc.update("DELETE FROM problema_reportado WHERE criado_em < now() - make_interval(days => ?)", dias)
+        return jdbc.update(
             """
             UPDATE cliente
             SET nome = 'Cliente', whatsapp_e164 = NULL, anonimizado_em = now()
@@ -37,6 +38,7 @@ class AnonimizacaoService(
             """.trimIndent(),
             dias,
         )
+    }
 }
 
 /** Roda a anonimização todo dia, de madrugada (fuso das barracas). */

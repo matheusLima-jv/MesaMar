@@ -133,7 +133,7 @@ class StaffController(
         csrf: CsrfToken,
     ): ResponseEntity<Any> {
         if (!rateLimiter.tryAcquire("staff-pin:${request.remoteAddr}", PIN_LIMITE, JANELA)) return muitasTentativas()
-        return responder(login.entrarAtendente(body.codigo, body.atendenteId, body.pin), request, response, csrf)
+        return responder(login.entrarAtendente(body.codigo, body.atendenteId, body.pin, request.remoteAddr), request, response, csrf)
     }
 
     @PostMapping("/sair")

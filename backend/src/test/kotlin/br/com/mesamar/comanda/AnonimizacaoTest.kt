@@ -177,4 +177,28 @@ class AnonimizacaoTest(
         assertEquals("America/Sao_Paulo", agendado.zone)
         assertContains(agendado.cron, "3 * * *")
     }
+
+    @Test
+    fun `os avisos de problema com mais de 90 dias sao apagados e os recentes ficam`() {
+        val q = apoio.quiosque("Barraca LGPD Problemas")
+
+        fun aviso(diasAtras: Int): UUID =
+            UUID.randomUUID().also {
+                jdbc.update(
+                    "INSERT INTO problema_reportado (id, barraca_id, origem, tela, mensagem, conexao, criado_em) " +
+                        "VALUES (?, ?, 'QUIOSQUE', 'fila', 'travou', 'online', now() - make_interval(days => ?))",
+                    it,
+                    q.barracaId,
+                    diasAtras,
+                )
+            }
+        val velho = aviso(91)
+        val recente = aviso(89)
+
+        anonimizacao.anonimizar()
+
+        fun existe(id: UUID) = jdbc.queryForObject("SELECT COUNT(*) FROM problema_reportado WHERE id = ?", Int::class.java, id) == 1
+        assertTrue(!existe(velho), "o aviso de 91 dias some")
+        assertTrue(existe(recente), "o de 89 dias fica")
+    }
 }

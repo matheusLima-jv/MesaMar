@@ -3,6 +3,7 @@ package br.com.mesamar.config
 import br.com.mesamar.barraca.BarracaRepository
 import br.com.mesamar.common.RateLimiter
 import br.com.mesamar.conta.OwnerLoginSuccessHandler
+import br.com.mesamar.conta.OwnerPrincipalCheckFilter
 import br.com.mesamar.conta.OwnerUserDetailsService
 import br.com.mesamar.conta.UsuarioRepository
 import br.com.mesamar.equipe.AtendenteRepository
@@ -33,7 +34,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository
+import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy
+import org.springframework.security.web.header.writers.StaticHeadersWriter
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher
+import org.springframework.security.web.util.matcher.NegatedRequestMatcher
+import org.springframework.security.web.util.matcher.OrRequestMatcher
 import org.springframework.web.filter.OncePerRequestFilter
 import java.time.Duration
 
@@ -102,6 +108,7 @@ class SecurityConfig {
         loginSuccess: OwnerLoginSuccessHandler,
         encoder: PasswordEncoder,
         rateLimiter: RateLimiter,
+        usuarios: UsuarioRepository,
     ): SecurityFilterChain {
         http
             .securityMatcher("/painel/**")
@@ -127,6 +134,7 @@ class SecurityConfig {
                     .logoutUrl("/painel/sair")
                     .logoutSuccessUrl("/painel/entrar?saiu")
             }.addFilterBefore(LoginRateLimitFilter(rateLimiter, "/painel/entrar"), UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterBefore(OwnerPrincipalCheckFilter(usuarios), AnonymousAuthenticationFilter::class.java)
         applyHeaders(http)
         return http.build()
     }
@@ -201,14 +209,31 @@ class SecurityConfig {
                 // cookies (promessa da política de privacidade). Admin e painel continuam com CSRF.
                 it.ignoringRequestMatchers("/lista-de-espera", "/api/teste-sinal/**")
             }
-        applyHeaders(http)
+        // As páginas dos apps (/c/{token}, /cliente/, /staff/) não liberam nenhum serviço de fora: o endereço da comanda é a
+        // credencial do cliente e não pode ir para um script de terceiros (ex.: Web Analytics "automático" da Cloudflare).
+        val paginasDosApps =
+            OrRequestMatcher(
+                listOf("/c/**", "/cliente/**", "/staff/**").map { PathPatternRequestMatcher.withDefaults().matcher(it) },
+            )
+        http.headers { headers ->
+            headers
+                .addHeaderWriter(
+                    DelegatingRequestMatcherHeaderWriter(paginasDosApps, StaticHeadersWriter("Content-Security-Policy", CSP_SEM_TERCEIROS)),
+                ).addHeaderWriter(
+                    DelegatingRequestMatcherHeaderWriter(
+                        NegatedRequestMatcher(paginasDosApps),
+                        StaticHeadersWriter("Content-Security-Policy", CONTENT_SECURITY_POLICY),
+                    ),
+                ).referrerPolicy { it.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
+        }
         return http.build()
     }
 
+    /** Admin, painel e APIs: nada de fora (o analytics e o anti-robô só existem na landing). */
     private fun applyHeaders(http: HttpSecurity) {
         http.headers { headers ->
             headers
-                .contentSecurityPolicy { it.policyDirectives(CONTENT_SECURITY_POLICY) }
+                .contentSecurityPolicy { it.policyDirectives(CSP_SEM_TERCEIROS) }
                 .referrerPolicy { it.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
         }
     }
@@ -266,6 +291,10 @@ class SecurityConfig {
          * Só recursos do próprio domínio, mais os dois serviços opcionais da Cloudflare
          * (Web Analytics e Turnstile). Sem scripts inline.
          */
+        const val CSP_SEM_TERCEIROS =
+            "default-src 'self'; script-src 'self'; connect-src 'self'; frame-src 'none'; img-src 'self' data:; " +
+                "style-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+
         const val CONTENT_SECURITY_POLICY =
             "default-src 'self'; " +
                 "script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com; " +

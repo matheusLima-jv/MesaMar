@@ -78,22 +78,54 @@ class EquipeTest(
     }
 
     @Test
-    fun `5 PINs errados bloqueiam por 15 minutos e o dono desbloqueia`() {
+    fun `5 PINs errados bloqueiam so a origem por 15 minutos e o dono desbloqueia`() {
         val email = painel.novoEmail()
         val http = painel.donoComBarraca(email = email)
         adicionar(http, "Edu", pin = "2580")
         val edu = atendente(email, "Edu")
         val barraca = barracaId(email)
 
-        repeat(4) { assertIs<ResultadoPin.PinErrado>(service.autenticar(barraca, edu.id, "9999")) }
-        val bloqueio = service.autenticar(barraca, edu.id, "9999")
-        assertIs<ResultadoPin.Bloqueado>(bloqueio)
-        // Bloqueado, nem o PIN certo entra.
-        assertIs<ResultadoPin.Bloqueado>(service.autenticar(barraca, edu.id, "2580"))
+        repeat(4) { assertIs<ResultadoPin.PinErrado>(service.autenticar(barraca, edu.id, "9999", "10.0.0.1")) }
+        assertIs<ResultadoPin.Bloqueado>(service.autenticar(barraca, edu.id, "9999", "10.0.0.1"))
+        // Bloqueada a origem, nem o PIN certo entra por ela.
+        assertIs<ResultadoPin.Bloqueado>(service.autenticar(barraca, edu.id, "2580", "10.0.0.1"))
+        // Mas a atendente entra pelo celular do quiosque, e o painel não mostra a conta como bloqueada.
+        assertTrue(!http.get("/painel/equipe").body().contains("Bloqueado até"))
+        assertIs<ResultadoPin.Ok>(service.autenticar(barraca, edu.id, "2580", "10.0.0.2"))
+
+        // O dono desbloqueia: a origem que estava bloqueada volta a poder entrar.
+        painel.post(http, "/painel/equipe", "/painel/equipe/${edu.id}/desbloquear", emptyMap())
+        assertIs<ResultadoPin.Ok>(service.autenticar(barraca, edu.id, "2580", "10.0.0.1"))
+    }
+
+    @Test
+    fun `20 PINs errados de varias origens bloqueiam a atendente para todos e o dono desbloqueia`() {
+        val email = painel.novoEmail()
+        val http = painel.donoComBarraca(email = email)
+        adicionar(http, "Edna", pin = "2580")
+        val edna = atendente(email, "Edna")
+        val barraca = barracaId(email)
+
+        repeat(19) { assertIs<ResultadoPin.PinErrado>(service.autenticar(barraca, edna.id, "9999", "10.1.${it / 4}.${it % 4}")) }
+        assertIs<ResultadoPin.Bloqueado>(service.autenticar(barraca, edna.id, "9999", "10.2.0.1"))
+        // Bloqueada para todos: nem o PIN certo, nem de uma origem nova.
+        assertIs<ResultadoPin.Bloqueado>(service.autenticar(barraca, edna.id, "2580", "10.3.0.1"))
         assertHtmlContains(http.get("/painel/equipe").body(), "Bloqueado até", anchor = "team-list")
 
-        painel.post(http, "/painel/equipe", "/painel/equipe/${edu.id}/desbloquear", emptyMap())
-        assertIs<ResultadoPin.Ok>(service.autenticar(barraca, edu.id, "2580"))
+        painel.post(http, "/painel/equipe", "/painel/equipe/${edna.id}/desbloquear", emptyMap())
+        assertIs<ResultadoPin.Ok>(service.autenticar(barraca, edna.id, "2580", "10.3.0.1"))
+    }
+
+    @Test
+    fun `acertar o PIN zera o contador das outras origens`() {
+        val email = painel.novoEmail()
+        adicionar(painel.donoComBarraca(email = email), "Fred", pin = "2580")
+        val fred = atendente(email, "Fred")
+        val barraca = barracaId(email)
+
+        repeat(4) { service.autenticar(barraca, fred.id, "0000", "10.4.0.1") }
+        assertIs<ResultadoPin.Ok>(service.autenticar(barraca, fred.id, "2580", "10.4.0.2"))
+        assertEquals(ResultadoPin.PinErrado(4), service.autenticar(barraca, fred.id, "0000", "10.4.0.1"))
     }
 
     @Test
@@ -172,7 +204,7 @@ class EquipeTest(
         adicionar(painel.donoComBarraca(email = a), "Lia", pin = "2580")
         val lia = atendente(a, "Lia")
         val barracaA = barracaId(a)
-        repeat(5) { service.autenticar(barracaA, lia.id, "0000") }
+        repeat(AtendenteService.MAX_TENTATIVAS_CONTA) { service.autenticar(barracaA, lia.id, "0000", "10.5.0.$it") }
         val hashAntes = lia.pinHash
 
         val intruso = painel.donoComBarraca()

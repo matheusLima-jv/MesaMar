@@ -25,6 +25,8 @@ class OwnerPrincipal(
     val usuarioId: UUID,
     private val email: String,
     private var senhaHash: String,
+    /** Quando o login aconteceu (o UserDetailsService só é chamado no login). */
+    val logadoEm: Instant = Instant.now(),
 ) : UserDetails,
     CredentialsContainer,
     Serializable {
@@ -49,6 +51,40 @@ class OwnerUserDetailsService(
             usuarios.findByEmailIgnoreCase(username.trim())
                 ?: throw UsernameNotFoundException("conta não encontrada")
         return OwnerPrincipal(usuario.id, usuario.email, usuario.senhaHash)
+    }
+}
+
+/**
+ * A cada requisição do painel, confere se a sessão ainda vale: a conta existe e a senha não mudou depois do login.
+ * NÃO é um @Component de propósito (ver StaffPrincipalCheckFilter).
+ */
+class OwnerPrincipalCheckFilter(
+    private val usuarios: UsuarioRepository,
+) : org.springframework.web.filter.OncePerRequestFilter() {
+    override fun doFilterInternal(
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        filterChain: jakarta.servlet.FilterChain,
+    ) {
+        val principal =
+            org.springframework.security.core.context.SecurityContextHolder
+                .getContext()
+                .authentication
+                ?.principal as? OwnerPrincipal
+        if (principal != null) {
+            val usuario = usuarios.findById(principal.usuarioId).orElse(null)
+            val credenciais = usuario?.credenciaisEm
+            if (usuario == null || (credenciais != null && credenciais.isAfter(principal.logadoEm))) {
+                org.springframework.security.core.context.SecurityContextHolder
+                    .clearContext()
+                request.getSession(false)?.removeAttribute(CHAVE_SESSAO_PAINEL)
+            }
+        }
+        filterChain.doFilter(request, response)
+    }
+
+    companion object {
+        const val CHAVE_SESSAO_PAINEL = "MESAMAR_PAINEL"
     }
 }
 

@@ -7,7 +7,7 @@ import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.common.Money
 import br.com.mesamar.eventos.PublicadorEventos
 import br.com.mesamar.pedido.FilaService
-import br.com.mesamar.pedido.PedidoCriado
+import br.com.mesamar.pedido.LiberacaoPedidos
 import br.com.mesamar.pedido.PedidoRepository
 import br.com.mesamar.pedido.PedidoService
 import br.com.mesamar.pedido.StatusPedido
@@ -96,6 +96,7 @@ class PagamentoService(
     private val pedidos: PedidoService,
     private val pedidosRepo: PedidoRepository,
     private val fila: FilaService,
+    private val liberacao: LiberacaoPedidos,
     private val tempoReal: PublicadorEventos,
     private val spring: ApplicationEventPublisher,
     private val clock: Clock,
@@ -176,11 +177,38 @@ class PagamentoService(
                     confirmadoEm = agora,
                 ),
             )
-        liberarPedidosPagos(comanda, pagamentos.totalCentavos(comanda.id), agora)
+        liberacao.liberar(comanda, agora)
         // Pagou tudo o que devia e estava fechando a conta: a comanda se encerra
         if (comanda.status == StatusComanda.AGUARDANDO_PAGAMENTO && saldo - valor == 0L) encerrarComanda(comanda, agora)
         tempoReal.contaMudou(barracaId, comanda.id)
         return ResultadoQuiosque.Ok(conta(barracaId, comanda.id), pagamento)
+    }
+
+    /**
+     * Encerra, de madrugada, as comandas de dias anteriores que não devem nada (pagaram tudo sem tocar em "Fechar conta",
+     * ou o modo "pagar a cada pedido", em que a conta nunca é fechada pelo cliente). Sem isso elas ficariam abertas para
+     * sempre: o link antigo continuaria aceitando pedido e o cliente nunca seria anonimizado. Quem ainda deve continua
+     * aberto (aparece em "contas abertas com saldo").
+     */
+    @Transactional
+    fun encerrarSemSaldoDeDiasAnteriores(hoje: java.time.LocalDate): Int {
+        val ids =
+            jdbc.queryForList(
+                "SELECT id FROM comanda WHERE status IN ('ABERTA', 'AGUARDANDO_PAGAMENTO') AND dia < ?",
+                UUID::class.java,
+                hoje,
+            )
+        var encerradas = 0
+        val agora = Instant.now(clock)
+        for (id in ids) {
+            val comanda = comandas.travar(id) ?: continue
+            if (comanda.status != StatusComanda.ABERTA && comanda.status != StatusComanda.AGUARDANDO_PAGAMENTO) continue
+            if (pedidos.saldoCentavos(comanda.id) > 0) continue
+            encerrarComanda(comanda, agora)
+            tempoReal.contaMudou(comanda.barracaId, comanda.id)
+            encerradas++
+        }
+        return encerradas
     }
 
     /** Bloqueia a comanda (calote): o cliente não pede mais até o quiosque liberar. Repetir é inofensivo. */
@@ -281,33 +309,6 @@ class PagamentoService(
         return ResultadoQuiosque.Ok(conta(barracaId, comanda.id))
     }
 
-    /** Pedidos que esperavam pagamento e já estão cobertos pelo que foi pago entram na fila, na ordem em que foram feitos. */
-    private fun liberarPedidosPagos(
-        comanda: Comanda,
-        pagoCentavos: Long,
-        agora: Instant,
-    ) {
-        var acumulado = 0L
-        for (detalhe in pedidos.meusPedidos(comanda)) {
-            if (detalhe.pedido.status == StatusPedido.CANCELADO) continue
-            acumulado += detalhe.totalCentavos
-            if (detalhe.pedido.status != StatusPedido.AGUARDANDO_PAGAMENTO ||
-                detalhe.totalCentavos <= 0 ||
-                acumulado > pagoCentavos
-            ) {
-                continue
-            }
-            val pedido = pedidosRepo.travar(detalhe.pedido.id, comanda.barracaId) ?: continue
-            if (pedido.status != StatusPedido.AGUARDANDO_PAGAMENTO) continue
-            pedido.status = StatusPedido.RECEBIDO
-            pedido.naFilaEm = agora
-            pedidosRepo.save(pedido)
-            tempoReal.pedidoMudou(comanda.barracaId, comanda.id, pedido.id)
-            // O mesmo aviso de pedido novo, agora que ele entrou na fila (o push só sai depois do commit)
-            spring.publishEvent(PedidoCriado(pedido.id, comanda.barracaId, comanda.id, pedido.numeroPedido, StatusPedido.RECEBIDO))
-        }
-    }
-
     private fun encerrarComanda(
         comanda: Comanda,
         agora: Instant,
@@ -328,8 +329,8 @@ class PagamentoService(
         barracaId: UUID,
         comandaId: UUID,
     ): Comanda? {
-        comandas.findByIdAndBarracaId(comandaId, barracaId) ?: return null
-        return comandas.travar(comandaId)
+        // Trava primeiro e só então confere a barraca: ler antes deixaria uma cópia velha da comanda nesta transação
+        return comandas.travar(comandaId)?.takeIf { it.barracaId == barracaId }
     }
 
     private fun recusaPorEstado(comanda: Comanda): ResultadoQuiosque.Recusado? =

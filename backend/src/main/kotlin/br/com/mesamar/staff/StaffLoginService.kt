@@ -77,9 +77,10 @@ class StaffLoginService(
         codigo: String,
         atendenteId: UUID,
         pin: String,
+        origem: String = "",
     ): ResultadoLogin {
         val barraca = barracas.findBySlugAndAtivaTrue(codigo.trim().lowercase()) ?: return ResultadoLogin.NaoEncontrado
-        return when (val r = atendenteService.autenticar(barraca.id, atendenteId, pin)) {
+        return when (val r = atendenteService.autenticar(barraca.id, atendenteId, pin, origem)) {
             is ResultadoPin.Ok ->
                 ResultadoLogin.Ok(
                     StaffPrincipal(barraca.id, PapelStaff.ATENDENTE, null, r.atendente.id, r.atendente.nome),

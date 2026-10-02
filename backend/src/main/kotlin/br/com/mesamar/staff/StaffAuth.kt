@@ -27,6 +27,8 @@ data class StaffPrincipal(
     val usuarioId: UUID?,
     val atendenteId: UUID?,
     val nome: String,
+    /** Quando o login aconteceu: se a senha do dono mudou depois, a sessão deixa de valer. */
+    val logadoEm: java.time.Instant = java.time.Instant.now(),
 ) : Serializable {
     val authorities: List<GrantedAuthority>
         get() = listOf(SimpleGrantedAuthority("ROLE_STAFF"), SimpleGrantedAuthority("ROLE_STAFF_$papel"))
@@ -75,7 +77,11 @@ class StaffPrincipalCheckFilter(
         val barracaAtiva = barracas.findById(p.barracaId).map { it.ativa }.orElse(false)
         if (!barracaAtiva) return false
         return when (p.papel) {
-            PapelStaff.DONO -> p.usuarioId?.let { usuarios.findById(it).orElse(null) }?.barracaId == p.barracaId
+            PapelStaff.DONO -> {
+                val usuario = p.usuarioId?.let { usuarios.findById(it).orElse(null) }
+                val credenciais = usuario?.credenciaisEm
+                usuario?.barracaId == p.barracaId && (credenciais == null || !credenciais.isAfter(p.logadoEm))
+            }
             PapelStaff.ATENDENTE -> p.atendenteId?.let { atendentes.findByIdAndBarracaId(it, p.barracaId) }?.ativo == true
         }
     }

@@ -79,6 +79,7 @@ class DemoService(
         val dono =
             usuarios.findByEmailIgnoreCase(EMAIL_DONO)?.also {
                 it.senhaHash = requireNotNull(encoder.encode(senha))
+                it.credenciaisEm = agora
                 usuarios.save(it)
             } ?: usuarios.save(
                 Usuario(
