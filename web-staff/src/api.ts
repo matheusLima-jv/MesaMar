@@ -6,7 +6,7 @@ export interface Sessao {
   logado: boolean
   csrf: string
   usuario?: { nome: string, papel: Papel }
-  barraca?: { nome: string, codigo: string, praia: string }
+  barraca?: { nome: string, codigo: string, praia: string, demo?: boolean }
 }
 
 export interface Produto {

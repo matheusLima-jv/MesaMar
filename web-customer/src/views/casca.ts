@@ -24,6 +24,7 @@ export function casca (ctx: Contexto, aba: Aba, ...conteudo: Array<Node | string
   const link = (id: Exclude<Aba, null>, href: string, rotulo: string): HTMLElement =>
     h('a', { href, class: aba === id ? 'on' : '', 'aria-current': aba === id ? 'page' : undefined }, rotulo)
   return [
+    ...(dados.demo ? [h('p', { class: 'demo-faixa', role: 'note' }, 'Barraca de treino: nada aqui é de verdade. Não pague.')] : []),
     h('header', { class: 'top' },
       h('p', { class: 'shop' }, dados.barraca),
       h('h1', {}, `Olá, ${dados.nome}`, dados.guardaSol !== null ? ` · Guarda-sol ${dados.guardaSol}` : ''),

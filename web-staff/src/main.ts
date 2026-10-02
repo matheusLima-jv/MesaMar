@@ -61,6 +61,8 @@ function app (s: Sessao): void {
   }
 
   mount(root,
+    // Barraca de treino: uma faixa que não some, para ninguém receber dinheiro de verdade por engano
+    ...(s.barraca?.demo === true ? [h('p', { class: 'demo-faixa', role: 'note' }, 'Barraca de treino: nada aqui é de verdade')] : []),
     h('header', { class: 'topbar' },
       h('p', { class: 'brand' }, 'MesaMar'),
       h('p', { class: 'where' }, s.barraca?.nome ?? '', h('span', {}, ` · ${s.usuario?.nome ?? ''}`))

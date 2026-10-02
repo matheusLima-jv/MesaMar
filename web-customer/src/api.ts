@@ -31,6 +31,8 @@ export interface Comanda {
   saldoCentavos: number
   /** FINAL: paga ao fechar a conta. POR_PEDIDO: o pedido só entra na fila depois de pago. */
   modoPagamento: 'FINAL' | 'POR_PEDIDO'
+  /** Barraca de treino: a página mostra um aviso de que nada ali é de verdade. */
+  demo: boolean
   cardapio: Secao[]
 }
 
