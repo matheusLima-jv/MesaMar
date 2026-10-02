@@ -205,7 +205,7 @@ Sete correções que a revisão apontou, todas descritas no [ADR 0016](../adr/00
 
 ### 5. Como validar (na entrega final)
 
-Itens 144 a 148 de [`docs/testar-localmente.md`](../testar-localmente.md).
+Itens 144 a 151 de [`docs/testar-localmente.md`](../testar-localmente.md).
 
 ### 6. Antes de aprovar
 
@@ -239,3 +239,9 @@ Revisão de tudo o que a Fase 7 mudou (backend, apps, scripts de backup), com fo
 - **Travas:** pagamento e cancelamento travam sempre a comanda antes do pedido; não há caminho que trave na ordem inversa.
 - **Saldo no cancelamento:** a conta ignora itens e pedidos já cancelados.
 - **Sessões:** só o link de "esqueci a senha" e o reinício da demonstração mudam a senha, e os dois gravam `credenciais_em`.
+
+### Pedido do Matheus depois da revisão (2026-10-02)
+
+- **Comanda de dia anterior não aceita pedido novo** (ADR 0016, item 8). O quiosque ainda recebe o que ela deve e o cliente ainda pode fechar a conta. Testes em `RevisaoFinalTest` (3).
+- **Push para o dono quando chega um aviso de problema** (ADR 0016, item 9). Testes em `PushEnvioTest` (3): só o aparelho do dono recebe (não o atendente da mesma barraca nem outra barraca), texto cortado em 100 caracteres sem o nome do cliente, aviso da equipe também avisa, e texto recusado não manda nada. **O dono precisa ativar os avisos no app (aba Mais, entrando como dono).**
+- **O que o teste automático não cobre:** a notificação aparecer de verdade na tela do navegador. Itens 149 a 151 do roteiro.

@@ -42,6 +42,18 @@ Antes do piloto, a revisão final do código apontou sete pontos em que o sistem
 - `/c/**`, `/cliente/**` e `/staff/**` saem com uma política sem nenhum serviço de fora. O endereço da comanda é a credencial do cliente e não pode ir para um script de terceiros (por exemplo, o Web Analytics "automático" da Cloudflare, que se injeta sozinho).
 - A landing continua liberando Web Analytics e Turnstile. Admin, painel e APIs também usam a política sem terceiros.
 
+**8. Comanda de um dia anterior não aceita pedido novo (decisão do dono do projeto, depois da revisão final).**
+- O pedido é recusado com 409 (`comanda-de-outro-dia`) quando a comanda está `ABERTA` ou `AGUARDANDO_PAGAMENTO` e o dia dela é anterior a hoje (dia de Brasília). A página do cliente mostra o motivo, e "Voltar e pedir mais" também é recusado.
+- **O cliente ainda pode fechar a conta e o quiosque ainda recebe** o que ela deve (nada do pagamento passa por essa regra). Comanda de hoje segue como antes.
+- Motivo: quem foi embora devendo podia, dias depois, mandar um pedido que caía na fila para um guarda-sol vazio.
+
+**9. Push para o dono quando chega um aviso de problema.**
+- `ProblemaService` publica `ProblemaReportado` e o `NotificadorPush` envia, **depois do commit**, só para os aparelhos inscritos pelo **dono** (`usuario_id` preenchido), nunca para os atendentes. Título "Aviso de problema · Cliente" ou "· Equipe", corpo com os primeiros 100 caracteres, toque abre `/painel/problemas`.
+- Todos os avisos usam a mesma etiqueta (`problema`), então vários seguidos viram uma notificação só, a mais recente; o freio de 10 avisos (quiosque) e 5 (cliente) a cada 10 minutos limita o volume.
+- O dono precisa ter **ativado os avisos no app do quiosque entrando como dono** (aba Mais). Sem isso, ele continua vendo os avisos na página, mas não recebe a notificação.
+- **O começo do texto aparece na tela de bloqueio do celular do dono.** A política de privacidade foi ajustada. O nome do cliente nunca vai no aviso (não é guardado).
+- O service worker passou a abrir o painel numa janela própria quando o destino não é do app (`/staff/`), em vez de levar a janela do app para o painel.
+
 ## Consequências
 
 - Quem fica logado e troca a senha por fora do fluxo (direto no banco) não derruba nada: só o fluxo do e-mail e a demonstração gravam `credenciais_em`.

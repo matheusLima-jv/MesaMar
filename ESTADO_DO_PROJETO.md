@@ -115,7 +115,7 @@ cd e2e && npm ci && E2E_BASE_URL=http://localhost:8080 E2E_ADMIN_PASSWORD=<a do 
 ```
 
 ### Roteiro manual completo (para a entrega final)
-`docs/testar-localmente.md`, itens 1 a 148.
+`docs/testar-localmente.md`, itens 1 a 151.
 
 ### CI (GitHub Actions, `.github/workflows/ci.yml`)
 - ktlint → build e testes → imagem Docker → smoke do compose → E2E (Playwright, Pixel 7) → push para o GHCR (só na `main`).
@@ -305,6 +305,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 - **7.2:** ✅ aprovado (ver `docs/relatorios/fase-7.md` e [ADR 0015](docs/adr/0015-barraca-de-demonstracao-e-materiais.md)). `DemoService` cria/reinicia a barraca `demo` (V13, índice único parcial) pelo botão do `/admin` (credenciais mostradas uma vez; senha e PIN novos a cada reinício; chave Pix fictícia; e-mail `demo@treino.invalid`); faixa de treino no painel, no app e na página do cliente (campo `demo`). Materiais: `/painel/materiais`, `/guia` e `/plaquinha` (A4, `impresso.css`, botão em `js/imprimir.js` por causa da CSP). O guia já menciona o "reportar problema".
 - **7.3:** ✅ aprovado (ver `docs/relatorios/fase-7.md`). `POST /api/staff/problemas` e `POST /api/c/{token}/problemas` gravam em `problema_reportado` (V14) com tela, conexão e hora do servidor; `ProblemaService`; lista no `/admin` ("Problemas reportados") e, por barraca, no painel do dono (menu **Avisos**, `/painel/problemas`, sem o navegador de quem avisou). Freio de 10/10 min (quiosque) e 5/10 min (cliente). **Sem sinal o aviso não é reenviado depois** (modo offline é a Fase 6). O nome do cliente não é guardado.
 - **7.4:** 🔶 **aprovado** (CI verde no PR #6 com 388 testes) (ver `docs/relatorios/fase-7.md` e [ADR 0016](docs/adr/0016-revisao-final-sessoes-pin-e-cancelamento.md)). Sessão do dono cai ao trocar a senha (V15), bloqueio de PIN por origem (contador em memória), cancelar depois de pagar é recusado, cancelar libera o pedido seguinte (`LiberacaoPedidos`), encerramento diário às 4h, avisos de problema apagados aos 90 dias, CSP sem terceiros nos apps. 388 testes e 11 E2E locais.
+- **Depois da revisão:** comanda de dia anterior não aceita pedido novo (o quiosque ainda recebe) e o dono recebe **push** quando chega um aviso de problema (só se ativou os avisos no app como dono). ADR 0016, itens 8 e 9.
 - **Revisão final feita** (2026-10-02): corrigido o PIN (um IP sozinho chegava ao teto da conta em ~1 h; agora cada origem soma no máximo 5) e o reinício da demonstração (não apagava os avisos do treino). Decisões em aberto no relatório.
 
 ---
@@ -314,7 +315,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 - **Deploy** em `mesamar.0mega.fun`, seguindo o `docs/deploy.md`.
 - **SMTP em produção**, para o "esqueci a senha" funcionar: escolher o serviço e criar SPF/DKIM na Cloudflare, manualmente.
 - **Portão A:** divulgar a landing, visitar barracas e medir o sinal em ≥3 praias num domingo, das 12h às 15h. O resultado decide se a Fase 6 vem antes do piloto.
-- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 148 até aqui.
+- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 151 até aqui.
 
 ## 9. Riscos conhecidos e decisões de escala
 

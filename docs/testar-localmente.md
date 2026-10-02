@@ -317,6 +317,9 @@ Estes itens são **no servidor de produção** (ou num ambiente igual a ele), se
 | 146 | App da atendente, celular A. No celular B (ou outra rede), errar o PIN 5 vezes | Entrar com o PIN certo no celular A | **Entra.** Só o celular B fica bloqueado por 15 minutos. No painel do dono, Equipe, a atendente **não** aparece bloqueada |
 | 147 | /admin → Problemas reportados e uma barraca com mais de 90 dias de uso | (só em produção, depois de 90 dias) | Avisos antigos somem sozinhos de madrugada |
 | 148 | Cliente com comanda de **ontem**, sem saldo, que nunca tocou em "Fechar conta" | Olhar de manhã (depois das 4h) | A comanda está **fechada** e o link já não aceita pedido novo. A que ainda deve continua aberta em "Contas abertas" |
+| 149 | Cliente com comanda de **ontem** que ainda deve (mude o `dia` da comanda no banco para ontem) | Tentar pedir de novo pela página do cliente | "Esta comanda é de outro dia e já não aceita pedidos." O pedido **não** é feito. "Voltar e pedir mais" também é recusado |
+| 150 | Mesma comanda, no app do quiosque (aba Pagamentos) | Receber o que ela deve | O pagamento funciona e a comanda se encerra |
+| 151 | **Celular do dono**, app do quiosque entrando **como dono** → aba Mais → ativar avisos. Depois, outro celular manda "Reportar problema" (quiosque ou página do cliente) | Olhar a tela do celular do dono (com o navegador ou o app em segundo plano) | Chega uma notificação **"Aviso de problema · Cliente"** (ou "Equipe") com o começo do texto. Tocar abre a página **Avisos** do painel (pede o login do painel se preciso). Atendentes, no mesmo estabelecimento, **não** recebem. Vários avisos seguidos viram uma notificação só |
 
 ## 5. Testes E2E (os mesmos do CI)
 
