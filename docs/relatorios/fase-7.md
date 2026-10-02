@@ -62,7 +62,7 @@ Itens 119 a 125 de [`docs/testar-localmente.md`](../testar-localmente.md) (seç�
 ## Checkpoint 7.2 — Barraca de demonstração e materiais impressos
 
 - **Data:** 2026-10-02
-- **Verificado localmente:** ktlint, **371 testes de backend** (359 do 5.3 + 12 novos), build dos dois fronts e **11 E2E** (um novo, da demonstração), com a imagem Docker construída do zero. **O CI do GitHub ainda não rodou para o 7.2** (os commits ainda não foram enviados).
+- **CI:** ✅ verde no GitHub (PR #6): ktlint, **371 testes de backend** (359 do 5.3 + 12 novos), imagem Docker, smoke do compose, **11 E2E** no tamanho de celular (um novo, da demonstração) e o teste de restauração do backup.
 
 ### 1. O que foi feito
 
@@ -107,4 +107,4 @@ Itens 126 a 135 de [`docs/testar-localmente.md`](../testar-localmente.md) (seç�
 
 ### 6. Antes de aprovar
 
-- O 7.2 está na `fase-7-piloto`, no PR #6 (rascunho, apontando para a `fase-4-fila`). Os commits do 7.2 ainda são locais.
+- O 7.2 está na `fase-7-piloto`, no PR #6 (rascunho, apontando para a `fase-4-fila`, não mergeado).
