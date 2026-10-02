@@ -16,6 +16,7 @@ import br.com.mesamar.support.HttpTestClient
 import br.com.mesamar.support.IntegrationTest
 import br.com.mesamar.support.Item
 import br.com.mesamar.support.PainelTestSupport
+import br.com.mesamar.support.PainelTestSupport.Companion.SENHA
 import br.com.mesamar.support.PainelTestSupport.Companion.csrfFrom
 import br.com.mesamar.support.TestIps
 import br.com.mesamar.support.header
@@ -178,6 +179,10 @@ class DemoBarracaTest(
                 ).statusCode(),
         )
         assertEquals(200, app.post("/api/staff/pausa", """{"pausado":true,"mensagem":"treino"}""").statusCode())
+        assertEquals(
+            201,
+            app.post("/api/staff/problemas", """{"mensagem":"aviso de treino","tela":"fila","conexao":"online"}""").statusCode(),
+        )
         jdbc.update("UPDATE barraca SET modo_pagamento = 'POR_PEDIDO', limite_saldo_aberto_centavos = 100 WHERE id = ?", id)
         assertEquals(3, contar("comanda", id))
         assertEquals(1, pagamentos.findAll().count { it.barracaId == id })
@@ -186,7 +191,12 @@ class DemoBarracaTest(
         val real = apoio.quiosque("Barraca Real Ao Lado")
         val tokenReal = apoio.novaComanda(real, "Cliente Real")
         apoio.pedir(apoio.celular(), tokenReal, UUID.randomUUID(), Item(real.coco.id, 2))
-        val antesDaReal = listOf("comanda", "pedido", "item_pedido", "cliente", "produto").map { contar(it, real.barracaId) }
+        StaffApp(port).also {
+            assertEquals(200, it.post("/api/staff/entrar/dono", """{"email":"${real.email}","senha":"$SENHA"}""").statusCode())
+            assertEquals(201, it.post("/api/staff/problemas", """{"mensagem":"aviso de verdade"}""").statusCode())
+        }
+        val antesDaReal =
+            listOf("comanda", "pedido", "item_pedido", "cliente", "produto", "problema_reportado").map { contar(it, real.barracaId) }
 
         val novas = criarOuReiniciar()
 
@@ -194,6 +204,7 @@ class DemoBarracaTest(
         assertEquals(1, barracas.findAll().count { it.demo }, "continua uma só")
         assertEquals(2, contar("comanda", id), "só os dois clientes de exemplo")
         assertEquals(0, contar("pagamento", id))
+        assertEquals(0, contar("problema_reportado", id), "os avisos do treino somem")
         assertEquals(6, contar("produto", id))
         val barraca = barracas.findById(id).orElseThrow()
         assertEquals(ModoPagamento.FINAL, barraca.modoPagamento)
@@ -202,10 +213,14 @@ class DemoBarracaTest(
         // Credenciais novas; as antigas deixam de valer
         assertNotEquals(antigas.senha, novas.senha)
         assertEquals(401, donoNoApp(antigas).second)
+        assertEquals(401, app.get("/api/staff/cardapio").statusCode(), "a sessão aberta antes do reinício cai")
         assertEquals(200, donoNoApp(novas).second)
         assertEquals(200, atendenteNoApp(novas))
         // A barraca real não mudou
-        assertEquals(antesDaReal, listOf("comanda", "pedido", "item_pedido", "cliente", "produto").map { contar(it, real.barracaId) })
+        assertEquals(
+            antesDaReal,
+            listOf("comanda", "pedido", "item_pedido", "cliente", "produto", "problema_reportado").map { contar(it, real.barracaId) },
+        )
         assertEquals(0, contar("pagamento", real.barracaId))
         assertContains(apoio.celular().get("/api/c/$tokenReal").body(), "\"demo\":false")
     }

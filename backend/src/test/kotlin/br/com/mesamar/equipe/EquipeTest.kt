@@ -8,6 +8,14 @@ import br.com.mesamar.support.PainelTestSupport
 import br.com.mesamar.support.assertHtmlContains
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -15,6 +23,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @IntegrationTest
@@ -24,6 +33,8 @@ class EquipeTest(
     private val usuarios: UsuarioRepository,
     private val atendentes: AtendenteRepository,
     private val service: AtendenteService,
+    private val encoder: PasswordEncoder,
+    private val transacoes: PlatformTransactionManager,
 ) {
     private val painel = PainelTestSupport(port, convites)
 
@@ -114,6 +125,45 @@ class EquipeTest(
 
         painel.post(http, "/painel/equipe", "/painel/equipe/${edna.id}/desbloquear", emptyMap())
         assertIs<ResultadoPin.Ok>(service.autenticar(barraca, edna.id, "2580", "10.3.0.1"))
+    }
+
+    /** Um relógio que o teste adianta, para o bloqueio de 15 minutos vencer sem esperar. */
+    private class Relogio(
+        var agora: Instant = Instant.now(),
+    ) : Clock() {
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+
+        override fun withZone(zone: ZoneId): Clock = this
+
+        override fun instant(): Instant = agora
+    }
+
+    @Test
+    fun `uma origem sozinha insistindo por horas nunca bloqueia a atendente para todos`() {
+        val email = painel.novoEmail()
+        adicionar(painel.donoComBarraca(email = email), "Gabi", pin = "2580")
+        val gabi = atendente(email, "Gabi")
+        val barraca = barracaId(email)
+        val relogio = Relogio()
+        val comRelogio = AtendenteService(atendentes, encoder, relogio)
+        val tx = TransactionTemplate(transacoes)
+
+        fun tentar(
+            pin: String,
+            origem: String,
+        ) = tx.execute { comRelogio.autenticar(barraca, gabi.id, pin, origem) }
+
+        // 8 rodadas de 5 erros (40 erros, mais de 2 horas) do mesmo lugar
+        repeat(8) {
+            repeat(5) { tentar("9999", "10.6.0.1") }
+            assertIs<ResultadoPin.Bloqueado>(tentar("2580", "10.6.0.1"), "a origem fica bloqueada")
+            assertNull(atendentes.findById(gabi.id).orElseThrow().bloqueadoAte, "a conta nunca é bloqueada (rodada ${it + 1})")
+            relogio.agora = relogio.agora.plus(AtendenteService.BLOQUEIO).plus(Duration.ofSeconds(1))
+        }
+
+        // A atendente continua entrando pelo celular do quiosque, e o painel não a mostra bloqueada
+        assertIs<ResultadoPin.Ok>(tentar("2580", "10.6.0.2"))
+        assertEquals(null, atendentes.findById(gabi.id).orElseThrow().bloqueadoAte)
     }
 
     @Test

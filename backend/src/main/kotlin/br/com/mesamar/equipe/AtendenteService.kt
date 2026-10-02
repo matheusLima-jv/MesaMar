@@ -137,7 +137,8 @@ class AtendenteService(
      * O bloqueio é **por aparelho** (a origem, o IP): 5 PINs errados de um lugar bloqueiam aquele lugar por 15 minutos,
      * sem trancar a atendente no celular do quiosque. Antes, qualquer um que soubesse o código da barraca bloqueava a
      * equipe inteira errando o PIN de propósito. Para quem tenta de muitos lugares, há um teto da conta: 20 erros
-     * seguidos (sem um acerto no meio) bloqueiam a atendente para todos, e o dono desbloqueia no painel.
+     * (sem um acerto no meio) bloqueiam a atendente para todos, e o dono desbloqueia no painel. Cada origem soma no
+     * máximo 5 erros a esse teto, então ele só é atingido de pelo menos 4 lugares diferentes.
      */
     @Transactional
     fun autenticar(
@@ -162,13 +163,15 @@ class AtendenteService(
         // A linha do atendente está travada: as contas abaixo não correm com outra tentativa ao mesmo tempo
         val daOrigem =
             falhasPorOrigem.compute(chave) { _, atual ->
-                (
-                    atual?.takeIf {
-                        it.bloqueadoAte == null
-                    } ?: Falhas()
-                ).also { it.quantidade++ }
+                when {
+                    atual == null -> Falhas()
+                    // O bloqueio desta origem venceu: nova rodada de 5, mas ela já contou para o teto da conta
+                    atual.bloqueadoAte != null -> Falhas(jaBloqueada = true)
+                    else -> atual
+                }.also { it.quantidade++ }
             }!!
-        atendente.tentativasFalhas += 1
+        // Cada origem soma no máximo 5 erros ao teto da conta: um lugar sozinho, insistindo, nunca tranca a atendente para todos
+        if (!daOrigem.jaBloqueada) atendente.tentativasFalhas += 1
         val resultado =
             when {
                 atendente.tentativasFalhas >= MAX_TENTATIVAS_CONTA -> {
@@ -193,6 +196,8 @@ class AtendenteService(
     private class Falhas(
         var quantidade: Int = 0,
         var bloqueadoAte: Instant? = null,
+        /** Esta origem já foi bloqueada uma vez: os erros dela não contam mais para o teto da conta. */
+        val jaBloqueada: Boolean = false,
     )
 
     private val falhasPorOrigem = ConcurrentHashMap<String, Falhas>()

@@ -177,6 +177,7 @@ class DemoService(
         val id = barraca.id
         listOf(
             "DELETE FROM push_subscription WHERE barraca_id = ?",
+            "DELETE FROM problema_reportado WHERE barraca_id = ?",
             "DELETE FROM pagamento WHERE barraca_id = ?",
             "DELETE FROM item_pedido WHERE barraca_id = ?",
             "DELETE FROM pedido WHERE barraca_id = ?",
