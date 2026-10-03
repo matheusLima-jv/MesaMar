@@ -90,6 +90,11 @@ class Pedido(
     var atendidoPorUsuarioId: UUID? = null,
     @Column(name = "atendido_por_atendente_id")
     var atendidoPorAtendenteId: UUID? = null,
+    /** Pedido lançado pela equipe (`origem = ATENDENTE`): quem lançou, o dono ou um atendente. */
+    @Column(name = "criado_por_usuario_id")
+    val criadoPorUsuarioId: UUID? = null,
+    @Column(name = "criado_por_atendente_id")
+    val criadoPorAtendenteId: UUID? = null,
 )
 
 /** Linha do pedido, com o nome e o preço do produto congelados na hora (snapshot). */

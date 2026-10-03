@@ -397,6 +397,24 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(dono.getByRole('link', { name: 'Baixar em CSV' })).toHaveAttribute('href', /relatorio\.csv\?dia=\d{4}-\d\d-\d\d$/)
   await expectNoHorizontalScroll(dono)
 
+  // 14b) Lançar pedido para cliente (6.1): o Bruno está sem celular na mão, a atendente lança 2 águas de coco pela comanda dele
+  await app.getByRole('link', { name: 'Clientes' }).click()
+  await app.getByRole('button', { name: 'Lançar pedido para Bruno' }).click()
+  await expect(app.getByRole('heading', { name: 'Lançar pedido' })).toBeVisible()
+  await expect(app.getByRole('button', { name: 'Lançar pedido', exact: true })).toBeDisabled()
+  await app.getByRole('button', { name: 'Mais um Água de coco' }).click()
+  await app.getByRole('button', { name: 'Mais um Água de coco' }).click()
+  await expect(app.getByText('2 itens · R$ 24,00')).toBeVisible()
+  await expectNoHorizontalScroll(app)
+  await app.getByRole('button', { name: 'Lançar pedido', exact: true }).click()
+  await expect(app.getByText('lançado para Bruno.')).toBeVisible()
+  await app.getByRole('link', { name: /^Fila/ }).click()
+  await expect(app.locator('.pedido').last()).toContainText('Bruno')
+  await expect(app.locator('.pedido').last()).toContainText('2× Água de coco')
+  // O Bruno vê o pedido na página dele, sem recarregar
+  await bruno.getByRole('link', { name: 'Meus pedidos' }).click()
+  await expect(bruno.locator('.order')).toHaveCount(2)
+
   // 15) Reportar problema na página do cliente (7.3): uma frase, e o aviso sai
   await cliente.getByRole('link', { name: 'Reportar um problema' }).click()
   await expect(cliente.getByRole('heading', { name: 'Reportar um problema' })).toBeVisible()

@@ -1,6 +1,7 @@
 import { ApiError, clientes, guardaSois, novoCliente, novoId, type Comanda, type GuardaSolOpcao, type Sessao } from '../api'
 import { h, mount } from '../dom'
 import { qrSvg } from '../qr'
+import { lancar } from './lancar'
 
 /**
  * Aba Clientes: check-in em até 20 segundos (nome → guarda-sol → WhatsApp opcional → consentimento)
@@ -35,6 +36,12 @@ function desenharLista (root: HTMLElement, sessao: Sessao, lista: Comanda[]): vo
             h('strong', {}, c.nome),
             h('span', { class: 'hint' }, `${c.guardaSol === null ? 'Sem guarda-sol' : `Guarda-sol ${c.guardaSol}`} · ${c.hora}`)
           ),
+          h('button', {
+            type: 'button',
+            class: 'sold',
+            'aria-label': `Lançar pedido para ${c.nome}`,
+            onclick: () => lancar(root, c, () => abaClientes(root, sessao))
+          }, 'Pedir'),
           h('button', {
             type: 'button',
             class: 'sold',

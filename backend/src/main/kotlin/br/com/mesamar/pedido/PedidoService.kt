@@ -42,6 +42,12 @@ data class PedidoDetalhe(
     val totalCentavos: Long get() = itens.filter { !it.cancelado }.sumOf { it.subtotalCentavos }
 }
 
+/** Quem lança o pedido pela equipe: o dono ou um atendente (exatamente um dos dois). */
+data class LancadoPor(
+    val usuarioId: UUID?,
+    val atendenteId: UUID?,
+)
+
 /** Motivo pelo qual a comanda não aceita pedido agora, com a mensagem pronta para o cliente. */
 data class Bloqueio(
     val codigo: String,
@@ -96,7 +102,10 @@ class PedidoService(
     fun criar(
         comandaLida: Comanda,
         req: PedidoRequest,
+        /** `null`: o cliente pediu pela página dele. Preenchido: a equipe lançou (origem ATENDENTE). */
+        equipe: LancadoPor? = null,
     ): ResultadoPedido {
+        require(equipe == null || (equipe.usuarioId == null) != (equipe.atendenteId == null)) { "pedido sem autor ou com dois autores" }
         val id =
             req.id ?: return "Não deu para identificar o pedido. Atualize a página e tente de novo.".let {
                 ResultadoPedido.Invalido(it, mapOf("id" to it))
@@ -112,7 +121,7 @@ class PedidoService(
         }
 
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
-        bloqueio(barraca, comanda, saldoCentavos(comanda.id))?.let { return ResultadoPedido.Bloqueado(it) }
+        bloqueio(barraca, comanda, saldoCentavos(comanda.id), pelaEquipe = equipe != null)?.let { return ResultadoPedido.Bloqueado(it) }
 
         val linhas =
             when (val v = validarLinhas(req.itens)) {
@@ -144,10 +153,13 @@ class PedidoService(
                     comandaId = comanda.id,
                     dia = dia,
                     numeroPedido = contador.proximo(barraca.id, dia, TipoContador.PEDIDO),
+                    origem = if (equipe == null) OrigemPedido.CLIENTE else OrigemPedido.ATENDENTE,
                     // "Pagar a cada pedido": só entra na fila depois que o dono confirmar o pagamento (Fase 5)
                     status =
                         if (barraca.modoPagamento == ModoPagamento.POR_PEDIDO) StatusPedido.AGUARDANDO_PAGAMENTO else StatusPedido.RECEBIDO,
                     criadoEm = agora,
+                    criadoPorUsuarioId = equipe?.usuarioId,
+                    criadoPorAtendenteId = equipe?.atendenteId,
                 ),
             )
         val gravados =
@@ -188,11 +200,16 @@ class PedidoService(
         return lista.map { PedidoDetalhe(it, itensPorPedido[it.id].orEmpty()) }
     }
 
-    /** Por que esta comanda não aceita pedido agora (ou `null`, se aceita). */
+    /**
+     * Por que esta comanda não aceita pedido agora (ou `null`, se aceita).
+     * Quando é a equipe que lança (`pelaEquipe`), a pausa e o limite de saldo não valem: quem está no balcão decide,
+     * e o lançamento feito sem sinal não pode ser recusado horas depois (ADR 0017). O resto continua valendo.
+     */
     fun bloqueio(
         barraca: Barraca,
         comanda: Comanda,
         saldoCentavos: Long,
+        pelaEquipe: Boolean = false,
     ): Bloqueio? {
         val limite = barraca.limiteSaldoAbertoCentavos
         return when {
@@ -214,14 +231,14 @@ class PedidoService(
             comanda.status == StatusComanda.FECHADA ->
                 Bloqueio("comanda-fechada", "Esta comanda foi encerrada. Obrigado pela visita!")
             comanda.status == StatusComanda.CANCELADA -> Bloqueio("comanda-cancelada", "Esta comanda foi cancelada. Fale com um atendente.")
-            barraca.pedidosPausados ->
+            barraca.pedidosPausados && !pelaEquipe ->
                 Bloqueio(
                     "pedidos-pausados",
                     barraca.mensagemPausa?.let { "O quiosque pausou os pedidos: $it" }
                         ?: "O quiosque pausou os pedidos por agora. Chame um atendente ou tente de novo daqui a pouco.",
                 )
             // Limite atingido: a conta chegou ao valor que o dono definiu, então paga uma parte antes de pedir mais
-            limite != null && saldoCentavos >= limite ->
+            limite != null && saldoCentavos >= limite && !pelaEquipe ->
                 Bloqueio("limite-saldo", "Sua conta chegou a ${Money.format(limite)}. Para pedir mais, pague uma parte com um atendente.")
             else -> null
         }

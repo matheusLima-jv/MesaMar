@@ -321,6 +321,18 @@ Estes itens são **no servidor de produção** (ou num ambiente igual a ele), se
 | 150 | Mesma comanda, no app do quiosque (aba Pagamentos) | Receber o que ela deve | O pagamento funciona e a comanda se encerra |
 | 151 | **Celular do dono**, app do quiosque entrando **como dono** → aba Mais → ativar avisos. Depois, outro celular manda "Reportar problema" (quiosque ou página do cliente) | Olhar a tela do celular do dono (com o navegador ou o app em segundo plano) | Chega uma notificação **"Aviso de problema · Cliente"** (ou "Equipe") com o começo do texto. Tocar abre a página **Avisos** do painel (pede o login do painel se preciso). Atendentes, no mesmo estabelecimento, **não** recebem. Vários avisos seguidos viram uma notificação só |
 
+### Lançar pedido para cliente (Fase 6 · checkpoint 6.1)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 152 | App do quiosque, aba Clientes, um cliente com comanda aberta | Tocar em **Pedir** ao lado do nome, escolher 2 águas de coco com o **+** e tocar em **Lançar pedido** | Aviso "Pedido N lançado para …". Na aba **Fila** o pedido aparece como qualquer outro. Na página do cliente (se ele tiver o QR aberto), o pedido aparece em Meus pedidos sem recarregar |
+| 153 | Mesma tela, sem escolher nada | Olhar o botão | **Lançar pedido** fica desligado e o texto diz "Nenhum item escolhido." |
+| 154 | Barraca com **Pausar pedidos** ligado, e o cliente tentando pedir pelo celular dele | Lançar o pedido pelo app do quiosque | O cliente é barrado ("O quiosque pausou os pedidos"), e a **equipe consegue lançar** |
+| 155 | Comanda **bloqueada** (aba Pagamentos → Bloquear) | Tentar lançar pedido para ela | Recusado com "Sua comanda está bloqueada…" (a mensagem é a mesma do cliente) |
+| 156 | Produto marcado como **Esgotou** na aba Cardápio | Abrir Pedir | O item aparece riscado, com a tag "Esgotado", e **sem** os botões + e − |
+
+O token de QR gerado no aparelho (check-in sem sinal) só tem teste automático neste checkpoint; a tela de check-in offline vem no 6.2.
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:

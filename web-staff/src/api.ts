@@ -245,6 +245,33 @@ export async function novoCliente (c: NovoCliente): Promise<Comanda> {
   return await chamar<Comanda>('POST', '/clientes', c)
 }
 
+export interface ItemLancado { produtoId: string, quantidade: number, observacao?: string }
+
+/** O pedido como o servidor devolve depois de lançado. */
+export interface PedidoLancado {
+  id: string
+  numero: number
+  status: StatusPedido
+  hora: string
+  totalCentavos: number
+}
+
+/**
+ * "Lançar pedido para cliente". O `id` nasce no celular: reenviar o mesmo pedido (sem sinal, toque duplo)
+ * devolve o que já existe em vez de criar outro. Tenta de novo sozinho se a rede cair.
+ */
+export async function lancarPedido (comandaId: string, pedido: { id: string, itens: ItemLancado[] }): Promise<PedidoLancado> {
+  for (const espera of [1000, 3000]) {
+    try {
+      return await chamar<PedidoLancado>('POST', `/comandas/${comandaId}/pedidos`, pedido)
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.status !== 0) throw e
+      await new Promise((resolve) => setTimeout(resolve, espera))
+    }
+  }
+  return await chamar<PedidoLancado>('POST', `/comandas/${comandaId}/pedidos`, pedido)
+}
+
 /** A fila: pedidos pendentes, o mais antigo primeiro. */
 export async function fila (): Promise<Fila> {
   return await chamar<Fila>('GET', '/fila')

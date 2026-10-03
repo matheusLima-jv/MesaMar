@@ -43,7 +43,7 @@ O plano completo, com o problema, as personas, o modelo de domínio, as fases e 
 | 3 — Check-in, QR e pedido pelo cliente | ✅ Na `main` (PR #4) |
 | 4 — Fila + tempo real + Web Push | ✅ Completa e aprovada na branch `fase-4-fila` (PR #5, rascunho, ainda não mergeado) |
 | 5 — Fechar conta, Pix, pagamentos, relatório | ✅ Completa e aprovada (5.1, 5.2 e 5.3) na branch `fase-4-fila` |
-| 6 — Modo atendente offline | ⬜ (pode vir depois do piloto, se o sinal nas praias for bom) |
+| 6 — Modo atendente offline | 🔶 Branch `fase-6-offline` (a partir da `main`): **6.1 pronto, aguardando aprovação** (lançar pedido pela equipe + token do QR do aparelho). 6.2 (fila offline) e 6.3 (conflitos, E2E offline) ainda não começaram |
 | 7 — Preparação do piloto | 🔶 Branch `fase-7-piloto`: 7.1 a 7.4 aprovados e revisão final feita |
 
 ### Checkpoints da Fase 2
@@ -297,6 +297,8 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
   - Reaproveita o `Csv` do `/admin` (`;`, BOM, proteção contra fórmula).
 
 ### Fase 6: modo atendente offline
+- **6.1:** 🔶 pronto, aguardando aprovação (ver `docs/relatorios/fase-6.md` e [ADR 0017](docs/adr/0017-pedido-lancado-pela-equipe.md)). `POST /api/staff/comandas/{id}/pedidos` (origem `ATENDENTE`, autor gravado, V16), pausa e limite de saldo **não** barram a equipe, `CheckinRequest.token` do aparelho, tela Pedir no app. 412 testes de backend locais; CI e E2E (passo 14b) pendentes do push.
+- **6.2 (próximo):** fila de ações no IndexedDB (Dexie), reenvio em ordem com espera crescente, indicador 🟢/🟠/🔴, check-in offline (token gerado com `crypto.getRandomValues`), Service Worker do app. **6.3:** regras de conflito, última sincronização por aparelho visível ao dono, E2E offline.
 - Lançar pedido pelo atendente (`origem=ATENDENTE`); fila de ações no IndexedDB (Dexie) com UUID, reenvio em ordem e backoff; check-in offline; indicador 🟢/🟠/🔴; regras de conflito em ADR.
 - A API de "esgotado" já é um "definir", pensada para isso.
 

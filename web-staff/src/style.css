@@ -287,3 +287,14 @@ button { font: inherit; }
 /* Reportar problema */
 .field textarea { width: 100%; padding: 0.6rem 0.9rem; font: inherit; color: var(--ink); background: #fff; border: 2px solid var(--rule); border-radius: 12px; resize: vertical; }
 .field textarea:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--sun); }
+
+/* Lançar pedido para cliente (Fase 6) */
+.qtd { flex: none; display: flex; align-items: center; gap: 0.4rem; }
+.qtd-btn {
+  width: 52px; height: 52px; border-radius: 14px; border: 2px solid var(--ink); background: #fff; color: var(--ink);
+  font-size: 1.5rem; font-weight: 800; cursor: pointer;
+}
+.qtd-valor { min-width: 2rem; text-align: center; font-family: var(--display); font-weight: 800; font-size: 1.3rem; }
+.lancar-rodape { position: sticky; bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom)); padding: 0.75rem 0; background: var(--paper); }
+.lancar-total { margin: 0 0 0.5rem; font-weight: 700; text-align: center; }
+.people li .sold { min-width: 4.5rem; padding: 0 0.6rem; }
