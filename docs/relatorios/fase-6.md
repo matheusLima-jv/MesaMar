@@ -49,7 +49,7 @@ Aprovação do 6.1 para começar o 6.2.
 ## Correções da revisão de código (lote 1: itens 1 a 20)
 
 - **Data:** 2026-10-02. Pedido do Matheus antes de seguir para o 6.2.
-- **Testes:** 428 testes de backend passam (eram 412). Novos: `CorrecoesRevisaoTest` (14), `SenhaRulesTest` (1) e um caso em `MoneyTest`.
+- **CI:** ✅ verde no PR #7 (commit `09623de`: 428 testes de backend, eram 412; 11 E2E; teste de restauração já com `pipefail`). Novos: `CorrecoesRevisaoTest` (14), `SenhaRulesTest` (1) e um caso em `MoneyTest`.
 - **Os testes novos foram rodados contra o código antigo:** 14 falham lá, o que confirma os bugs. Os outros 2 já passavam e ficam como guarda contra regressão: o fechamento sem pagamento nenhum e o login com senha longa (este já respondia 401, então não precisou de correção no login).
 
 | # | Problema | O que mudou | Teste |
