@@ -454,6 +454,16 @@ O perfil `prod` exige credenciais de execução sem DDL, migração separada, SM
 6. Simule devolução sem alterar pagamentos: preencha [controle do piloto](piloto-devolucoes.md) e faça conciliação restrita. Apure semana e decisão de prioridade. Não contar cancelamento como estorno.
 7. Execute SMTP, suporte real, deploy, monitores e treinamento conforme [lista de execução](preparacao-piloto.md). Exemplos fictícios não aprovam esse passo. Registre evidência real antes de iniciar o piloto.
 
+## Revisão 116 (checkpoint 6.3)
+
+1. Entre no app do quiosque como atendente em um celular e como dono em outro. No painel, abra **Equipe → Aparelhos da equipe**: em até 1 minuto, os dois aparecem com o nome, o tipo (Android, iPhone/iPad ou computador), "Última sincronização" e "Tudo enviado".
+2. Coloque o celular da atendente em **modo avião**. Lance pedidos para dois clientes (por exemplo 6 e 4 pastéis). O app mostra "Pedido preservado neste aparelho". No painel, a hora desse aparelho para de mudar.
+3. Espere 15 minutos ainda em modo avião e recarregue o painel: o aparelho aparece primeiro, com **Atenção** e "2 ações aguardando envio". (Para não esperar, use dois aparelhos e confira só que a hora não muda.)
+4. Tire o modo avião. Em segundos o indicador volta a 🟢; na fila chegam exatamente os dois pedidos, com 10 itens no total, uma vez cada. No painel, o aparelho volta para "Tudo enviado" com a hora nova.
+5. Repita com os **dois celulares em modo avião** lançando na **mesma comanda**. Volte a rede de um, depois do outro. A comanda tem os dois pedidos, nenhum duplicado, e o total soma os dois.
+6. Ligue e desligue o modo avião várias vezes seguidas com um pedido guardado: ele chega uma única vez.
+7. Com um pedido recusado (por exemplo, a comanda encerrada antes da sincronização), o painel mostra "1 recusada: confira no aparelho" com **Atenção**.
+
 ## Limpar tudo
 
 ```bash

@@ -299,12 +299,12 @@ function idDoAparelho (): string {
 }
 
 /** Conta ao servidor quantas ações ainda estão neste aparelho, para o dono ver a última sincronização (Fase 6.3). */
-async function informarSincronia (ops: Operacao[]): Promise<void> {
+async function informarSincronia (ops: Operacao[], enviou: boolean): Promise<void> {
   const pendentes = ops.filter(o => o.estado === 'pendente').length
   const conflitos = ops.length - pendentes
   const chave = `${contexto}:${pendentes}:${conflitos}`
-  // Sem mudança, um informe por minuto basta: a hora mostrada ao dono não precisa de precisão de segundos.
-  if (chave === ultimoInforme.chave && Date.now() - ultimoInforme.em < 60_000) return
+  // Sem envio e sem mudança, um informe por minuto basta: a hora mostrada ao dono não precisa de precisão de segundos.
+  if (!enviou && chave === ultimoInforme.chave && Date.now() - ultimoInforme.em < 60_000) return
   try {
     await chamarRede<undefined>('POST', '/sincronizacao', { aparelhoId: idDoAparelho(), pendentes, conflitos })
     ultimoInforme = { chave, em: Date.now() }
@@ -401,16 +401,17 @@ export async function sincronizar (): Promise<boolean> {
   const sinal = sessaoLocal.signal
   try {
     let falouComServidor = false
+    let enviou = false
     await exclusaoMutua(async () => {
       const s = await chamarRede<Sessao>('GET', '/sessao')
       const atual = s.logado && s.usuario !== undefined && s.barraca !== undefined ? `${s.barraca.codigo}:${s.usuario.id}` : ''
       if (sinal.aborted || ctx !== contexto) return
       if (atual !== ctx) { eventos.dispatchEvent(new Event('sessao-expirada')); return }
-      await drenar(ctx, async op => { await enviarOperacao(op) }, () => !sinal.aborted && ctx === contexto)
+      await drenar(ctx, async op => { await enviarOperacao(op); enviou = true }, () => !sinal.aborted && ctx === contexto)
       falouComServidor = true
     })
     const ops = await listarOperacoes(ctx)
-    if (falouComServidor && !sinal.aborted && ctx === contexto) await informarSincronia(ops)
+    if (falouComServidor && !sinal.aborted && ctx === contexto) await informarSincronia(ops, enviou)
     return ops.some(o => o.estado === 'pendente')
   } finally { sincronizando = false; mudancasOffline.dispatchEvent(new Event('mudou')) }
 }

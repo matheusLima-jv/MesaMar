@@ -2,9 +2,9 @@
 
 - **Branch:** `fase-6-offline` (criada a partir da `main`, que já tem as Fases 0 a 5 e 7)
 - A Fase 6 está dividida em checkpoints, aprovados um por vez:
-  - [ ] **6.1 — Lançar pedido para cliente (online) e token do QR gerado no aparelho** ← checkpoint atual
-  - [ ] 6.2 — Fila de ações offline (IndexedDB), reenvio em ordem, indicador de conexão, check-in offline
-  - [ ] 6.3 — Conflito entre aparelhos, última sincronização visível para o dono, E2E em modo offline
+  - [x] **6.1 — Lançar pedido para cliente (online) e token do QR gerado no aparelho** (aprovado; PR #7)
+  - [x] 6.2 — Fila de ações offline (IndexedDB), reenvio em ordem, indicador de conexão, check-in offline. Entregue dentro da revisão, item 110 ([relatório 81–110](revisao-81-110.md), [ADR 0020](../adr/0020-offline-recuperacao-e-entrega-validada.md)); mergeado no PR #8.
+  - [ ] 6.3 — Conflito entre aparelhos, última sincronização visível para o dono, E2E em modo offline. **Pronto, aguardando aprovação:** [relatório da revisão 116](revisao-116.md), [ADR 0021](../adr/0021-sincronizacao-dos-aparelhos-e-reenvio.md).
 
 ---
 

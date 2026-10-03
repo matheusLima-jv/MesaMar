@@ -1,6 +1,6 @@
 # Offline, recuperação e entrega da imagem validada
 
-Data: 2026-10-03. Complementa a ADR 0019. Esquema resultante: V19.
+Data: 2026-10-03. Complementa a ADR 0019. Esquema resultante: V19 (a ADR 0021 acrescenta a V20).
 
 ## Contratos e operações offline
 

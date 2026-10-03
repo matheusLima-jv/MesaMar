@@ -31,7 +31,7 @@ export MESAMAR_ENV_FILE=/opt/mesamar/.env
 bash /opt/mesamar/implantar.sh 'ghcr.io/<organização>/<imagem>@sha256:<digest>'
 ```
 
-O script lê da imagem seu manifesto de compatibilidade, recusa esquema de origem incompatível, executa migração, para o app antes da migração, confere o destino e sobe com `--wait`. Para esta publicação: origem mínima 17 (ou banco vazio), destino 19, aplicação compatível apenas com esquema 19. Primeiro atualize volumes mais antigos com uma versão intermediária validada. Testes automatizados também ensaiam V17 → V19 com contas, pedidos e pagamentos existentes.
+O script lê da imagem seu manifesto de compatibilidade, recusa esquema de origem incompatível, executa migração, para o app antes da migração, confere o destino e sobe com `--wait`. Para esta publicação: origem mínima 17 (ou banco vazio), destino 20, aplicação compatível apenas com esquema 20. A V20 só cria a tabela `sincronizacao_aparelho` (ADR 0021); faça o backup validado antes, como em qualquer migração. Primeiro atualize volumes mais antigos com uma versão intermediária validada. Testes automatizados também ensaiam V17 → V20 com contas, pedidos e pagamentos existentes.
 
 Cada nova migração exige atualizar o manifesto e testar a versão anterior contra o esquema resultante. A reversão usa o digest anterior somente se seu manifesto aceitar o esquema atual. Caso contrário, mantenha manutenção e restaure o backup anterior com a imagem correspondente. Reverter imagem por si só não desfaz migrações. Não execute migrações irreversíveis sem ensaio de recuperação e avaliação da perda de gravações posteriores.
 
