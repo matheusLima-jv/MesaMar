@@ -11,7 +11,7 @@
 ## Checkpoint 6.1 — Lançar pedido para cliente
 
 - **Data:** 2026-10-02
-- **Testes:** `ktlintCheck` e os 412 testes de backend passam localmente. O **CI e o E2E** (passo novo 14b no `painel.spec.ts`) ainda não rodaram: dependem do push.
+- **CI:** ✅ verde no PR #7 (412 testes de backend, 11 E2E, incluindo o passo novo 14b).
 
 ### 1. O que foi feito
 

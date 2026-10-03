@@ -297,7 +297,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
   - Reaproveita o `Csv` do `/admin` (`;`, BOM, proteção contra fórmula).
 
 ### Fase 6: modo atendente offline
-- **6.1:** 🔶 pronto, aguardando aprovação (ver `docs/relatorios/fase-6.md` e [ADR 0017](docs/adr/0017-pedido-lancado-pela-equipe.md)). `POST /api/staff/comandas/{id}/pedidos` (origem `ATENDENTE`, autor gravado, V16), pausa e limite de saldo **não** barram a equipe, `CheckinRequest.token` do aparelho, tela Pedir no app. 412 testes de backend locais; CI e E2E (passo 14b) pendentes do push.
+- **6.1:** 🔶 pronto, aguardando aprovação (ver `docs/relatorios/fase-6.md` e [ADR 0017](docs/adr/0017-pedido-lancado-pela-equipe.md)). `POST /api/staff/comandas/{id}/pedidos` (origem `ATENDENTE`, autor gravado, V16), pausa e limite de saldo **não** barram a equipe, `CheckinRequest.token` do aparelho, tela Pedir no app. CI verde no PR #7 (412 testes, 11 E2E).
 - **6.2 (próximo):** fila de ações no IndexedDB (Dexie), reenvio em ordem com espera crescente, indicador 🟢/🟠/🔴, check-in offline (token gerado com `crypto.getRandomValues`), Service Worker do app. **6.3:** regras de conflito, última sincronização por aparelho visível ao dono, E2E offline.
 - Lançar pedido pelo atendente (`origem=ATENDENTE`); fila de ações no IndexedDB (Dexie) com UUID, reenvio em ordem e backoff; check-in offline; indicador 🟢/🟠/🔴; regras de conflito em ADR.
 - A API de "esgotado" já é um "definir", pensada para isso.
