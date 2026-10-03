@@ -491,6 +491,7 @@ export interface PedidoLancado {
   status: StatusPedido
   hora: string
   totalCentavos: number
+  excecoes?: string[]
 }
 
 /**
@@ -554,6 +555,10 @@ export async function receberPagamento (
   pagamento: { id: string, metodo: Metodo, valorCentavos: number, valorRecebidoCentavos: number | null }
 ): Promise<Confirmacao> {
   return await chamar<Confirmacao>('POST', `/comandas/${comandaId}/pagamentos`, pagamento)
+}
+
+export async function continuarComanda (comandaId: string): Promise<ContaAPagar> {
+  return await chamar<ContaAPagar>('POST', `/comandas/${comandaId}/continuar`)
 }
 
 export async function bloquearComanda (comandaId: string): Promise<ContaAPagar> {

@@ -4,6 +4,7 @@ import br.com.mesamar.comanda.AbertaPor
 import br.com.mesamar.comanda.Comanda
 import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.comanda.StatusComanda
+import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.Money
 import br.com.mesamar.eventos.PublicadorEventos
 import br.com.mesamar.pedido.LiberacaoPedidos
@@ -260,6 +261,33 @@ class PagamentoService(
             }
             else -> return recusaPorEstado(comanda)!!
         }
+        return ResultadoQuiosque.Ok(conta(barracaId, comanda.id))
+    }
+
+    /** Retoma o consumo após pagamento parcial, preservando pagamentos e saldo. Só a equipe autoriza. */
+    @Transactional
+    fun continuar(
+        barracaId: UUID,
+        comandaId: UUID,
+    ): ResultadoQuiosque {
+        autorHistorico.marcar()
+        val comanda = travar(barracaId, comandaId) ?: return ResultadoQuiosque.NaoEncontrada
+        if (comanda.dia != Fuso.hoje(clock)) {
+            return ResultadoQuiosque.Recusado("comanda-de-outro-dia", "Só é possível continuar uma conta de hoje.")
+        }
+        if (comanda.status == StatusComanda.ABERTA) return ResultadoQuiosque.Ok(conta(barracaId, comanda.id))
+        if (comanda.status != StatusComanda.AGUARDANDO_PAGAMENTO ||
+            pagamentos.totalCentavos(comanda.id) <= 0 ||
+            pedidos.saldoCentavos(comanda.id) <= 0
+        ) {
+            return ResultadoQuiosque.Recusado(
+                "conta-nao-parcial",
+                "Só é possível continuar uma conta aguardando pagamento com uma parte paga e saldo restante.",
+            )
+        }
+        limparAviso(comanda)
+        comanda.status = StatusComanda.ABERTA
+        tempoReal.contaMudou(barracaId, comanda.id)
         return ResultadoQuiosque.Ok(conta(barracaId, comanda.id))
     }
 

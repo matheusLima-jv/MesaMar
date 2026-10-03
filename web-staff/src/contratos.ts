@@ -16,7 +16,7 @@ export function contrato<T> (path: string, method: string, dados: unknown): T {
                 : caminho === '/fila' ? objeto({ agora: data, tempoAlertaMin: inteiro(1, 1440), pedidosPausados: booleano, mensagemPausa: nulo(texto(1000)), pedidos: lista(pedidoFila, 10_000, 0, 'id') })
                   : caminho === '/pagamentos' ? objeto({ pagina: inteiro(0), temMais: booleano, totalAguardando: inteiro(0), totalSaldoAbertoCentavos: centavos, agora: data, aguardando: lista(conta, 200, 0, 'comandaId'), abertas: lista(conta, 200, 0, 'comandaId') })
                     : caminho.endsWith('/pagamentos') ? objeto({ conta, pagamento: objeto({ id: uuid, metodo, valorCentavos: centavos, valorRecebidoCentavos: nulo(centavos), trocoCentavos: centavos }), fechada: booleano })
-                      : caminho.startsWith('/comandas/') && caminho.endsWith('/pedidos') ? objeto({ id: uuid, numero: inteiro(1), status: statusPedido, hora, totalCentavos: centavos })
+                      : caminho.startsWith('/comandas/') && caminho.endsWith('/pedidos') ? objeto({ id: uuid, numero: inteiro(1), status: statusPedido, hora, totalCentavos: centavos, excecoes: opcional(lista(texto(30, 1), 2)) })
                         : caminho.startsWith('/comandas/') ? conta
                           : caminho.startsWith('/pedidos/') ? pedidoFila
                             : caminho === '/pausa' ? objeto({ pedidosPausados: booleano, mensagemPausa: nulo(texto(1000)) })

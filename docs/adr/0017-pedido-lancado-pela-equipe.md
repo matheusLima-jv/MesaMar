@@ -31,5 +31,9 @@ A Fase 6 faz a barraca funcionar quando o cliente não tem celular, bateria ou s
 
 ## Consequências
 
+### Complemento da revisão 111–115 (2026-10-03)
+
+A tela de lançamento e a de reenvio exibem aviso permanente sobre a autorização da equipe. Quando pausa ou limite já atingido forem ignorados, a mesma transação grava `EXCECAO` em `historico_acao`, com autor, horário, saldo anterior, limite e os dois indicadores separadamente. Não há migração nova: utiliza o histórico V18, com retenção de 90 dias. A confirmação do lançamento informa quais exceções foram usadas; o reenvio lê o mesmo registro, sem duplicar. Pedidos sem uso efetivo da exceção continuam com origem/autor e não recebem `EXCECAO`. As condições são as do servidor no recebimento, inclusive ao sincronizar offline. Consulta restrita documentada em [preparação operacional](../preparacao-piloto.md); ainda não há tela de histórico para o dono. Os parágrafos abaixo preservam o estado original da Fase 6.1.
+
 - O `RelatorioTest` precisou gravar o autor ao marcar um pedido como `ATENDENTE` por SQL: a constraint nova é o que garante que a origem nunca fique sem autor.
 - A fila e o relatório ainda **não mostram** a origem do pedido na tela. Se o dono quiser separar "pedido do cliente" de "lançado pela equipe", é uma mudança pequena de tela.

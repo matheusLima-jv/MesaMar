@@ -19,6 +19,7 @@ import br.com.mesamar.support.PainelTestSupport.Companion.SENHA
 import br.com.mesamar.support.Quiosque
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.jdbc.core.JdbcTemplate
 import java.security.SecureRandom
 import java.util.Base64
 import java.util.UUID
@@ -41,6 +42,7 @@ class LancarPedidoApiTest(
     private val comandas: ComandaRepository,
     private val pedidos: PedidoRepository,
     private val atendentes: AtendenteRepository,
+    private val jdbc: JdbcTemplate,
 ) {
     private val painel = PainelTestSupport(port, convites)
     private val apoio = ClienteTestSupport(port, painel, usuarios, categorias, produtos, checkin)
@@ -132,8 +134,25 @@ class LancarPedidoApiTest(
         assertEquals(409, cliente.statusCode())
         assertContains(cliente.body(), "pedidos-pausados")
 
-        val equipe = donoNoApp(q).post("/api/staff/comandas/$comanda/pedidos", apoio.corpo(UUID.randomUUID(), Item(q.pastel.id, 1)))
+        val app = donoNoApp(q)
+        val id = UUID.randomUUID()
+        val corpo = apoio.corpo(id, Item(q.pastel.id, 1))
+        val equipe = app.post("/api/staff/comandas/$comanda/pedidos", corpo)
         assertEquals(201, equipe.statusCode(), equipe.body())
+        assertContains(equipe.body(), "\"excecoes\":[\"pausa\"]")
+        val registro = jdbc.queryForMap("SELECT * FROM historico_acao WHERE entidade_id = ? AND acao = 'EXCECAO'", id)
+        assertEquals(q.usuarioId, registro["usuario_id"])
+        assertContains(registro["depois"].toString(), "\"pausa_ignorada\": true")
+        assertContains(registro["depois"].toString(), "\"limite_ignorado\": false")
+        assertEquals(200, app.post("/api/staff/comandas/$comanda/pedidos", corpo).statusCode())
+        assertEquals(
+            1,
+            jdbc.queryForObject("SELECT count(*) FROM historico_acao WHERE entidade_id = ? AND acao = 'EXCECAO'", Int::class.java, id),
+        )
+        val segundoId = UUID.randomUUID()
+        assertEquals(201, app.post("/api/staff/comandas/$comanda/pedidos", apoio.corpo(segundoId, Item(q.coco.id, 1))).statusCode())
+        val segunda = jdbc.queryForMap("SELECT depois FROM historico_acao WHERE entidade_id = ? AND acao = 'EXCECAO'", segundoId)
+        assertContains(segunda["depois"].toString(), "\"limite_ignorado\": true")
     }
 
     @Test

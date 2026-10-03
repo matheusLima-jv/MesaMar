@@ -1,5 +1,7 @@
 # Operação e recuperação
 
+A execução final do piloto está organizada em [preparação operacional](preparacao-piloto.md), com responsáveis, evidências, treinamento e exemplos fictícios explicitamente identificados. SMTP, suporte real, implantação e monitores reais foram adiados por orientação do usuário na revisão 111–115; os procedimentos abaixo continuam necessários antes da produção.
+
 Esta revisão prepara arquivos e procedimentos; não altera a VPS, SSH, firewall, DNS ou Cloudflare. Use uma janela de manutenção e um backup validado para mudar permissões ou esquema. Requisitos no host: Docker Compose, Bash, `flock`, Python 3, `sha256sum`, `timeout`, curl e Restic. Segredos e dumps ficam com permissões restritas, fora do Git.
 
 ## Configuração e imagem validada

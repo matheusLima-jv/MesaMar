@@ -1,8 +1,10 @@
 package br.com.mesamar.staff
 
 import br.com.mesamar.cliente.ErroIndisponivelView
+import br.com.mesamar.cliente.ItemPedidoView
 import br.com.mesamar.cliente.PedidoView
 import br.com.mesamar.comanda.ComandaRepository
+import br.com.mesamar.common.Restricoes
 import br.com.mesamar.pedido.LancadoPor
 import br.com.mesamar.pedido.PedidoRequest
 import br.com.mesamar.pedido.PedidoService
@@ -45,18 +47,18 @@ class StaffPedidosController(
             try {
                 pedidos.criar(comanda, body, equipe)
             } catch (e: DataIntegrityViolationException) {
-                if (!br.com.mesamar.common.Restricoes
-                        .unica(e, "pedido_pkey")
-                ) {
-                    throw e
-                }
+                if (!Restricoes.unica(e, "pedido_pkey")) throw e
                 // Dois envios do mesmo pedido ao mesmo tempo: o segundo encontra o primeiro.
                 if (body.id == null) throw e
                 pedidos.criar(comanda, body, equipe)
             }
         return when (resultado) {
-            is ResultadoPedido.Ok ->
-                ResponseEntity.status(if (resultado.nova) HttpStatus.CREATED else HttpStatus.OK).body(PedidoView.of(resultado.detalhe))
+            is ResultadoPedido.Ok -> {
+                val view = PedidoView.of(resultado.detalhe)
+                ResponseEntity
+                    .status(if (resultado.nova) HttpStatus.CREATED else HttpStatus.OK)
+                    .body(PedidoLancadoView.of(view, pedidos.excecoesRegistradas(principal.barracaId, view.id)))
+            }
             is ResultadoPedido.Invalido ->
                 ResponseEntity.badRequest().body(ErroValidacaoView("validacao", resultado.mensagem, resultado.campos))
             is ResultadoPedido.Bloqueado ->
@@ -78,4 +80,32 @@ class StaffPedidosController(
     @ExceptionHandler(HttpMessageNotReadableException::class)
     fun jsonInvalido(): ResponseEntity<Any> =
         ResponseEntity.badRequest().body(ErroView("validacao", "Não entendemos esse pedido. Atualize o app e tente de novo."))
+}
+
+/** O pedido lançado pela equipe, com as exceções (pausa, limite de saldo) que o lançamento usou. */
+data class PedidoLancadoView(
+    val id: UUID,
+    val numero: Int,
+    val status: String,
+    val hora: String,
+    val itens: List<ItemPedidoView>,
+    val totalCentavos: Long,
+    val motivoCancelamento: String?,
+    val excecoes: List<String>,
+) {
+    companion object {
+        fun of(
+            view: PedidoView,
+            excecoes: List<String>,
+        ) = PedidoLancadoView(
+            view.id,
+            view.numero,
+            view.status,
+            view.hora,
+            view.itens,
+            view.totalCentavos,
+            view.motivoCancelamento,
+            excecoes,
+        )
+    }
 }

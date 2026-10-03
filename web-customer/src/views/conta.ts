@@ -216,7 +216,7 @@ function aguardando (c: Conta, e: EstadoConta, acoes: AcoesConta): Array<Node | 
   if (c.pagoCentavos === 0) {
     blocos.push(h('button', { type: 'button', class: 'btn btn-line btn-block btn-gap', disabled: e.ocupado, onclick: acoes.reabrir }, 'Voltar e pedir mais'))
   } else {
-    blocos.push(h('p', { class: 'hint' }, 'O quiosque já confirmou um pagamento. Para pedir mais, fale com um atendente.'))
+    blocos.push(h('p', { class: 'hint' }, 'Uma parte já foi paga. Para consumir mais, peça ao atendente para abrir Pagamentos e tocar em Continuar conta. O valor pago permanece registrado; pausa e limite de saldo continuam valendo.'))
   }
   blocos.push(h('button', { type: 'button', class: 'btn btn-line btn-block btn-gap', disabled: e.ocupado, onclick: acoes.trocar }, 'Trocar a forma de pagamento'))
   return blocos

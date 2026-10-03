@@ -39,6 +39,10 @@ O checkpoint 3.3 fecha a Fase 3: o cliente acompanha os pedidos e a conta, e as 
 
 ## Consequências
 
+### Complemento da revisão 111–115 (2026-10-03)
+
+O painel agora explica o pedido que cruza o limite com exemplo financeiro, estimativa conservadora `limite + 60 × maior preço` e teto técnico de R$ 600.000 por pedido. Essa estimativa cobre pedidos do cliente com limite configurado; pedidos da equipe ignoram a regra e não têm teto de saldo por ela. Pagamentos parciais já são suportados: em conta aguardando pagamento, a equipe pode usar **Pagamentos → Continuar conta**, preservando valores e histórico, limpando intenção/aviso de pagamento e retomando apenas contas de hoje. Pausa e limite continuam valendo para o cliente. Os parágrafos abaixo registram o estado histórico da Fase 3.
+
 - Mudar o limite ou o modo no painel vale para os próximos pedidos, e a comanda aberta sente na hora (a página lê a regra do banco a cada abertura).
 - Sem a Fase 5, o saldo só sobe: o jeito de baixá-lo hoje é cancelar itens. Pagamento parcial entra com a confirmação de pagamento.
 - A trava por comanda serializa só os pedidos da mesma comanda, que são raros. Se algum dia virar gargalo (não deve), o saldo pode ir para uma coluna na comanda.

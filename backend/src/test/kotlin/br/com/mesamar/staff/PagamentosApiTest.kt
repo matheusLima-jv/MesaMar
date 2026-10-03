@@ -142,6 +142,56 @@ class PagamentosApiTest(
         barracas.save(barraca)
     }
 
+    @Test
+    fun `equipe continua conta parcial preservando pagamento saldo isolamento e historico`() {
+        val q = apoio.quiosque("Barraca Continuar Parcial")
+        val outra = apoio.quiosque("Barraca Continuar Outra")
+        val token = apoio.novaComanda(q)
+        pedido(token, Item(q.coco.id, 2))
+        fechar(token, """{"metodo":"CARTAO"}""")
+        val equipe = carla(q)
+        receber(equipe, token, "CARTAO", 1000).also { assertEquals(201, it.statusCode(), it.body()) }
+        val caminho = "/api/staff/comandas/${idDe(token)}/continuar"
+        assertEquals(404, app(outra).post(caminho, "{}").statusCode())
+        val resposta = equipe.post(caminho, "{}")
+        assertEquals(200, resposta.statusCode(), resposta.body())
+        assertContains(resposta.body(), "\"status\":\"ABERTA\"")
+        assertContains(resposta.body(), "\"pagoCentavos\":1000")
+        assertContains(resposta.body(), "\"saldoCentavos\":1400")
+        assertNull(comandas.findByTokenAcesso(token)!!.metodoPagamentoPretendido)
+        assertEquals(200, equipe.post(caminho, "{}").statusCode())
+        assertEquals(1000, pagamentos.totalCentavos(idDe(token)))
+        assertTrue(
+            jdbc.queryForObject(
+                """SELECT count(*) FROM historico_acao WHERE entidade_id = ? AND entidade = 'comanda'
+                    AND antes->>'status' = 'AGUARDANDO_PAGAMENTO' AND depois->>'status' = 'ABERTA'
+                    AND atendente_id IS NOT NULL""",
+                Long::class.java,
+                idDe(token),
+            )!! > 0,
+        )
+        regras(q, limiteCentavos = 1000)
+        assertEquals(409, apoio.pedir(apoio.celular(), token, UUID.randomUUID(), Item(q.coco.id, 1)).statusCode())
+    }
+
+    @Test
+    fun `continuar recusa conta sem pagamento bloqueada fechada e de outro dia`() {
+        val q = apoio.quiosque("Barraca Continuar Estados")
+        val token = apoio.novaComanda(q)
+        pedido(token, Item(q.coco.id, 2))
+        fechar(token, """{"metodo":"CARTAO"}""")
+        val equipe = app(q)
+        val caminho = "/api/staff/comandas/${idDe(token)}/continuar"
+        assertEquals(409, equipe.post(caminho, "{}").statusCode())
+        receber(equipe, token, "CARTAO", 1000)
+        listOf(StatusComanda.BLOQUEADA, StatusComanda.FECHADA, StatusComanda.CANCELADA).forEach { status ->
+            comandas.save(comandas.findByTokenAcesso(token)!!.also { it.status = status })
+            assertEquals(409, equipe.post(caminho, "{}").statusCode())
+        }
+        jdbc.update("UPDATE comanda SET status = 'AGUARDANDO_PAGAMENTO', dia = dia - 1 WHERE id = ?", idDe(token))
+        assertEquals(409, equipe.post(caminho, "{}").statusCode())
+    }
+
     // ---------- A lista ----------
 
     @Test

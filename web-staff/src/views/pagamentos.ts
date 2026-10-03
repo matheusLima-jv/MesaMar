@@ -1,4 +1,4 @@
-import { ApiError, descartada, bloquearComanda, desbloquearComanda, encerrarComanda, reais, type ContaAPagar, type Sessao } from '../api'
+import { ApiError, descartada, bloquearComanda, desbloquearComanda, continuarComanda, encerrarComanda, reais, type ContaAPagar, type Sessao } from '../api'
 import { adiarSeEmUso, mountPreservando } from '../a11y'
 import { h } from '../dom'
 import { estado as estadoDaFila } from '../fila-store'
@@ -120,6 +120,12 @@ function cartao (root: HTMLElement, sessao: Sessao, c: ContaAPagar, dono: boolea
   }
 
   const acoes: HTMLElement[] = []
+  if (c.status === 'AGUARDANDO_PAGAMENTO' && c.pagoCentavos > 0 && c.saldoCentavos > 0) {
+    acoes.push(h('button', {
+      type: 'button', class: 'btn btn-line', disabled: ocupado, 'aria-label': `Continuar conta de ${c.cliente}`,
+      onclick: () => { agir(async () => await continuarComanda(c.comandaId), `Conta de ${c.cliente} aberta novamente. Pagamentos preservados; pausa e limite continuam valendo para o cliente.`) }
+    }, 'Continuar conta'))
+  }
   if (c.saldoCentavos > 0) {
     acoes.push(h('button', {
       type: 'button', class: 'btn btn-sun', disabled: ocupado, 'aria-label': `Receber de ${c.cliente}`, onclick: () => { dialogoReceber(c, () => { void recarregar() }) }
@@ -158,6 +164,8 @@ function cartao (root: HTMLElement, sessao: Sessao, c: ContaAPagar, dono: boolea
     ),
     h('p', { class: 'resumo-pag' }, ...resumo(c)),
     c.pagoCentavos > 0 ? h('p', { class: 'hint' }, `Já pagou ${reais(c.pagoCentavos)} de ${reais(c.pedidoCentavos)}.`) : null,
+    c.status === 'AGUARDANDO_PAGAMENTO' && c.pagoCentavos > 0
+      ? h('p', { class: 'hint' }, 'Se o cliente quiser consumir mais, toque em Continuar conta. O saldo e os pagamentos são preservados; pausa e limite continuam valendo para os pedidos do cliente.') : null,
     h('div', { class: 'acoes' }, ...acoes)
   )
 }

@@ -11,11 +11,13 @@ import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.comanda.ContadorDiario
 import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.comanda.TipoContador
+import br.com.mesamar.common.AutorHistorico
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.Money
 import br.com.mesamar.eventos.PublicadorEventos
 import br.com.mesamar.pagamento.PagamentoRepository
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -103,7 +105,8 @@ sealed interface ResultadoPedido {
  */
 @Service
 class PedidoService(
-    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
+    private val jdbc: JdbcTemplate,
+    private val autorHistorico: AutorHistorico,
     private val pedidos: PedidoRepository,
     private val itens: ItemPedidoRepository,
     private val produtos: ProdutoRepository,
@@ -147,7 +150,8 @@ class PedidoService(
         }
 
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
-        bloqueio(barraca, comanda, saldoCentavos(comanda.id), pelaEquipe = equipe != null)?.let { return ResultadoPedido.Bloqueado(it) }
+        val saldoAntes = saldoCentavos(comanda.id)
+        bloqueio(barraca, comanda, saldoAntes, pelaEquipe = equipe != null)?.let { return ResultadoPedido.Bloqueado(it) }
 
         val linhas =
             when (val v = validarLinhas(req.itens)) {
@@ -217,6 +221,25 @@ class PedidoService(
                     )
                 },
             )
+        if (equipe != null &&
+            (barraca.pedidosPausados || barraca.limiteSaldoAbertoCentavos?.let { saldoAntes >= it } == true)
+        ) {
+            jdbc.update(
+                """INSERT INTO historico_acao
+                    (barraca_id, entidade, entidade_id, acao, usuario_id, atendente_id, origem, depois)
+                    VALUES (?, 'pedido', ?, 'EXCECAO', ?, ?, 'EQUIPE',
+                    jsonb_build_object('pausa_ignorada', ?::boolean, 'limite_ignorado', ?::boolean,
+                    'saldo_antes_centavos', ?::bigint, 'limite_centavos', ?::bigint))""",
+                barraca.id,
+                pedido.id,
+                equipe.usuarioId,
+                equipe.atendenteId,
+                barraca.pedidosPausados,
+                barraca.limiteSaldoAbertoCentavos?.let { saldoAntes >= it } == true,
+                saldoAntes,
+                barraca.limiteSaldoAbertoCentavos,
+            )
+        }
         // Avisa o app do quiosque (fila) e a página do cliente. O NOTIFY só sai se esta transação der commit.
         tempoReal.pedidoMudou(barraca.id, comanda.id, pedido.id)
         eventos.publishEvent(PedidoCriado(pedido.id, barraca.id, comanda.id, pedido.numeroPedido, pedido.status))
@@ -238,6 +261,25 @@ class PedidoService(
     /** Cardápio que o cliente vê: só o que está no cardápio (ativo); o esgotado aparece, mas não dá para pedir. */
     @Transactional(readOnly = true)
     fun cardapioDoCliente(barraca: Barraca): List<SecaoCardapio> = cardapio.secoes(barraca).filter { it.noCardapio.isNotEmpty() }
+
+    /** Condições efetivamente ignoradas, também disponíveis no reenvio do pedido. Leitura restrita à barraca. */
+    @Transactional(readOnly = true)
+    fun excecoesRegistradas(
+        barracaId: UUID,
+        pedidoId: UUID,
+    ): List<String> {
+        val registros =
+            jdbc.queryForList(
+                """SELECT depois->>'pausa_ignorada' AS pausa, depois->>'limite_ignorado' AS limite
+                    FROM historico_acao WHERE barraca_id = ? AND entidade_id = ? AND entidade = 'pedido' AND acao = 'EXCECAO'""",
+                barracaId,
+                pedidoId,
+            )
+        return listOfNotNull(
+            "pausa".takeIf { registros.any { r -> r["pausa"] == "true" } },
+            "limite de saldo".takeIf { registros.any { r -> r["limite"] == "true" } },
+        )
+    }
 
     /** Quanto a comanda ainda deve: o que pediu (itens não cancelados) menos o que o quiosque já confirmou de pagamento. */
     @Transactional(readOnly = true)
@@ -275,7 +317,7 @@ class PedidoService(
             comanda.status == StatusComanda.AGUARDANDO_PAGAMENTO ->
                 Bloqueio(
                     "aguardando-pagamento",
-                    "Sua conta está sendo fechada. Para pedir mais, abra a aba Conta e toque em Voltar e pedir mais.",
+                    "Sua conta está sendo fechada. Abra a aba Conta: sem pagamento confirmado, toque em Voltar e pedir mais; após pagamento parcial, peça ao atendente para Continuar conta em Pagamentos.",
                 )
             comanda.status == StatusComanda.BLOQUEADA ->
                 Bloqueio("comanda-bloqueada", "Sua comanda está bloqueada. Fale com um atendente.")

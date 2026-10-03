@@ -10,6 +10,8 @@ interface Retomada { quantidades: Map<string, number>, aviso: string }
 /** O lançamento que saiu e ficou sem resposta, com o que mostrar enquanto ele não se resolve. */
 interface Lancamento { itens: ItemLancado[], linhas: string[], totalCentavos: number }
 
+const AVISO_EXCECAO = 'Lançamento pela equipe: você autoriza o pedido mesmo com pedidos pausados ou limite de saldo atingido. Não há teto de saldo para a equipe. O servidor registra o autor, horário e quais condições foram ignoradas ao receber o pedido, inclusive após sincronizar sem sinal.'
+
 /**
  * "Lançar pedido para cliente": a equipe escolhe os itens pela comanda (cliente sem celular, sem bateria ou sem sinal).
  * O pedido entra na mesma fila, marcado como lançado pela equipe.
@@ -56,7 +58,8 @@ function enviar (
   lancarPedido(comanda.id, { id, itens: lancamento.itens })
     .then((p) => {
       pendencias.apagar('lancamento', comanda.id)
-      avisar(`Pedido ${p.numero} lançado para ${comanda.nome}.`)
+      const excecao = (p.excecoes?.length ?? 0) > 0 ? ` Exceção registrada: ${p.excecoes?.join(' e ')} ignorado(s).` : ''
+      avisar(`Pedido ${p.numero} lançado para ${comanda.nome}.${excecao}`)
       if (aberta()) voltar()
     })
     .catch((e: unknown) => {
@@ -94,6 +97,7 @@ function telaPendente (root: HTMLElement, comanda: Comanda, voltar: () => void, 
     ),
     h('p', { class: 'alert', role: 'status' },
       'Pedido preservado neste aparelho. Será reenviado em ordem quando o sinal voltar. Se já tiver chegado, não será duplicado.'),
+    h('p', { class: 'alert', role: 'note' }, AVISO_EXCECAO),
     h('ul', { class: 'linhas' }, ...lancamento.linhas.map((l) => h('li', {}, l))),
     h('p', { class: 'lancar-total' }, reais(lancamento.totalCentavos)),
     erro,
@@ -196,6 +200,7 @@ function desenhar (root: HTMLElement, aberta: () => boolean, comanda: Comanda, s
       h('h1', {}, 'Lançar pedido'),
       h('p', { class: 'hint' }, `Para ${comanda.nome} · ${comanda.guardaSol === null ? 'sem guarda-sol' : `guarda-sol ${comanda.guardaSol}`}`)
     ),
+    h('p', { class: 'alert', role: 'note' }, AVISO_EXCECAO),
     ...linhas,
     h('div', { class: 'lancar-rodape' }, resumo, erro, botao,
       h('button', { type: 'button', class: 'link center-block', onclick: voltar }, 'Cancelar')

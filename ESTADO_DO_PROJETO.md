@@ -1,5 +1,7 @@
 # Estado atual do MesaMar
 
+Revisão 111–115 em 2026-10-03: limite explicado com exposição; exceções da equipe avisadas e auditadas; ação **Pagamentos → Continuar conta** após pagamento parcial; medição de devoluções/estornos e preparação operacional documentadas. Veja [relatório 111–115](docs/relatorios/revisao-111-115.md), [preparação do piloto](docs/preparacao-piloto.md) e [controle de devoluções](docs/piloto-devolucoes.md). Por orientação do usuário, SMTP, suporte e produção reais foram adiados, com exemplos fictícios identificados. Não houve implantação nesta revisão; treinamento e roteiro manual ainda exigem execução. Banco permanece V19. O parágrafo seguinte descreve a entrega anterior 61–110.
+
 Atualizado em 2026-10-03. Correções 61–110 concluídas neste checkout, com [relatório](docs/relatorios/revisao-81-110.md); matriz E2E completa aprovada (47/47). As correções propostas foram executadas e a documentação foi atualizada. Entregues no PR da branch `revisao-61-110`, que só é mergeado quando o Matheus pedir. Não foi publicado nesta revisão. O registro antigo de fases e aprovações foi arquivado em [estado anterior](docs/relatorios/estado-antes-revisao-81-110.md), para preservar o contexto sem apresentar etapas antigas como pendências atuais.
 
 | Área | Disponível |

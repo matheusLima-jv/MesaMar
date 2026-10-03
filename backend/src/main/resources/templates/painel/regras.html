@@ -30,7 +30,8 @@
         <input id="limiteSaldo" type="text" th:field="*{limiteSaldo}" inputmode="decimal" placeholder="Sem limite" maxlength="12"
                th:attr="aria-invalid=${#fields.hasErrors('limiteSaldo')},aria-describedby=${#fields.hasErrors('limiteSaldo')} ? 'saldo-erro saldo-dica' : 'saldo-dica'">
         <p class="field-error" id="saldo-erro" th:if="${#fields.hasErrors('limiteSaldo')}" th:text="${#fields.errors('limiteSaldo')[0]}">Erro</p>
-        <p class="form-hint" id="saldo-dica">Ao chegar nesse valor, o cliente precisa pagar antes de pedir mais. Vazio: sem limite.</p>
+        <p class="form-hint" id="saldo-dica">O limite é conferido antes do pedido: se o saldo ainda está abaixo dele, o pedido inteiro é aceito, mesmo ultrapassando o valor. Exemplo: limite de R$ 150, saldo de R$ 140 e pedido de R$ 80 deixam R$ 220 em aberto; o próximo pedido do cliente exige pagamento. Vazio: sem limite.</p>
+        <p class="form-hint">A exposição por conta pode chegar ao limite mais um pedido de até 60 unidades (até 20 por produto). Para estimar com seu cardápio, use limite + 60 × maior preço; o teto técnico por pedido é R$ 600.000,00. A equipe pode lançar mesmo durante a pausa ou com o limite atingido: nesses lançamentos não há teto de saldo imposto por esta regra. O uso da exceção fica registrado com autor, horário e condições do servidor no envio, inclusive na sincronização offline.</p>
       </div>
 
       <div class="field-row">

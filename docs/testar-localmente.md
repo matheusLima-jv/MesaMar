@@ -444,6 +444,16 @@ O perfil `prod` exige credenciais de execução sem DDL, migração separada, SM
 7. Saia e volte à página do cliente: SSE e timers reiniciam uma única vez. Confira que conta e pedidos voltam a atualizar.
 8. Valide recuperação de reservas da outbox, falhas de integridade e concorrência com `Correcoes61a80Test`. Para os ciclos de vida do frontend: `cd web-customer` e `npm test`.
 
+## Revisão 111–115
+
+1. No painel Regras, confira o aviso de exposição. Defina limite R$ 150, leve saldo a R$ 140 e faça pedido de R$ 80: aceito com R$ 220 em aberto. Próximo pedido do cliente recusado; pagamento que reduz saldo abaixo de R$ 150 libera o próximo, desde que a conta esteja aberta e sem pausa.
+2. Com pedidos pausados, abra Lançar pedido pela equipe e confira o aviso permanente de exceção. Lance, confira autor e `pausa_ignorada=true` no histórico usando [consulta restrita](preparacao-piloto.md#consulta-restrita-das-exceções). Com saldo já no limite, confira também `limite_ignorado=true`. Reenvie o mesmo ID: um pedido e uma exceção. Sem pausa e abaixo do limite: nenhuma `EXCECAO`.
+3. Repita sem sinal; reabra o app e sincronize. O pedido é preservado; a auditoria usa pausa/limite do servidor ao receber. Mude as regras antes de sincronizar para verificar essa distinção.
+4. Feche conta com R$ 24; confirme R$ 10. Cliente recebe orientação exata para Pagamentos → Continuar conta. A equipe toca no botão: status ABERTA, pago R$ 10, saldo R$ 14 e intenção/aviso anterior limpos; cliente atualiza em tempo real. Repetir a ação não altera os pagamentos. Novo fechamento calcula apenas saldo restante.
+5. Com saldo restante no limite ou pausa ativa, Continuar conta preserva essas restrições do cliente. Sem pagamento confirmado, bloqueada, fechada, cancelada ou de outro dia: retomada recusada. Com ID de outra barraca: 404. Tente com pagamento total: conta encerrada, sem botão de retomada.
+6. Simule devolução sem alterar pagamentos: preencha [controle do piloto](piloto-devolucoes.md) e faça conciliação restrita. Apure semana e decisão de prioridade. Não contar cancelamento como estorno.
+7. Execute SMTP, suporte real, deploy, monitores e treinamento conforme [lista de execução](preparacao-piloto.md). Exemplos fictícios não aprovam esse passo. Registre evidência real antes de iniciar o piloto.
+
 ## Limpar tudo
 
 ```bash
