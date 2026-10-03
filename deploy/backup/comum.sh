@@ -9,6 +9,17 @@
 COMPOSE="${MESAMAR_COMPOSE:-docker compose}"
 DB_USER="${DB_USER:-mesamar}"
 DB_NAME="${DB_NAME:-mesamar}"
+
+# Banco de treino ou de teste: nunca o de produção nem os bancos do próprio PostgreSQL. Um MESAMAR_BANCO_TREINO ou
+# MESAMAR_BANCO_TESTE configurado errado (igual a DB_NAME) faria o DROP DATABASE apagar os dados de verdade.
+banco_descartavel() {
+  local banco="$1"
+  [[ "$banco" =~ ^[a-z0-9_]+$ ]] || falha "nome de banco inválido: $banco"
+  case "$banco" in
+    "$DB_NAME" | postgres | template0 | template1)
+      falha "o banco '$banco' não pode ser usado para treino ou teste (é o de produção ou um banco do sistema)" ;;
+  esac
+}
 BACKUP_DIR="${MESAMAR_BACKUP_DIR:-/opt/mesamar/backups}"
 BACKUP_DIAS="${MESAMAR_BACKUP_DIAS:-14}"
 

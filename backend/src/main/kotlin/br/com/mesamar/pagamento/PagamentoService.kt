@@ -8,7 +8,6 @@ import br.com.mesamar.common.Money
 import br.com.mesamar.eventos.PublicadorEventos
 import br.com.mesamar.pedido.FilaService
 import br.com.mesamar.pedido.LiberacaoPedidos
-import br.com.mesamar.pedido.PedidoRepository
 import br.com.mesamar.pedido.PedidoService
 import br.com.mesamar.pedido.StatusPedido
 import org.springframework.context.ApplicationEventPublisher
@@ -94,7 +93,6 @@ class PagamentoService(
     private val comandas: ComandaRepository,
     private val pagamentos: PagamentoRepository,
     private val pedidos: PedidoService,
-    private val pedidosRepo: PedidoRepository,
     private val fila: FilaService,
     private val liberacao: LiberacaoPedidos,
     private val tempoReal: PublicadorEventos,
@@ -111,8 +109,11 @@ class PagamentoService(
                     .sortedWith(compareBy<ContaAPagar, Instant?>(nullsLast()) { it.avisoEm }.thenBy { it.abertaEm }),
             abertas =
                 todas
-                    .filter { it.status != StatusComanda.AGUARDANDO_PAGAMENTO && it.saldoCentavos > 0 }
-                    .sortedByDescending { it.saldoCentavos },
+                    // Bloqueada aparece mesmo sem saldo: é aqui que o quiosque desbloqueia ou encerra
+                    .filter {
+                        it.status != StatusComanda.AGUARDANDO_PAGAMENTO &&
+                            (it.saldoCentavos > 0 || it.status == StatusComanda.BLOQUEADA)
+                    }.sortedByDescending { it.saldoCentavos },
         )
     }
 
@@ -194,7 +195,7 @@ class PagamentoService(
     fun encerrarSemSaldoDeDiasAnteriores(hoje: java.time.LocalDate): Int {
         val ids =
             jdbc.queryForList(
-                "SELECT id FROM comanda WHERE status IN ('ABERTA', 'AGUARDANDO_PAGAMENTO') AND dia < ?",
+                "SELECT id FROM comanda WHERE status IN ('ABERTA', 'AGUARDANDO_PAGAMENTO', 'BLOQUEADA') AND dia < ?",
                 UUID::class.java,
                 hoje,
             )
@@ -202,7 +203,7 @@ class PagamentoService(
         val agora = Instant.now(clock)
         for (id in ids) {
             val comanda = comandas.travar(id) ?: continue
-            if (comanda.status != StatusComanda.ABERTA && comanda.status != StatusComanda.AGUARDANDO_PAGAMENTO) continue
+            if (comanda.status !in StatusComanda.ATIVAS) continue
             if (pedidos.saldoCentavos(comanda.id) > 0) continue
             encerrarComanda(comanda, agora)
             tempoReal.contaMudou(comanda.barracaId, comanda.id)
@@ -288,11 +289,19 @@ class PagamentoService(
         val comanda = travar(barracaId, comandaId) ?: return ResultadoQuiosque.NaoEncontrada
         recusaPorEstado(comanda)?.let { return it }
         val quem = AbertaPor(usuarioId, null)
-        // O que nunca chegou à fila não é calote: sai da conta antes de contar o que ficou sem pagar
-        pedidosRepo
-            .findAllByComandaIdOrderByCriadoEmAscNumeroPedidoAsc(comanda.id)
-            .filter { it.status == StatusPedido.AGUARDANDO_PAGAMENTO }
-            .forEach { fila.cancelarPedido(barracaId, it.id, "OUTRO", "Conta encerrada sem pagamento", quem) }
+        // O que nunca chegou à fila não é calote: sai da conta antes de contar o que ficou sem pagar. Mas só se a conta não
+        // ficar negativa: se o cliente já pagou parte desses pedidos, cancelá-los deixaria dinheiro sem destino (o sistema
+        // não registra devolução), e encerrar com eles ainda esperando pagamento deixaria pedido pendurado numa conta fechada.
+        val aguardando = pedidos.meusPedidos(comanda).filter { it.pedido.status == StatusPedido.AGUARDANDO_PAGAMENTO }
+        val pagoPorEles = aguardando.sumOf { it.totalCentavos } - pedidos.saldoCentavos(comanda.id)
+        if (pagoPorEles > 0) {
+            return ResultadoQuiosque.Recusado(
+                "pago-em-parte",
+                "O cliente já pagou ${Money.format(pagoPorEles)} por pedidos que ainda esperam pagamento. Receba o que falta " +
+                    "(os pedidos vão para a fila) e depois feche a conta.",
+            )
+        }
+        aguardando.forEach { fila.cancelarNoEncerramento(it.pedido, "Outro: Conta encerrada sem pagamento", quem) }
         val saldo = pedidos.saldoCentavos(comanda.id)
         val agora = Instant.now(clock)
         // Nada ficou sem pagar (a conta só tinha pedidos que nunca foram à fila): encerra sem registrar calote

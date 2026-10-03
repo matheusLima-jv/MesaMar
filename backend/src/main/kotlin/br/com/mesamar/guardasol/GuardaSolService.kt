@@ -1,6 +1,7 @@
 package br.com.mesamar.guardasol
 
 import br.com.mesamar.barraca.Barraca
+import br.com.mesamar.barraca.BarracaRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.validation.Errors
@@ -22,6 +23,7 @@ data class LoteResultado(
 @Service
 class GuardaSolService(
     private val repository: GuardaSolRepository,
+    private val barracas: BarracaRepository,
     private val clock: Clock,
 ) {
     fun listar(barraca: Barraca): List<GuardaSol> = repository.findAllByBarracaIdOrderByNumero(barraca.id)
@@ -34,10 +36,12 @@ class GuardaSolService(
      */
     @Transactional
     fun criarLote(
-        barraca: Barraca,
+        barracaLida: Barraca,
         form: LoteForm,
         errors: Errors,
     ): LoteResultado? {
+        // Relida e travada: dois lotes ao mesmo tempo (ou um lote e a troca do limite em Regras) entram um por vez
+        val barraca = barracas.travar(barracaLida.id) ?: return null
         val de = form.de.trim().toIntOrNull()
         val ate = form.ate.trim().toIntOrNull()
         if (de == null || de !in NUMERO_MIN..NUMERO_MAX) errors.rejectValue("de", "faixa", "Número de $NUMERO_MIN a $NUMERO_MAX.")
@@ -74,9 +78,10 @@ class GuardaSolService(
     /** Liga/desliga um guarda-sol. Religar respeita o limite. Devolve mensagem de erro ou null. */
     @Transactional
     fun alternar(
-        barraca: Barraca,
+        barracaLida: Barraca,
         id: UUID,
     ): String? {
+        val barraca = barracas.travar(barracaLida.id) ?: return "Guarda-sol não encontrado."
         val gs = repository.findByIdAndBarracaId(id, barraca.id) ?: return "Guarda-sol não encontrado."
         if (!gs.ativo && ativos(barraca) >= barraca.limiteGuardaSois) {
             return "Limite de ${barraca.limiteGuardaSois} guarda-sóis ativos atingido. Desative outro ou aumente o limite em Regras."

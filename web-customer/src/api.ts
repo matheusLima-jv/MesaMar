@@ -40,6 +40,8 @@ export interface ItemEnvio {
   produtoId: string
   quantidade: number
   observacao: string
+  /** O preço que o cliente viu no cardápio: se mudou, o servidor recusa ("preco-mudou") para ele conferir. */
+  precoCentavos?: number
 }
 
 export interface PedidoEnvio {
@@ -111,6 +113,8 @@ export interface Conta {
   aceitaPix: boolean
   pedidos: Pedido[]
   pagamentos: PagamentoFeito[]
+  /** O quiosque encerrou a conta sem receber tudo: não é "Conta paga". */
+  encerradaComSaldo?: boolean
 }
 
 export class ApiError extends Error {
@@ -152,7 +156,15 @@ async function chamar<T> (method: 'GET' | 'POST', token: string, caminho: string
   } catch {
     throw new ApiError(0, 'rede', 'Sem sinal. Confira a internet e tente de novo.')
   }
-  if (res.ok) return await res.json() as T
+  if (res.ok) {
+    try {
+      return await res.json() as T
+    } catch {
+      // O servidor respondeu 2xx, mas o corpo não chegou inteiro (sinal caiu no meio). O pedido pode ter sido gravado:
+      // trata como falha de rede, para quem chama tentar de novo com o MESMO id (o servidor devolve o que já existe).
+      throw new ApiError(0, 'rede', 'Sem sinal. Confira a internet e tente de novo.')
+    }
+  }
   try {
     const erro = await res.json() as { erro?: string, mensagem?: string, produtos?: string[] }
     throw new ApiError(res.status, erro.erro ?? 'erro', erro.mensagem ?? 'Algo deu errado. Tente de novo.', erro.produtos)

@@ -26,6 +26,11 @@ data class ItemRequest(
     val produtoId: UUID? = null,
     val quantidade: Int = 0,
     val observacao: String? = null,
+    /**
+     * O preço que a pessoa viu na tela ao montar o pedido. Se o produto mudou de preço desde então, o pedido é recusado
+     * para ela conferir o total novo. Opcional: sem ele (página antiga em cache), vale o preço atual.
+     */
+    val precoCentavos: Long? = null,
 )
 
 data class PedidoRequest(
@@ -71,6 +76,12 @@ sealed interface ResultadoPedido {
 
     /** Algum produto esgotou, saiu do cardápio ou nem é desta barraca. */
     data class Indisponivel(
+        val produtoIds: List<UUID>,
+        val mensagem: String,
+    ) : ResultadoPedido
+
+    /** O preço de algum produto mudou depois que a pessoa montou o pedido: ela confere o total novo e envia de novo. */
+    data class PrecoMudou(
         val produtoIds: List<UUID>,
         val mensagem: String,
     ) : ResultadoPedido
@@ -141,6 +152,19 @@ class PedidoService(
                     "Acabou ou saiu do cardápio: ${nomes.joinToString(", ")}. Tire do pedido e envie de novo."
                 }
             return ResultadoPedido.Indisponivel(indisponiveis, mensagem)
+        }
+        // O preço gravado é o de agora (snapshot): se mudou desde que a pessoa viu, ela confirma o total novo antes
+        val precoMudou =
+            linhas
+                .filter { it.precoVisto != null && it.precoVisto != achados.getValue(it.produtoId).precoCentavos }
+                .map { it.produtoId }
+                .distinct()
+        if (precoMudou.isNotEmpty()) {
+            val nomes = precoMudou.map { achados.getValue(it).nome }
+            return ResultadoPedido.PrecoMudou(
+                precoMudou,
+                "O preço mudou: ${nomes.joinToString(", ")}. Confira o total novo e envie de novo.",
+            )
         }
 
         val agora = Instant.now(clock)
@@ -250,6 +274,7 @@ class PedidoService(
         val produtoId: UUID,
         val quantidade: Int,
         val observacao: String?,
+        val precoVisto: Long?,
     )
 
     private sealed interface Linhas {
@@ -288,7 +313,7 @@ class PedidoService(
             ) {
                 return erro("itens[$i].observacao", "A observação pode ter até $OBSERVACAO_MAX letras.")
             }
-            validas += Linha(produtoId, r.quantidade, observacao)
+            validas += Linha(produtoId, r.quantidade, observacao, r.precoCentavos)
         }
         if (validas.sumOf { it.quantidade } >
             MAX_UNIDADES

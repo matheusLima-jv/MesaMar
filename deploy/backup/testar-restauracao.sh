@@ -15,6 +15,7 @@ set -euo pipefail
 source "$(cd "$(dirname "$0")" && pwd)/comum.sh"
 
 TESTE="${MESAMAR_BANCO_TESTE:-mesamar_teste_restauracao}"
+banco_descartavel "$TESTE"
 conferir_banco
 
 temporario=""

@@ -87,7 +87,8 @@ function conectar (): void {
     void recarregar()
     agendarPagamentos()
   }
-  es.addEventListener('fila', agendarBusca)
+  // Pedido criado, liberado ou cancelado muda também o saldo das contas: a aba Pagamentos busca de novo
+  es.addEventListener('fila', () => { agendarBusca(); agendarPagamentos() })
   es.addEventListener('ressincronizar', () => { agendarBusca(); agendarPagamentos() })
   // Uma conta mudou (o cliente fechou ou avisou que vai pagar, alguém recebeu): a aba Pagamentos busca de novo
   es.addEventListener('conta', agendarPagamentos)
@@ -117,7 +118,11 @@ export function iniciarFila (): void {
   void recarregar()
   window.clearInterval(timerReserva)
   // Rede de segurança: sem a conexão em tempo real, a fila continua se atualizando
-  timerReserva = window.setInterval(() => { if (!conectado) void recarregar() }, RESERVA_MS)
+  timerReserva = window.setInterval(() => {
+    if (conectado) return
+    void recarregar()
+    agendarPagamentos()
+  }, RESERVA_MS)
 }
 
 export function pararFila (): void {

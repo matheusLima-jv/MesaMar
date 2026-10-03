@@ -3,9 +3,12 @@ package br.com.mesamar.conta
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
+import jakarta.persistence.LockModeType
 import jakarta.persistence.Table
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import java.time.Instant
 import java.util.UUID
 
@@ -37,6 +40,13 @@ class Usuario(
 interface UsuarioRepository : JpaRepository<Usuario, UUID> {
     @Query("select u from Usuario u where lower(u.email) = lower(:email)")
     fun findByEmailIgnoreCase(email: String): Usuario?
+
+    /** Trava a linha do usuário até o fim da transação (pedidos simultâneos de troca de senha entram um por vez). */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from Usuario u where u.id = :id")
+    fun travar(
+        @Param("id") id: UUID,
+    ): Usuario?
 }
 
 @Entity
@@ -65,6 +75,13 @@ class Convite(
 interface ConviteRepository : JpaRepository<Convite, UUID> {
     fun findByTokenHash(tokenHash: String): Convite?
 
+    /** O convite com a linha travada: dois cadastros ao mesmo tempo com o mesmo convite entram um por vez. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Convite c where c.tokenHash = :tokenHash")
+    fun travarPorHash(
+        @Param("tokenHash") tokenHash: String,
+    ): Convite?
+
     fun findAllByOrderByCriadoEmDesc(): List<Convite>
 }
 
@@ -89,6 +106,13 @@ class ResetSenha(
 
 interface ResetSenhaRepository : JpaRepository<ResetSenha, UUID> {
     fun findByTokenHash(tokenHash: String): ResetSenha?
+
+    /** O pedido de troca com a linha travada: o mesmo link usado duas vezes ao mesmo tempo só vale uma. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from ResetSenha r where r.tokenHash = :tokenHash")
+    fun travarPorHash(
+        @Param("tokenHash") tokenHash: String,
+    ): ResetSenha?
 
     fun findAllByUsuarioIdAndUsadoEmIsNull(usuarioId: UUID): List<ResetSenha>
 }

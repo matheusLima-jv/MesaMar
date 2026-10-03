@@ -13,6 +13,7 @@ set -euo pipefail
 source "$(cd "$(dirname "$0")" && pwd)/comum.sh"
 
 TREINO="${MESAMAR_BANCO_TREINO:-mesamar_restauracao}"
+banco_descartavel "$TREINO"
 
 recriar_banco() {
   local banco="$1"

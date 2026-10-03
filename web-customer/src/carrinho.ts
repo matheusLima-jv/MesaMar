@@ -74,8 +74,14 @@ export class Carrinho {
     return this.linhas.reduce((soma, l) => soma + (produtos.get(l.produtoId)?.precoCentavos ?? 0) * l.quantidade, 0)
   }
 
-  itens (): ItemEnvio[] {
-    return this.linhas.map((l) => ({ produtoId: l.produtoId, quantidade: l.quantidade, observacao: l.observacao.trim() }))
+  /** As linhas para enviar, com o preço que o cliente está vendo (o servidor confere se ainda é o mesmo). */
+  itens (produtos: Map<string, Produto>): ItemEnvio[] {
+    return this.linhas.map((l) => ({
+      produtoId: l.produtoId,
+      quantidade: l.quantidade,
+      observacao: l.observacao.trim(),
+      precoCentavos: produtos.get(l.produtoId)?.precoCentavos
+    }))
   }
 
   private salvar (): void {
@@ -87,17 +93,23 @@ export class Carrinho {
  * O pedido que já saiu do carrinho e ainda não foi confirmado pelo servidor. O `id` nasce uma vez só e
  * acompanha todas as tentativas de envio: é isso que impede o pedido duplicado.
  */
+/** Cópia em memória do pedido pendente: se o armazenamento do navegador falhar, o envio desta visita continua valendo. */
+const pendenteEmMemoria = new Map<string, PedidoEnvio | null>()
+
 export const pendente = {
   ler (token: string): PedidoEnvio | null {
+    if (pendenteEmMemoria.has(token)) return pendenteEmMemoria.get(token) ?? null
     try {
       const p = JSON.parse(lembrar.get(`pendente.${token}`) ?? 'null') as PedidoEnvio | null
       return p !== null && typeof p.id === 'string' && Array.isArray(p.itens) ? p : null
     } catch { return null }
   },
   guardar (token: string, pedido: PedidoEnvio): void {
+    pendenteEmMemoria.set(token, pedido)
     lembrar.set(`pendente.${token}`, JSON.stringify(pedido))
   },
   apagar (token: string): void {
+    pendenteEmMemoria.set(token, null)
     lembrar.set(`pendente.${token}`, 'null')
   }
 }

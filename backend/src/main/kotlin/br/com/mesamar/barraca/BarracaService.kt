@@ -9,6 +9,7 @@ import br.com.mesamar.conta.Usuario
 import br.com.mesamar.conta.UsuarioRepository
 import br.com.mesamar.guardasol.GuardaSolRepository
 import org.slf4j.LoggerFactory
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.validation.Errors
@@ -71,6 +72,7 @@ class BarracaService(
     private val barracas: BarracaRepository,
     private val usuarios: UsuarioRepository,
     private val guardaSois: GuardaSolRepository,
+    private val jdbc: JdbcTemplate,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -79,12 +81,16 @@ class BarracaService(
 
     @Transactional
     fun criar(
-        usuario: Usuario,
+        usuarioLido: Usuario,
         form: BarracaForm,
         errors: Errors,
     ): Barraca? {
-        check(usuario.barracaId == null) { "usuário já tem barraca" }
         val praia = validarDados(form, errors) ?: return null
+        // Dois envios do formulário ao mesmo tempo: o segundo espera o primeiro e encontra a barraca já criada
+        val usuario = usuarios.travar(usuarioLido.id) ?: return null
+        usuario.barracaId?.let { existente -> return barracas.findById(existente).orElse(null) }
+        // Um cadastro de barraca por vez escolhe o endereço público: dois nomes iguais ao mesmo tempo não pegam o mesmo
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(?)", TRAVA_SLUG)
         val now = Instant.now(clock)
         val barraca =
             barracas.save(
@@ -110,9 +116,10 @@ class BarracaService(
         errors: Errors,
     ): Boolean {
         val praia = validarDados(form, errors) ?: return false
-        barraca.nome = form.nome.trim()
-        barraca.praia = praia
-        salvar(barraca)
+        val atual = barracas.travar(barraca.id) ?: return false
+        atual.nome = form.nome.trim()
+        atual.praia = praia
+        salvar(atual)
         return true
     }
 
@@ -122,11 +129,13 @@ class BarracaService(
         form: RegrasForm,
         errors: Errors,
     ): Boolean {
+        // Relida e travada: a contagem de guarda-sóis abaixo não muda no meio, e a pausa (gravada pelo app) não é apagada
+        val atual = barracas.travar(barraca.id) ?: return false
         val limite = form.limiteGuardaSois.trim().toIntOrNull()
         if (limite == null || limite !in 1..LIMITE_GUARDA_SOIS_MAX) {
             errors.rejectValue("limiteGuardaSois", "faixa", "Informe um número de 1 a $LIMITE_GUARDA_SOIS_MAX.")
         } else {
-            val ativos = guardaSois.countByBarracaIdAndAtivoTrue(barraca.id)
+            val ativos = guardaSois.countByBarracaIdAndAtivoTrue(atual.id)
             if (limite < ativos) {
                 errors.rejectValue(
                     "limiteGuardaSois",
@@ -151,11 +160,11 @@ class BarracaService(
         }
         if (errors.hasErrors()) return false
 
-        barraca.limiteGuardaSois = limite!!
-        barraca.modoPagamento = modo!!
-        barraca.limiteSaldoAbertoCentavos = saldo
-        barraca.tempoAlertaPedidoMin = alerta!!
-        salvar(barraca)
+        atual.limiteGuardaSois = limite!!
+        atual.modoPagamento = modo!!
+        atual.limiteSaldoAbertoCentavos = saldo
+        atual.tempoAlertaPedidoMin = alerta!!
+        salvar(atual)
         return true
     }
 
@@ -193,11 +202,12 @@ class BarracaService(
         }
         if (errors.hasErrors()) return false
 
-        barraca.tipoChavePix = tipo
-        barraca.chavePix = chave
-        barraca.nomeRecebedorPix = nome
-        barraca.cidadePix = cidade
-        salvar(barraca)
+        val atual = barracas.travar(barraca.id) ?: return false
+        atual.tipoChavePix = tipo
+        atual.chavePix = chave
+        atual.nomeRecebedorPix = nome
+        atual.cidadePix = cidade
+        salvar(atual)
         log.info("Chave Pix atualizada: barraca={} tipo={}", barraca.id, tipo)
         return true
     }
@@ -228,6 +238,8 @@ class BarracaService(
     }
 
     companion object {
+        /** Chave da trava (pg_advisory_xact_lock) que serializa a escolha do endereço público. */
+        private const val TRAVA_SLUG = 7_301_001L
         const val NOME_MAX = 80
         const val LIMITE_GUARDA_SOIS_MAX = 200
         const val TEMPO_ALERTA_MAX = 120

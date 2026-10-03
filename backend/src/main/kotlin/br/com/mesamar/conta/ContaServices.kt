@@ -15,7 +15,12 @@ import java.util.UUID
 /** Regras de senha: comprimento é o que mais protege; sem exigências que ninguém lembra. */
 object SenhaRules {
     const val MIN = 10
-    const val MAX = 72 // limite do BCrypt
+
+    /** O BCrypt só aceita até 72 **bytes** em UTF-8: letra com acento ocupa 2, emoji ocupa 4. */
+    const val MAX = 72
+
+    /** Cabe no BCrypt? Uma senha maior faz o BCrypt lançar erro ao gerar o hash. */
+    fun cabeNoBcrypt(senha: String): Boolean = senha.toByteArray(Charsets.UTF_8).size <= MAX
 
     fun problema(
         senha: String,
@@ -23,7 +28,7 @@ object SenhaRules {
     ): String? =
         when {
             senha.length < MIN -> "A senha precisa ter pelo menos $MIN caracteres."
-            senha.length > MAX -> "A senha pode ter no máximo $MAX caracteres."
+            !cabeNoBcrypt(senha) -> "A senha está longa demais. Use até $MAX letras sem acento (acentos e emojis contam como mais de uma)."
             senha.equals(email, ignoreCase = true) -> "A senha não pode ser igual ao e-mail."
             senha.isBlank() -> "A senha não pode ser só espaços."
             else -> null
@@ -97,7 +102,11 @@ class ContaService(
         email: String,
         senha: String,
     ): CadastroResultado {
-        val convite = conviteService.buscarValido(token) ?: return CadastroResultado.ConviteInvalido
+        // Trava o convite antes de conferir: um segundo cadastro simultâneo espera e depois o encontra já usado
+        if (token.isNullOrBlank()) return CadastroResultado.ConviteInvalido
+        val convite =
+            convites.travarPorHash(SecureTokens.hash(token))?.takeIf { it.isValid(Instant.now(clock)) }
+                ?: return CadastroResultado.ConviteInvalido
         val emailNormalizado = email.trim().lowercase()
         if (usuarios.findByEmailIgnoreCase(emailNormalizado) != null) return CadastroResultado.EmailEmUso
 
@@ -136,7 +145,9 @@ class RecuperacaoSenhaService(
      */
     @Transactional
     fun solicitar(emailInformado: String) {
-        val usuario = usuarios.findByEmailIgnoreCase(emailInformado.trim()) ?: return
+        val encontrado = usuarios.findByEmailIgnoreCase(emailInformado.trim()) ?: return
+        // Um pedido por vez para o mesmo usuário: dois pedidos simultâneos nunca deixam dois links válidos
+        val usuario = usuarios.travar(encontrado.id) ?: return
         val now = Instant.now(clock)
         resets.findAllByUsuarioIdAndUsadoEmIsNull(usuario.id).forEach { it.usadoEm = now } // invalida links antigos
 
@@ -174,7 +185,9 @@ class RecuperacaoSenhaService(
         token: String?,
         novaSenha: String,
     ): Boolean {
-        val reset = buscar(token) ?: return false
+        // Trava o link antes de conferir: o mesmo link usado duas vezes ao mesmo tempo só troca a senha uma vez
+        if (token.isNullOrBlank()) return false
+        val reset = resets.travarPorHash(SecureTokens.hash(token))?.takeIf { it.isValid(Instant.now(clock)) } ?: return false
         val usuario = usuarios.findById(reset.usuarioId).orElse(null) ?: return false
         usuario.senhaHash = requireNotNull(passwordEncoder.encode(novaSenha))
         // Celular perdido ou senha vazada: quem estava logado com a senha antiga cai na próxima ação

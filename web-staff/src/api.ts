@@ -178,7 +178,13 @@ async function chamar<T> (method: 'GET' | 'POST', path: string, body?: unknown, 
 
   if (res.status === 204) return undefined as T
   if (res.ok) {
-    const dados = await res.json() as T & { csrf?: string }
+    let dados: T & { csrf?: string }
+    try {
+      dados = await res.json() as T & { csrf?: string }
+    } catch {
+      // 2xx com o corpo cortado (o sinal caiu no meio): a ação pode ter sido gravada. Quem chama repete com o mesmo id.
+      throw new ApiError(0, 'rede', 'A resposta do servidor não chegou. Tente de novo (nada será registrado duas vezes).')
+    }
     if (typeof dados === 'object' && dados !== null && typeof dados.csrf === 'string') csrf = dados.csrf
     return dados
   }
@@ -245,7 +251,7 @@ export async function novoCliente (c: NovoCliente): Promise<Comanda> {
   return await chamar<Comanda>('POST', '/clientes', c)
 }
 
-export interface ItemLancado { produtoId: string, quantidade: number, observacao?: string }
+export interface ItemLancado { produtoId: string, quantidade: number, observacao?: string, precoCentavos?: number }
 
 /** O pedido como o servidor devolve depois de lançado. */
 export interface PedidoLancado {

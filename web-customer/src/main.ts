@@ -264,7 +264,7 @@ function trocouDeTela (): void {
 async function enviar (): Promise<void> {
   if (ctx.carrinho.linhas.length === 0 || enviando) return
   erroCarrinho = null
-  pendente.guardar(token, { id: novoId(), itens: ctx.carrinho.itens() })
+  pendente.guardar(token, { id: novoId(), itens: ctx.carrinho.itens(ctx.produtos) })
   await tentarEnviar()
 }
 
@@ -330,6 +330,9 @@ async function recusado (e: ApiError): Promise<void> {
   if (e.codigo === 'indisponivel') {
     // Tira do carrinho o que acabou e atualiza o cardápio, para o resto continuar valendo
     ctx.carrinho.remover(e.produtos)
+    await atualizar(false)
+  } else if (e.codigo === 'preco-mudou') {
+    // Cardápio novo: o carrinho passa a mostrar o total com o preço de agora, e o cliente envia de novo se concordar
     await atualizar(false)
   } else if (e.status === 409 && e.codigo !== 'conflito') {
     // Pedidos pausados, conta fechando…: o cardápio passa a avisar também

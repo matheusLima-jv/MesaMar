@@ -113,6 +113,8 @@ jobs:
       # comparação de todas as tabelas (docs/deploy.md, "Teste de restauração")
       - name: Teste de restauração do backup
         run: |
+          # Sem pipefail, o "tee" (que sempre dá certo) esconderia a falha do script
+          set -o pipefail
           bash deploy/backup/testar-restauracao.sh | tee /tmp/restauracao.log
           echo "::notice title=Backup::$(tail -n 1 /tmp/restauracao.log | cut -d' ' -f3-)"
 

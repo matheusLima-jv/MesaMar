@@ -1,5 +1,5 @@
 import { ApiError, fecharSemReceber, lerReais, novoId, receberPagamento, reais, type ContaAPagar, type Metodo } from '../api'
-import { h } from '../dom'
+import { h, lembrar } from '../dom'
 import { avisar } from '../toast'
 
 const FORMAS: Array<{ valor: Metodo, rotulo: string }> = [
@@ -28,18 +28,58 @@ function abrirDialogo (titulo: string, idTitulo: string, conteudo: Array<Node | 
   return fechar
 }
 
+/** Um pagamento enviado que ficou sem resposta: pode ter sido gravado ou não. */
+interface PagamentoIncerto { id: string, metodo: Metodo, valorCentavos: number, valorRecebidoCentavos: number | null }
+
+const incertos = new Map<string, PagamentoIncerto | null>()
+const chaveIncerto = (comandaId: string): string => `pagamento-incerto.${comandaId}`
+
+/**
+ * O pagamento desta comanda que saiu e não teve resposta. Fica na memória e no armazenamento do aparelho, para
+ * sobreviver a fechar o diálogo (e a recarregar o app): reabrir reenvia o MESMO id, e o servidor não cobra duas vezes.
+ */
+export const pagamentoIncerto = {
+  ler (comandaId: string): PagamentoIncerto | null {
+    if (incertos.has(comandaId)) return incertos.get(comandaId) ?? null
+    try {
+      const p = JSON.parse(lembrar.get(chaveIncerto(comandaId)) ?? 'null') as PagamentoIncerto | null
+      return p !== null && typeof p.id === 'string' && typeof p.valorCentavos === 'number' ? p : null
+    } catch { return null }
+  },
+  guardar (comandaId: string, p: PagamentoIncerto): void {
+    incertos.set(comandaId, p)
+    lembrar.set(chaveIncerto(comandaId), JSON.stringify(p))
+  },
+  apagar (comandaId: string): void {
+    incertos.set(comandaId, null)
+    lembrar.set(chaveIncerto(comandaId), 'null')
+  }
+}
+
 /**
  * Receber um pagamento: a forma, quanto entra (total ou uma parte) e, no dinheiro, quanto o cliente entregou, com o
  * troco calculado. O pagamento ganha um id ao abrir o diálogo: tocar de novo ou repetir depois de uma queda de sinal
  * nunca cobra duas vezes. Pix lembra de conferir no app do banco antes de confirmar.
  */
 export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
-  const idDoPagamento = novoId()
+  // Um envio anterior ficou sem resposta: repete o MESMO pagamento (mesmo id e valores), sem deixar mudar nada
+  const incerto = pagamentoIncerto.ler(c.comandaId)
+  const idDoPagamento = incerto?.id ?? novoId()
   const saldo = c.saldoCentavos
-  let forma: Metodo = c.metodo ?? 'DINHEIRO'
+  let forma: Metodo = incerto?.metodo ?? c.metodo ?? 'DINHEIRO'
 
-  const valor = h('input', { id: 'rec-valor', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: centavosParaCampo(saldo) })
-  const entregue = h('input', { id: 'rec-entregue', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: centavosParaCampo(c.trocoParaCentavos ?? saldo) })
+  const valor = h('input', {
+    id: 'rec-valor', type: 'text', inputmode: 'decimal', autocomplete: 'off', readonly: incerto !== null,
+    value: centavosParaCampo(incerto?.valorCentavos ?? saldo)
+  })
+  const entregue = h('input', {
+    id: 'rec-entregue', type: 'text', inputmode: 'decimal', autocomplete: 'off', readonly: incerto !== null,
+    value: centavosParaCampo(incerto?.valorRecebidoCentavos ?? c.trocoParaCentavos ?? saldo)
+  })
+  const avisoIncerto = incerto === null
+    ? null
+    : h('p', { class: 'alert', role: 'alert' },
+      `O último pagamento (${reais(incerto.valorCentavos)}) foi enviado e a resposta não chegou. Confirme de novo: se ele já tinha sido registrado, não será cobrado duas vezes.`)
   const troco = h('p', { class: 'troco', role: 'status' })
   const avisoPix = h('p', { class: 'aviso-pix', role: 'note', hidden: true }, 'Confira no app do seu banco antes de confirmar.')
   const campoEntregue = h('div', { class: 'field', hidden: true },
@@ -70,13 +110,14 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
 
   const opcao = (m: { valor: Metodo, rotulo: string }): HTMLLabelElement => {
     const radio = h('input', {
-      type: 'radio', name: 'forma', value: m.valor, checked: m.valor === forma,
+      type: 'radio', name: 'forma', value: m.valor, checked: m.valor === forma, disabled: incerto !== null && m.valor !== forma,
       onchange: () => { forma = m.valor; erro.hidden = true; atualizar() }
     })
     return h('label', { class: 'opcao' }, radio, h('span', {}, m.rotulo))
   }
 
   const fechar = abrirDialogo(`Receber de ${c.cliente}`, 'receber-titulo', [
+    avisoIncerto,
     h('p', { class: 'hint' }, `${local(c)} · falta pagar ${reais(saldo)}`),
     c.metodo !== null
       ? h('p', { class: 'hint' }, `O cliente escolheu ${FORMAS.find((f) => f.valor === c.metodo)?.rotulo ?? ''}${c.trocoParaCentavos !== null ? ` e vai pagar com ${reais(c.trocoParaCentavos)}` : ''}.`)
@@ -85,25 +126,38 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
       novalidate: true,
       onsubmit: (ev: Event) => {
         ev.preventDefault()
-        const v = valorDigitado()
-        if (v === null || v <= 0) { mostrarErro('Digite quanto o cliente pagou, por exemplo 25 ou 25,50.'); return }
-        if (v > saldo) { mostrarErro(`O valor passa do que falta pagar (${reais(saldo)}).`); return }
-        let recebido: number | null = null
-        if (forma === 'DINHEIRO') {
-          recebido = entregueDigitado()
-          if (recebido === null || recebido < v) { mostrarErro('Quanto o cliente entregou? Digite um valor igual ou maior que o recebido.'); return }
+        let envio: PagamentoIncerto
+        if (incerto !== null) {
+          // O saldo mostrado pode já descontar o envio anterior: não confere de novo aqui, o servidor decide
+          envio = incerto
+        } else {
+          const digitado = valorDigitado()
+          if (digitado === null || digitado <= 0) { mostrarErro('Digite quanto o cliente pagou, por exemplo 25 ou 25,50.'); return }
+          if (digitado > saldo) { mostrarErro(`O valor passa do que falta pagar (${reais(saldo)}).`); return }
+          let recebido: number | null = null
+          if (forma === 'DINHEIRO') {
+            recebido = entregueDigitado()
+            if (recebido === null || recebido < digitado) { mostrarErro('Quanto o cliente entregou? Digite um valor igual ou maior que o recebido.'); return }
+          }
+          envio = { id: idDoPagamento, metodo: forma, valorCentavos: digitado, valorRecebidoCentavos: recebido }
         }
+        const v = envio.valorCentavos
         erro.hidden = true
         confirmar.disabled = true
         confirmar.textContent = 'Registrando…'
-        receberPagamento(c.comandaId, { id: idDoPagamento, metodo: forma, valorCentavos: v, valorRecebidoCentavos: recebido })
+        // Guardado antes de sair: se a resposta se perder (ou o app fechar no meio), o próximo envio usa o mesmo id
+        pagamentoIncerto.guardar(c.comandaId, envio)
+        receberPagamento(c.comandaId, envio)
           .then((r) => {
+            pagamentoIncerto.apagar(c.comandaId)
             fechar()
             const sobra = r.pagamento.trocoCentavos > 0 ? ` Troco: ${reais(r.pagamento.trocoCentavos)}.` : ''
             avisar(r.fechada ? `Conta de ${c.cliente} paga e encerrada.${sobra}` : `Recebido ${reais(v)} de ${c.cliente}. Ainda falta ${reais(r.conta.saldoCentavos)}.${sobra}`)
             aoConcluir()
           })
           .catch((e: unknown) => {
+            // Recusa do servidor (4xx): nada foi gravado, o próximo pagamento pode ser outro. Sem resposta: continua incerto.
+            if (e instanceof ApiError && e.status >= 400 && e.status < 500) pagamentoIncerto.apagar(c.comandaId)
             confirmar.disabled = false
             atualizar()
             mostrarErro(e instanceof ApiError ? e.message : 'Não deu para registrar. Tente de novo (o pagamento não será cobrado duas vezes).')

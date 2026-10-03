@@ -1,6 +1,7 @@
 package br.com.mesamar.equipe
 
 import br.com.mesamar.barraca.Barraca
+import br.com.mesamar.barraca.BarracaRepository
 import org.slf4j.LoggerFactory
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -58,6 +59,7 @@ sealed interface ResultadoPin {
 class AtendenteService(
     private val repository: AtendenteRepository,
     private val encoder: PasswordEncoder,
+    private val barracas: BarracaRepository,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -70,6 +72,8 @@ class AtendenteService(
         form: AtendenteForm,
         errors: Errors,
     ): Atendente? {
+        // Uma criação por vez na barraca: o limite e o nome repetido são conferidos sem corrida
+        barracas.travar(barraca.id)
         val nome = validarNome(barraca, form.nome, exceto = null, errors)
         PinRules.problema(form.pin)?.let { errors.rejectValue("pin", "pin", it) }
         if (!errors.hasErrors() && repository.findAllByBarracaIdOrderByNome(barraca.id).size >= MAX_POR_BARRACA) {

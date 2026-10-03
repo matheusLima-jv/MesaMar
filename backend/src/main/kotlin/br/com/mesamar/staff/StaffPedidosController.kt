@@ -56,6 +56,10 @@ class StaffPedidosController(
                 ResponseEntity.badRequest().body(ErroValidacaoView("validacao", resultado.mensagem, resultado.campos))
             is ResultadoPedido.Bloqueado ->
                 ResponseEntity.status(HttpStatus.CONFLICT).body(ErroView(resultado.bloqueio.codigo, resultado.bloqueio.mensagem))
+            is ResultadoPedido.PrecoMudou ->
+                ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(ErroIndisponivelView("preco-mudou", resultado.mensagem, resultado.produtoIds))
             is ResultadoPedido.Indisponivel ->
                 ResponseEntity
                     .status(HttpStatus.CONFLICT)

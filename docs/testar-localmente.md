@@ -333,6 +333,19 @@ Estes itens são **no servidor de produção** (ou num ambiente igual a ele), se
 
 O token de QR gerado no aparelho (check-in sem sinal) só tem teste automático neste checkpoint; a tela de check-in offline vem no 6.2.
 
+### Correções da revisão (lote 1)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 157 | Página do cliente com o DevTools aberto (aba Network, "Slow 3G") | Enviar um pedido e, assim que o servidor responder, ficar sem rede (modo avião) antes de a página mostrar "enviado". Voltar a rede | A página tenta de novo sozinha e mostra **um** pedido. Em Meus pedidos e na Fila, um só |
+| 158 | App do quiosque, aba Pagamentos | Abrir "Receber", ligar o modo avião e tocar em Confirmar. Fechar o diálogo, voltar a rede e abrir "Receber" de novo | Aparece o aviso "O último pagamento (R$ …) foi enviado e a resposta não chegou", com o valor e a forma travados. Confirmar registra **um** pagamento só |
+| 159 | App do quiosque na aba Pagamentos, e o cliente pedindo pelo celular | Fazer um pedido pelo celular | O saldo da conta na aba Pagamentos sobe sozinho, sem recarregar |
+| 160 | Página do cliente numa aba anônima com o armazenamento do site bloqueado (configurações do navegador) | Montar o carrinho e enviar | O pedido é enviado normalmente (só não sobrevive a recarregar a página) |
+| 161 | Painel → Cardápio, e um cliente com o carrinho montado | Mudar o preço da água de coco e o cliente enviar o pedido | "O preço mudou: Água de coco. Confira o total novo e envie de novo." O carrinho mostra o total novo |
+| 162 | App do quiosque, aba Pagamentos, conta **bloqueada** sem nada a pagar | Olhar a lista | A conta aparece em "Contas abertas", com Desbloquear e Encerrar conta |
+| 163 | Conta fechada **sem receber** (dono, aba Pagamentos) | Abrir a página do cliente, aba Conta | "Conta encerrada pelo quiosque" e "Ficou sem pagar R$ …", **não** "Conta paga" |
+| 164 | Cadastro de conta do painel | Tentar uma senha com 40 letras acentuadas (ex.: "é" repetido) | Mensagem "A senha está longa demais…", sem erro interno |
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:

@@ -7,10 +7,13 @@ import { avisar } from '../toast'
  * O pedido entra na mesma fila, marcado como lançado pela equipe. O id nasce ao abrir a tela e vale para todas as
  * tentativas: reenviar não duplica.
  */
-export function lancar (root: HTMLElement, comanda: Comanda, voltar: () => void): void {
+/** Ao recarregar o cardápio (o preço mudou): o que já estava escolhido e o aviso para conferir. */
+interface Retomada { quantidades: Map<string, number>, aviso: string }
+
+export function lancar (root: HTMLElement, comanda: Comanda, voltar: () => void, retomada?: Retomada): void {
   mount(root, h('p', { class: 'loading' }, 'Carregando o cardápio…'))
   cardapio()
-    .then((secoes) => desenhar(root, comanda, secoes, voltar))
+    .then((secoes) => desenhar(root, comanda, secoes, voltar, retomada))
     .catch((e: unknown) => {
       mount(root, h('div', { class: 'empty' },
         h('p', {}, e instanceof ApiError ? e.message : 'Não deu para carregar o cardápio.'),
@@ -20,13 +23,16 @@ export function lancar (root: HTMLElement, comanda: Comanda, voltar: () => void)
     })
 }
 
-function desenhar (root: HTMLElement, comanda: Comanda, secoes: Secao[], voltar: () => void): void {
+function desenhar (root: HTMLElement, comanda: Comanda, secoes: Secao[], voltar: () => void, retomada?: Retomada): void {
   const id = novoId()
-  const quantidades = new Map<string, number>()
   const produtos = secoes.flatMap((s) => s.produtos)
+  // Retomando: só o que ainda dá para pedir
+  const quantidades = new Map<string, number>(
+    Array.from(retomada?.quantidades ?? []).filter(([pid]) => produtos.some((p) => p.id === pid && !p.esgotado))
+  )
 
   const resumo = h('p', { class: 'lancar-total', role: 'status' })
-  const erro = h('p', { class: 'alert', role: 'alert', hidden: true })
+  const erro = h('p', { class: 'alert', role: 'alert', hidden: retomada === undefined }, retomada?.aviso ?? '')
   const botao = h('button', { type: 'button', class: 'btn btn-ink btn-block btn-big' }, 'Lançar pedido')
 
   const total = (): number => produtos.reduce((soma, p) => soma + (quantidades.get(p.id) ?? 0) * p.precoCentavos, 0)
@@ -47,6 +53,7 @@ function desenhar (root: HTMLElement, comanda: Comanda, secoes: Secao[], voltar:
       h('h2', {}, s.nome),
       h('ul', { class: 'menu-list' }, ...s.produtos.map((p) => {
         const c = contador(p.nome)
+        c.valor.textContent = String(quantidades.get(p.id) ?? 0)
         const mexer = (delta: number): void => {
           const nova = Math.min(20, Math.max(0, (quantidades.get(p.id) ?? 0) + delta))
           if (nova === 0) quantidades.delete(p.id)
@@ -72,13 +79,20 @@ function desenhar (root: HTMLElement, comanda: Comanda, secoes: Secao[], voltar:
     erro.hidden = true
     botao.disabled = true
     botao.textContent = 'Lançando…'
-    const itens = Array.from(quantidades, ([produtoId, quantidade]) => ({ produtoId, quantidade }))
+    // Vai o preço que está na tela: se o dono mudou o preço nesse meio-tempo, o servidor pede para conferir
+    const itens = Array.from(quantidades, ([produtoId, quantidade]) =>
+      ({ produtoId, quantidade, precoCentavos: produtos.find((p) => p.id === produtoId)?.precoCentavos }))
     lancarPedido(comanda.id, { id, itens })
       .then((p) => {
         avisar(`Pedido ${p.numero} lançado para ${comanda.nome}.`)
         voltar()
       })
       .catch((e: unknown) => {
+        if (e instanceof ApiError && (e.codigo === 'preco-mudou' || e.codigo === 'indisponivel')) {
+          // Cardápio novo (preço de agora, esgotados fora), mantendo o que já estava escolhido
+          lancar(root, comanda, voltar, { quantidades, aviso: e.message })
+          return
+        }
         botao.textContent = 'Lançar pedido'
         atualizar()
         erro.textContent = e instanceof ApiError ? e.message : 'Não deu para lançar. Tente de novo.'

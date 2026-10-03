@@ -65,6 +65,16 @@ export function telaConta (ctx: Contexto, e: EstadoConta, acoes: AcoesConta): No
       corpo.push(...(e.trocando ? [...extrato(c), ...escolha(c, e, acoes)] : [...aguardando(c, e, acoes), ...extrato(c)]))
       break
     case 'FECHADA':
+      if (c.encerradaComSaldo === true) {
+        corpo.push(
+          h('div', { class: 'done', role: 'status' },
+            h('h2', {}, 'Conta encerrada pelo quiosque'),
+            h('p', {}, `Ficaram ${reais(c.saldoCentavos)} sem pagamento registrado. Se você já pagou, fale com o quiosque.`)
+          ),
+          ...extrato(c)
+        )
+        break
+      }
       corpo.push(
         h('div', { class: 'done', role: 'status' },
           h('p', { class: 'done-mark', 'aria-hidden': 'true' }, '✓'),
@@ -105,7 +115,7 @@ function extrato (c: Conta): Array<Node | string> {
     h('dl', { class: 'resumo' },
       linhaResumo('Pedidos', reais(c.pedidoCentavos)),
       c.pagoCentavos > 0 ? linhaResumo('Já pago', `− ${reais(c.pagoCentavos)}`) : '',
-      linhaResumo('Falta pagar', reais(c.saldoCentavos), true)
+      linhaResumo(c.status === 'FECHADA' && c.encerradaComSaldo === true ? 'Ficou sem pagar' : 'Falta pagar', reais(c.saldoCentavos), true)
     )
   ]
 }

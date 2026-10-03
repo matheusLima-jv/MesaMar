@@ -168,6 +168,11 @@ data class ContaView(
     val aceitaPix: Boolean,
     val pedidos: List<PedidoView>,
     val pagamentos: List<PagamentoView>,
+    /**
+     * O quiosque encerrou a conta sem receber tudo (fechamento forçado): a página não pode dizer "Conta paga".
+     * O motivo e quem fechou ficam só para o dono.
+     */
+    val encerradaComSaldo: Boolean = false,
 ) {
     companion object {
         fun of(
@@ -181,6 +186,7 @@ data class ContaView(
             metodo = e.comanda.metodoPagamentoPretendido?.name,
             trocoParaCentavos = e.comanda.trocoParaCentavos,
             avisadoEm = e.comanda.avisoPagamentoEm?.let { PedidoView.HORA.format(it) },
+            encerradaComSaldo = (e.comanda.saldoPerdoadoCentavos ?: 0) > 0,
             pix = e.pix?.let { PixView(it.codigo, it.chave, it.nomeRecebedor, it.cidade, it.valorCentavos) },
             aceitaPix = aceitaPix,
             pedidos = e.pedidos.map(PedidoView::of),
@@ -396,6 +402,10 @@ class ClienteController(
                 ResponseEntity.badRequest().body(ErroValidacaoView("validacao", resultado.mensagem, resultado.campos))
             is ResultadoPedido.Bloqueado ->
                 ResponseEntity.status(HttpStatus.CONFLICT).body(ErroView(resultado.bloqueio.codigo, resultado.bloqueio.mensagem))
+            is ResultadoPedido.PrecoMudou ->
+                ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(ErroIndisponivelView("preco-mudou", resultado.mensagem, resultado.produtoIds))
             is ResultadoPedido.Indisponivel ->
                 ResponseEntity
                     .status(HttpStatus.CONFLICT)

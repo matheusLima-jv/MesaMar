@@ -1,6 +1,7 @@
 package br.com.mesamar.cardapio
 
 import br.com.mesamar.barraca.Barraca
+import br.com.mesamar.barraca.BarracaRepository
 import br.com.mesamar.common.Money
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -40,6 +41,7 @@ enum class Direcao { CIMA, BAIXO }
 class CardapioService(
     private val categorias: CategoriaRepository,
     private val produtos: ProdutoRepository,
+    private val barracas: BarracaRepository,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -66,6 +68,8 @@ class CardapioService(
         nomeBruto: String,
     ): String? {
         val nome = limpar(nomeBruto)
+        // Uma criação por vez na barraca: o limite e o nome repetido são conferidos sem corrida
+        barracas.travar(barraca.id)
         problemaNomeCategoria(barraca, nome, exceto = null)?.let { return it }
         val existentes = categorias.findAllByBarracaIdOrderByOrdem(barraca.id)
         if (existentes.size >= MAX_CATEGORIAS) return "Limite de $MAX_CATEGORIAS categorias."
@@ -126,6 +130,7 @@ class CardapioService(
         form: ProdutoForm,
         errors: Errors,
     ): Produto? {
+        barracas.travar(barraca.id)
         val dados = validar(barraca, form, errors) ?: return null
         if (produtos.countByBarracaId(barraca.id) >= MAX_PRODUTOS) {
             errors.reject("limite", "Limite de $MAX_PRODUTOS produtos por barraca.")
