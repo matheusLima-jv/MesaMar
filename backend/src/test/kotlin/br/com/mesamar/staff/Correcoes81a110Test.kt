@@ -315,7 +315,7 @@ class Correcoes81a110Test(
                     )
                 }
                 assertEquals(600L, alvo.queryForObject("SELECT sum(valor_centavos) FROM $schema.pagamento", Long::class.java))
-                assertEquals(19, alvo.queryForObject("SELECT max(version::int) FROM $schema.flyway_schema_history", Int::class.java))
+                assertEquals(20, alvo.queryForObject("SELECT max(version::int) FROM $schema.flyway_schema_history", Int::class.java))
                 conn.schema = "public"
             }
         } finally {

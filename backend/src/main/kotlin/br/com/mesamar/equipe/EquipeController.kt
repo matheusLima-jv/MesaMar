@@ -2,6 +2,7 @@ package br.com.mesamar.equipe
 
 import br.com.mesamar.barraca.PainelPage
 import br.com.mesamar.barraca.barraca
+import br.com.mesamar.sincronia.SincroniaAparelho
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Controller
@@ -36,11 +37,29 @@ data class AtendenteView(
             }
 }
 
+/** Um aparelho da equipe na lista do dono: quando sincronizou pela última vez e o que ficou nele. */
+data class AparelhoLinha(
+    val quem: String,
+    val tipo: String,
+    val sincronizadoEm: String,
+    val pendentes: Int,
+    val conflitos: Int,
+    val atencao: Boolean,
+) {
+    val situacao: String
+        get() =
+            listOfNotNull(
+                if (pendentes == 0) "Tudo enviado" else "$pendentes ${if (pendentes == 1) "ação aguardando" else "ações aguardando"} envio",
+                conflitos.takeIf { it > 0 }?.let { "$it ${if (it == 1) "recusada" else "recusadas"}: confira no aparelho" },
+            ).joinToString(" · ")
+}
+
 /** Equipe da barraca: atendentes que entram no app do quiosque com PIN. */
 @Controller
 @PainelPage
 class EquipeController(
     private val service: AtendenteService,
+    private val sincronia: SincroniaAparelho,
     private val clock: Clock,
 ) {
     @GetMapping("/painel/equipe")
@@ -147,10 +166,17 @@ class EquipeController(
                 AtendenteView(it.id, it.nome, it.ativo, it.bloqueadoAte?.takeIf { _ -> it.bloqueado(now) }?.let(HORA::format))
             },
         )
+        model.addAttribute(
+            "aparelhos",
+            sincronia.listar(barraca.id).map {
+                AparelhoLinha(it.quem, it.tipo, DIA_HORA.format(it.sincronizadoEm), it.pendentes, it.conflitos, it.atencao)
+            },
+        )
         return "painel/equipe"
     }
 
     companion object {
         private val HORA: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.of("America/Sao_Paulo"))
+        private val DIA_HORA: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM 'às' HH:mm").withZone(ZoneId.of("America/Sao_Paulo"))
     }
 }

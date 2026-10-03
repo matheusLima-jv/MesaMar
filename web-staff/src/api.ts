@@ -3,7 +3,7 @@ import { drenar, esperaSincronia, guardarCache, lerCache, listarOperacoes, mudan
 import { comandaRegra, sessaoRegra } from './contratos'
 import { conferir, lerJson, novoCliente as novoClienteRegra } from '../../web-shared/src/validacao'
 import { contrato } from './contratos'
-import { registro, texto, inteiro } from '../../web-shared/src/validacao'
+import { registro, texto, inteiro, uuid } from '../../web-shared/src/validacao'
 export { novoId, reais, lerReais } from '../../web-shared/src/valores'
 // Cliente da API do quiosque (/api/staff). Sessão por cookie; POSTs levam o token CSRF.
 
@@ -281,6 +281,35 @@ async function chamarRede<T> (method: 'GET' | 'POST', path: string, body?: unkno
 let contexto = ''
 let sincronizando = false
 let pararSincronia: (() => void) | null = null
+let ultimoInforme = { chave: '', em: 0 }
+let aparelhoVolatil: string | undefined
+
+/** Identificador deste aparelho, criado uma vez. Só serve para o dono distinguir os celulares da equipe. */
+function idDoAparelho (): string {
+  try {
+    const salvo = localStorage.getItem('mesamar.equipe.aparelho')
+    if (salvo !== null && uuid(salvo)) return salvo
+    const novo = crypto.randomUUID()
+    localStorage.setItem('mesamar.equipe.aparelho', novo)
+    return novo
+  } catch {
+    aparelhoVolatil ??= crypto.randomUUID()
+    return aparelhoVolatil
+  }
+}
+
+/** Conta ao servidor quantas ações ainda estão neste aparelho, para o dono ver a última sincronização (Fase 6.3). */
+async function informarSincronia (ops: Operacao[]): Promise<void> {
+  const pendentes = ops.filter(o => o.estado === 'pendente').length
+  const conflitos = ops.length - pendentes
+  const chave = `${contexto}:${pendentes}:${conflitos}`
+  // Sem mudança, um informe por minuto basta: a hora mostrada ao dono não precisa de precisão de segundos.
+  if (chave === ultimoInforme.chave && Date.now() - ultimoInforme.em < 60_000) return
+  try {
+    await chamarRede<undefined>('POST', '/sincronizacao', { aparelhoId: idDoAparelho(), pendentes, conflitos })
+    ultimoInforme = { chave, em: Date.now() }
+  } catch { /* o informe é só para o dono acompanhar; a fila continua igual */ }
+}
 const SAIDA = 'mesamar.equipe.saida-pendente'
 function lerSaida (): boolean { try { return localStorage.getItem(SAIDA) === '1' } catch { return false } }
 async function confirmarSaida (): Promise<void> {
@@ -371,14 +400,18 @@ export async function sincronizar (): Promise<boolean> {
   const ctx = contexto
   const sinal = sessaoLocal.signal
   try {
+    let falouComServidor = false
     await exclusaoMutua(async () => {
       const s = await chamarRede<Sessao>('GET', '/sessao')
       const atual = s.logado && s.usuario !== undefined && s.barraca !== undefined ? `${s.barraca.codigo}:${s.usuario.id}` : ''
       if (sinal.aborted || ctx !== contexto) return
       if (atual !== ctx) { eventos.dispatchEvent(new Event('sessao-expirada')); return }
       await drenar(ctx, async op => { await enviarOperacao(op) }, () => !sinal.aborted && ctx === contexto)
+      falouComServidor = true
     })
-    return (await listarOperacoes(ctx)).some(o => o.estado === 'pendente')
+    const ops = await listarOperacoes(ctx)
+    if (falouComServidor && !sinal.aborted && ctx === contexto) await informarSincronia(ops)
+    return ops.some(o => o.estado === 'pendente')
   } finally { sincronizando = false; mudancasOffline.dispatchEvent(new Event('mudou')) }
 }
 export async function estadoSincronia (): Promise<{ sincronizando: boolean, operacoes: Operacao[] }> { return { sincronizando, operacoes: contexto === '' ? [] : await listarOperacoes(contexto) } }

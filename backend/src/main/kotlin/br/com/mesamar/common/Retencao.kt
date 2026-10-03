@@ -1,5 +1,6 @@
 package br.com.mesamar.common
 
+import br.com.mesamar.sincronia.SincroniaAparelho
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.scheduling.annotation.Scheduled
@@ -27,6 +28,11 @@ class Retencao(
             jdbc.update(
                 "DELETE FROM historico_acao WHERE id IN (SELECT id FROM historico_acao WHERE criado_em < now() - make_interval(days => ?) ORDER BY criado_em LIMIT 500)",
                 historicoDias,
+            )
+        removidos +=
+            jdbc.update(
+                "DELETE FROM sincronizacao_aparelho WHERE sincronizado_em < now() - make_interval(days => ?)",
+                SincroniaAparelho.RETENCAO_DIAS,
             )
         return removidos
     }
