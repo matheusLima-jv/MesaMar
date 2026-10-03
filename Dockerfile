@@ -22,7 +22,7 @@ RUN cd web-staff && npm run build \
 # ---------------------------------------------------------------------------
 # Estágio 2: build do backend (Gradle + JDK 21)
 # ---------------------------------------------------------------------------
-FROM eclipse-temurin:21-jdk@sha256:3e3c176ffed168beb42c607be9bc1639b466cf00261a0fb04425562c9d0c5c2b AS backend
+FROM eclipse-temurin:24-jdk@sha256:7493205ffe6caa8074fa8a06a276bb1c5ac41d3dd0fd43a0db66d7f776e80b3e AS backend
 WORKDIR /src
 
 # Wrapper e scripts de build primeiro, para aproveitar o cache de dependências.
@@ -44,7 +44,7 @@ RUN ./gradlew --no-daemon :backend:bootJar -PskipFrontendBuild \
 # ---------------------------------------------------------------------------
 # Estágio 3: imagem final (somente JRE, usuário sem privilégios)
 # ---------------------------------------------------------------------------
-FROM eclipse-temurin:21-jre@sha256:cff19e6215689161eb6162c11b86b0c60ddf802164f2eaf48d570f8fb79a36c5
+FROM eclipse-temurin:24-jre@sha256:8cb2387a28af84cf0db0948d9c67d4480192f4e567027a3963f145d218e8b4f2
 ARG MESAMAR_REVISION=desenvolvimento
 LABEL org.opencontainers.image.revision=$MESAMAR_REVISION
 ENV MESAMAR_REVISION=$MESAMAR_REVISION
