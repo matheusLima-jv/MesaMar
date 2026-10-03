@@ -89,6 +89,7 @@ class StaffFilaController(
     private val fila: FilaService,
     private val barracas: BarracaRepository,
     private val hub: HubEventos,
+    private val acesso: StaffAcesso,
     private val pausa: PausaService,
     private val clock: Clock,
 ) {
@@ -159,7 +160,8 @@ class StaffFilaController(
     ): SseEmitter {
         response.setHeader("X-Accel-Buffering", "no")
         response.setHeader("Cache-Control", "no-cache, no-store")
-        return hub.assinarBarraca(principal.barracaId)
+        // O hub confere de novo a cada batimento: perdeu o acesso, a conexão cai
+        return hub.assinarBarraca(principal.barracaId) { acesso.valido(principal) }
     }
 
     @ExceptionHandler(HttpMessageNotReadableException::class)

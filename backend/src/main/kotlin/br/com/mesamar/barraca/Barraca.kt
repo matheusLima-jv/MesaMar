@@ -7,8 +7,12 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
+import jakarta.persistence.LockModeType
 import jakarta.persistence.Table
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import java.time.Instant
 import java.util.UUID
 
@@ -70,6 +74,17 @@ class Barraca(
 
 interface BarracaRepository : JpaRepository<Barraca, UUID> {
     fun existsBySlug(slug: String): Boolean
+
+    /**
+     * A barraca relida do banco com a linha travada até o fim da transação. Serve para duas coisas: alterar a barraca
+     * sem apagar o que outro fluxo acabou de gravar (a pausa, por exemplo), e criar guarda-sóis, categorias, produtos,
+     * atendentes e inscrições de push um por vez, para dois pedidos simultâneos nunca passarem do limite.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select b from Barraca b where b.id = :id")
+    fun travar(
+        @Param("id") id: UUID,
+    ): Barraca?
 
     fun findBySlugAndAtivaTrue(slug: String): Barraca?
 }

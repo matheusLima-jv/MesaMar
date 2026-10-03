@@ -1,5 +1,6 @@
 import { ApiError, cancelarItem, cancelarPedido, type Motivo, type PedidoFila } from '../api'
-import { h } from '../dom'
+import { ativarModal, ligarErro } from '../a11y'
+import { h, registrarSobreposicao } from '../dom'
 import { avisar } from '../toast'
 
 const MOTIVOS: Array<{ valor: Motivo, rotulo: string }> = [
@@ -13,7 +14,6 @@ const MOTIVOS: Array<{ valor: Motivo, rotulo: string }> = [
  * `aoConcluir` roda depois de o servidor aceitar, para a fila se atualizar.
  */
 export function dialogoCancelar (p: PedidoFila, aoConcluir: () => void): void {
-  const anterior = document.activeElement as HTMLElement | null
   const ativos = p.itens.filter((i) => !i.cancelado)
 
   const opcao = (nome: string, valor: string, texto: string, marcado: boolean): HTMLLabelElement => {
@@ -25,18 +25,16 @@ export function dialogoCancelar (p: PedidoFila, aoConcluir: () => void): void {
 
   const detalhe = h('input', { id: 'cancelar-detalhe', type: 'text', maxlength: 60, autocomplete: 'off' })
   const campoDetalhe = h('div', { class: 'field', hidden: true },
-    h('label', { for: 'cancelar-detalhe' }, 'Detalhe ', h('span', { class: 'opt' }, '(opcional)')),
+    h('label', { for: 'cancelar-detalhe' }, 'Detalhe ', h('span', { class: 'opt' }, '(opcional, sem dados pessoais)')),
     detalhe
   )
-  const erro = h('p', { class: 'field-err', role: 'alert', hidden: true })
+  const erro = h('p', { class: 'field-err', id: 'cancelar-erro', role: 'alert', hidden: true })
   const confirmar = h('button', { type: 'submit', class: 'btn btn-danger btn-block btn-big' }, 'Confirmar cancelamento')
 
   const fechar = (): void => {
-    document.removeEventListener('keydown', teclas)
-    tela.remove()
-    anterior?.focus()
+    desregistrar()
+    desativar()
   }
-  const teclas = (ev: KeyboardEvent): void => { if (ev.key === 'Escape') fechar() }
 
   const form = h('form', {
     novalidate: true,
@@ -44,11 +42,13 @@ export function dialogoCancelar (p: PedidoFila, aoConcluir: () => void): void {
       ev.preventDefault()
       const motivo = valorDe('motivo') as Motivo | null
       if (motivo === null) {
-        erro.textContent = 'Escolha o motivo do cancelamento.'
-        erro.hidden = false
+        // O erro fica ligado ao grupo de motivos, que recebe o foco
+        const primeiro = painel.querySelector<HTMLInputElement>('input[name="motivo"]')
+        ligarErro(primeiro, erro, 'Escolha o motivo do cancelamento.')
+        primeiro?.focus()
         return
       }
-      erro.hidden = true
+      ligarErro(painel.querySelector<HTMLInputElement>('input[name="motivo"]'), erro, null)
       const alvo = valorDe('alvo') ?? 'pedido'
       confirmar.disabled = true
       confirmar.textContent = 'Cancelando…'
@@ -64,8 +64,7 @@ export function dialogoCancelar (p: PedidoFila, aoConcluir: () => void): void {
         .catch((e: unknown) => {
           confirmar.disabled = false
           confirmar.textContent = 'Confirmar cancelamento'
-          erro.textContent = e instanceof ApiError ? e.message : 'Não deu para cancelar. Tente de novo.'
-          erro.hidden = false
+          ligarErro(null, erro, e instanceof ApiError ? e.message : 'Não deu para cancelar. Tente de novo.')
         })
     }
   },
@@ -92,7 +91,7 @@ export function dialogoCancelar (p: PedidoFila, aoConcluir: () => void): void {
     form
   )
   const tela = h('div', { class: 'dialogo', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cancelar-titulo' }, painel)
-  document.body.append(tela)
-  document.addEventListener('keydown', teclas)
-  painel.querySelector<HTMLInputElement>('input[name="motivo"]')?.focus()
+  // Trocou de aba, saiu ou a sessão acabou: o diálogo some junto (sem rodar o "ao concluir")
+  const desativar = ativarModal(tela, { aoEscape: fechar, foco: () => painel.querySelector<HTMLInputElement>('input[name="motivo"]') })
+  const desregistrar = registrarSobreposicao(desativar)
 }

@@ -205,3 +205,23 @@ button, input { font: inherit; }
 .foot-link { margin-left: 1rem; }
 .field textarea { width: 100%; padding: 0.6rem 0.9rem; color: var(--ink); background: #fff; border: 2px solid var(--rule); border-radius: 12px; resize: vertical; }
 .field textarea:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--sun); }
+
+/* ---------- Lote 3: acessibilidade, texto longo, zoom e teclado aberto ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+#conteudo:focus { outline: none; }
+.order-items li, .order-head, .cart-line, .forma strong, .forma span, .avisos p, .alert, .info, .hint { overflow-wrap: anywhere; }
+.abas a { overflow-wrap: anywhere; }
+.order-head, .cart-head { flex-wrap: wrap; }
+
+/* Teclado aberto: a barra do pedido sai da frente do campo */
+body.teclado .cart-bar { display: none; }
+
+/* Zoom grande (200% = ~180px de largura): as três abas empilham em vez de espremer o texto */
+@media (max-width: 300px) {
+  .abas { grid-template-columns: 1fr; }
+}
+
+/* Paisagem ou pouca altura: a barra do pedido não come a tela */
+@media (max-height: 520px) {
+  .cart-bar { position: static; min-height: 3rem; }
+}

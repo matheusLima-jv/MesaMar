@@ -1,11 +1,12 @@
-import { sair, type Sessao } from '../api'
+import { ApiError, descartada, sair, type Sessao } from '../api'
 import { ativarPush, desativarPush, estadoPush, testar, type EstadoPush } from '../push'
 import { avisar } from '../toast'
-import { h, mount } from '../dom'
+import { abrirTela, h, mount } from '../dom'
 import { cartaoProblema } from './problema'
 import { instalacao, instalado, instalar, plataforma, podeInstalarDireto } from '../install'
 
 export function abaMais (root: HTMLElement, sessao: Sessao, aoSair: () => void): void {
+  const aberta = abrirTela(root)
   const areaInstalar = h('section', { class: 'card', 'aria-labelledby': 't-instalar' })
   const desenharInstalar = (): void => { mount(areaInstalar, ...blocoInstalar()) }
   desenharInstalar()
@@ -15,8 +16,10 @@ export function abaMais (root: HTMLElement, sessao: Sessao, aoSair: () => void):
   const desenharAvisos = (): void => {
     mount(areaAvisos, h('h2', { id: 't-avisos', class: 'card-title' }, 'Avisos de pedido'), h('p', { class: 'hint' }, 'Verificando…'))
     estadoPush()
-      .then((estado) => { mount(areaAvisos, ...blocoAvisos(estado, desenharAvisos)) })
-      .catch(() => { mount(areaAvisos, h('h2', { id: 't-avisos', class: 'card-title' }, 'Avisos de pedido'), h('p', { class: 'hint' }, 'Não deu para verificar os avisos agora.')) })
+      .then((estado) => { if (aberta()) mount(areaAvisos, ...blocoAvisos(estado, desenharAvisos)) })
+      .catch((e: unknown) => {
+        if (!aberta() || descartada(e)) return
+        mount(areaAvisos, h('h2', { id: 't-avisos', class: 'card-title' }, 'Avisos de pedido'), h('p', { class: 'hint' }, 'Não deu para verificar os avisos agora.')) })
   }
   desenharAvisos()
 
@@ -25,10 +28,25 @@ export function abaMais (root: HTMLElement, sessao: Sessao, aoSair: () => void):
     class: 'btn btn-line btn-block',
     onclick: () => {
       botaoSair.disabled = true
+      botaoSair.textContent = 'Saindo…'
+      erroSair.hidden = true
       // Quem sai deste celular deixa de receber os avisos de pedido nele
-      desativarPush().catch(() => undefined).finally(() => { sair().catch(() => undefined).finally(aoSair) })
+      desativarPush().catch(() => undefined)
+        .then(async () => { await sair() })
+        .then(aoSair)
+        .catch((e: unknown) => {
+          // 401: o servidor já não tinha esta sessão, então a saída está feita
+          if (e instanceof ApiError && e.status === 401) { aoSair(); return }
+          if (descartada(e)) return
+          // O servidor não confirmou: o app NÃO finge que saiu (recarregar a página voltaria logado)
+          botaoSair.disabled = false
+          botaoSair.textContent = 'Sair deste celular'
+          erroSair.textContent = 'Não deu para sair agora: o servidor não respondeu. Confira o sinal e tente de novo.'
+          erroSair.hidden = false
+        })
     }
   }, 'Sair deste celular')
+  const erroSair = h('p', { class: 'alert', role: 'alert', hidden: true })
 
   mount(root,
     h('header', { class: 'tab-head' }, h('h1', {}, 'Mais')),
@@ -43,6 +61,7 @@ export function abaMais (root: HTMLElement, sessao: Sessao, aoSair: () => void):
       sessao.usuario?.papel === 'DONO'
         ? h('p', {}, h('a', { href: '/painel', class: 'link' }, 'Abrir o painel (preços, Pix, equipe)'))
         : null,
+      erroSair,
       botaoSair
     )
   )
@@ -67,7 +86,7 @@ function blocoInstalar (): Node[] {
 function blocoAvisos (estado: EstadoPush, redesenhar: () => void): Node[] {
   const titulo = h('h2', { id: 't-avisos', class: 'card-title' }, 'Avisos de pedido')
   const explicacao = h('p', {}, 'Toca um aviso no celular quando chega um pedido novo, mesmo com o app fechado e a tela bloqueada.')
-  const falha = (e: unknown): void => { avisar(e instanceof Error ? e.message : 'Não deu certo. Tente de novo.', true) }
+  const falha = (e: unknown): void => { if (!descartada(e)) avisar(e instanceof Error ? e.message : 'Não deu certo. Tente de novo.', true) }
   switch (estado) {
     case 'ativo':
       return [
@@ -89,6 +108,12 @@ function blocoAvisos (estado: EstadoPush, redesenhar: () => void): Node[] {
       return [titulo, explicacao, h('p', { class: 'alert' }, 'No iPhone, os avisos só funcionam com o app instalado na tela inicial. Siga os passos de "Instalar na tela inicial" e abra o MesaMar pelo ícone novo.')]
     case 'nao-suportado':
       return [titulo, h('p', {}, 'Este navegador não sabe receber avisos com o app fechado. No Android, use o Chrome. No iPhone, instale o app na tela inicial.')]
+    case 'sem-conexao':
+      return [titulo, explicacao, h('p', { class: 'alert' }, 'Não deu para falar com o servidor agora. Confira o sinal.'),
+        h('button', { type: 'button', class: 'btn btn-line btn-block', onclick: redesenhar }, 'Tentar de novo')]
+    case 'app-nao-pronto':
+      return [titulo, explicacao, h('p', { class: 'alert' }, 'O app ainda não terminou de se preparar neste celular. Feche e abra de novo.'),
+        h('button', { type: 'button', class: 'btn btn-line btn-block', onclick: redesenhar }, 'Tentar de novo')]
     case 'servidor-sem-chaves':
       return [titulo, explicacao, h('p', { class: 'hint' }, 'Os avisos ainda não foram configurados no servidor. Peça ao responsável pelo MesaMar para configurar as chaves (passo a passo no docs/deploy.md).')]
   }

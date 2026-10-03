@@ -32,6 +32,9 @@ class Cliente(
     var whatsappE164: String? = null,
     @Column(name = "consentimento_em", nullable = false)
     val consentimentoEm: Instant,
+    /** Versão do texto de consentimento que o atendente leu para o cliente (docs/consentimento.md). `null`: anterior ao registro. */
+    @Column(name = "consentimento_versao", length = 30)
+    val consentimentoVersao: String? = null,
     @Column(name = "criado_em", nullable = false)
     val criadoEm: Instant,
     @Column(name = "anonimizado_em")
@@ -72,7 +75,10 @@ class Comanda(
     @Column(name = "numero_chegada", nullable = false)
     val numeroChegada: Int,
     @Column(name = "token_acesso", nullable = false, length = 43, unique = true)
-    val tokenAcesso: String,
+    var tokenAcesso: String,
+    /** O link de antes de um "QR novo": não abre mais a comanda (só ajuda a página antiga a conferir um pedido pendente). */
+    @Column(name = "token_anterior", length = 43)
+    var tokenAnterior: String? = null,
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 24)
     var status: StatusComanda = StatusComanda.ABERTA,
@@ -112,6 +118,8 @@ interface ComandaRepository : JpaRepository<Comanda, UUID> {
     ): Comanda?
 
     fun findByTokenAcesso(tokenAcesso: String): Comanda?
+
+    fun findByTokenAnterior(tokenAnterior: String): Comanda?
 
     /**
      * Trava a linha da comanda até o fim da transação: dois pedidos da mesma comanda ao mesmo tempo

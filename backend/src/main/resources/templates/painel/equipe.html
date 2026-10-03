@@ -70,6 +70,13 @@
             <button class="btn btn-ink btn-small" type="submit">Salvar PIN</button>
           </form>
         </details>
+        <details class="team-pin" th:if="${a.ativo}">
+          <summary th:text="|Celular perdido? Tirar ${a.nome} de todos os aparelhos|">Sair de todos os aparelhos</summary>
+          <form class="inline-form" method="post" th:action="@{/painel/equipe/{id}/revogar-sessoes(id=${a.id})}">
+            <p class="hint">As sessões abertas de <span th:text="${a.nome}">Carla</span> caem na hora (e os avisos de pedido nos celulares dele são cancelados). Para entrar de novo, é preciso digitar o PIN. Para o PIN antigo não servir mais, troque o PIN também.</p>
+            <button class="btn btn-ink btn-small" type="submit" th:attr="aria-label=|Sair de todos os aparelhos: ${a.nome}|">Sair de todos os aparelhos</button>
+          </form>
+        </details>
       </li>
     </ul>
   </section>

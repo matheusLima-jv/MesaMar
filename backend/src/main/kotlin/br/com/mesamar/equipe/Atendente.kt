@@ -28,6 +28,9 @@ class Atendente(
     var tentativasFalhas: Int = 0,
     @Column(name = "bloqueado_ate")
     var bloqueadoAte: Instant? = null,
+    /** As sessões abertas antes desta hora não valem mais (desativado, ou "sair de todos os aparelhos"). */
+    @Column(name = "sessoes_revogadas_em")
+    var sessoesRevogadasEm: Instant? = null,
     @Column(name = "criado_em", nullable = false)
     val criadoEm: Instant,
     @Column(name = "atualizado_em", nullable = false)

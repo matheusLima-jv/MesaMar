@@ -2,19 +2,21 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#101b1e" />
     <!-- O link do QR é pessoal: não deve aparecer em buscadores -->
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="referrer" content="same-origin" />
+    <meta name="referrer" content="no-referrer" />
     <title>MesaMar · Sua comanda</title>
     <link rel="icon" href="/img/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/img/apple-touch-icon.png" />
   </head>
   <body data-app="web-customer">
-    <div id="app" aria-live="polite">
+    <div id="app">
       <p class="boot">Abrindo a sua comanda…</p>
     </div>
+    <!-- Anúncios para o leitor de tela. O app inteiro NÃO é uma região viva. -->
+    <div id="anuncios" class="sr-only" role="status" aria-live="polite"></div>
     <noscript>Esta página precisa do JavaScript ligado. Se não der, chame um atendente.</noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>

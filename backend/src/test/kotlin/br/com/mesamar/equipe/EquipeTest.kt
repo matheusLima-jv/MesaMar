@@ -32,7 +32,10 @@ class EquipeTest(
     convites: ConviteService,
     private val usuarios: UsuarioRepository,
     private val atendentes: AtendenteRepository,
+    private val barracas: br.com.mesamar.barraca.BarracaRepository,
     private val service: AtendenteService,
+    private val pushSubs: br.com.mesamar.push.PushSubscriptionRepository,
+    private val hub: br.com.mesamar.eventos.HubEventos,
     private val encoder: PasswordEncoder,
     private val transacoes: PlatformTransactionManager,
 ) {
@@ -145,7 +148,7 @@ class EquipeTest(
         val gabi = atendente(email, "Gabi")
         val barraca = barracaId(email)
         val relogio = Relogio()
-        val comRelogio = AtendenteService(atendentes, encoder, relogio)
+        val comRelogio = AtendenteService(atendentes, encoder, barracas, pushSubs, hub, relogio)
         val tx = TransactionTemplate(transacoes)
 
         fun tentar(

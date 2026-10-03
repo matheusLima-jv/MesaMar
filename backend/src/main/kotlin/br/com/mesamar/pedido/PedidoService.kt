@@ -26,12 +26,23 @@ data class ItemRequest(
     val produtoId: UUID? = null,
     val quantidade: Int = 0,
     val observacao: String? = null,
+    /**
+     * O preço que a pessoa viu na tela ao montar o pedido. Se o produto mudou de preço desde então, o pedido é recusado
+     * para ela conferir o total novo. Opcional: sem ele (página antiga em cache), vale o preço atual.
+     */
+    val precoCentavos: Long? = null,
 )
 
 data class PedidoRequest(
     /** Gerado no celular: reenviar o mesmo pedido devolve o que já foi criado. */
     val id: UUID? = null,
     val itens: List<ItemRequest> = emptyList(),
+    /**
+     * A página do cliente já tentou este pedido e não teve resposta. Enquanto ela tentava, o cliente pode ter chamado
+     * um atendente, que lançou o mesmo pedido pelo app: nesse caso o servidor devolve o pedido da equipe em vez de
+     * criar um segundo (ver [PedidoService.lancadoPelaEquipe]).
+     */
+    val reenvio: Boolean = false,
 )
 
 /** O pedido com as suas linhas. */
@@ -41,6 +52,12 @@ data class PedidoDetalhe(
 ) {
     val totalCentavos: Long get() = itens.filter { !it.cancelado }.sumOf { it.subtotalCentavos }
 }
+
+/** Quem lança o pedido pela equipe: o dono ou um atendente (exatamente um dos dois). */
+data class LancadoPor(
+    val usuarioId: UUID?,
+    val atendenteId: UUID?,
+)
 
 /** Motivo pelo qual a comanda não aceita pedido agora, com a mensagem pronta para o cliente. */
 data class Bloqueio(
@@ -65,6 +82,12 @@ sealed interface ResultadoPedido {
 
     /** Algum produto esgotou, saiu do cardápio ou nem é desta barraca. */
     data class Indisponivel(
+        val produtoIds: List<UUID>,
+        val mensagem: String,
+    ) : ResultadoPedido
+
+    /** O preço de algum produto mudou depois que a pessoa montou o pedido: ela confere o total novo e envia de novo. */
+    data class PrecoMudou(
         val produtoIds: List<UUID>,
         val mensagem: String,
     ) : ResultadoPedido
@@ -96,7 +119,10 @@ class PedidoService(
     fun criar(
         comandaLida: Comanda,
         req: PedidoRequest,
+        /** `null`: o cliente pediu pela página dele. Preenchido: a equipe lançou (origem ATENDENTE). */
+        equipe: LancadoPor? = null,
     ): ResultadoPedido {
+        require(equipe == null || (equipe.usuarioId == null) != (equipe.atendenteId == null)) { "pedido sem autor ou com dois autores" }
         val id =
             req.id ?: return "Não deu para identificar o pedido. Atualize a página e tente de novo.".let {
                 ResultadoPedido.Invalido(it, mapOf("id" to it))
@@ -111,8 +137,15 @@ class PedidoService(
             return if (existente.comandaId == comanda.id) ResultadoPedido.Ok(detalhe(existente), nova = false) else ResultadoPedido.Conflito
         }
 
+        // O cliente chamou um atendente enquanto a página reenviava: o pedido da equipe vale pelos dois
+        if (equipe == null &&
+            req.reenvio
+        ) {
+            lancadoPelaEquipe(comanda.id, req.itens)?.let { return ResultadoPedido.Ok(detalhe(it), nova = false) }
+        }
+
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
-        bloqueio(barraca, comanda, saldoCentavos(comanda.id))?.let { return ResultadoPedido.Bloqueado(it) }
+        bloqueio(barraca, comanda, saldoCentavos(comanda.id), pelaEquipe = equipe != null)?.let { return ResultadoPedido.Bloqueado(it) }
 
         val linhas =
             when (val v = validarLinhas(req.itens)) {
@@ -133,6 +166,19 @@ class PedidoService(
                 }
             return ResultadoPedido.Indisponivel(indisponiveis, mensagem)
         }
+        // O preço gravado é o de agora (snapshot): se mudou desde que a pessoa viu, ela confirma o total novo antes
+        val precoMudou =
+            linhas
+                .filter { it.precoVisto != null && it.precoVisto != achados.getValue(it.produtoId).precoCentavos }
+                .map { it.produtoId }
+                .distinct()
+        if (precoMudou.isNotEmpty()) {
+            val nomes = precoMudou.map { achados.getValue(it).nome }
+            return ResultadoPedido.PrecoMudou(
+                precoMudou,
+                "O preço mudou: ${nomes.joinToString(", ")}. Confira o total novo e envie de novo.",
+            )
+        }
 
         val agora = Instant.now(clock)
         val dia = Fuso.hoje(clock)
@@ -144,10 +190,13 @@ class PedidoService(
                     comandaId = comanda.id,
                     dia = dia,
                     numeroPedido = contador.proximo(barraca.id, dia, TipoContador.PEDIDO),
+                    origem = if (equipe == null) OrigemPedido.CLIENTE else OrigemPedido.ATENDENTE,
                     // "Pagar a cada pedido": só entra na fila depois que o dono confirmar o pagamento (Fase 5)
                     status =
                         if (barraca.modoPagamento == ModoPagamento.POR_PEDIDO) StatusPedido.AGUARDANDO_PAGAMENTO else StatusPedido.RECEBIDO,
                     criadoEm = agora,
+                    criadoPorUsuarioId = equipe?.usuarioId,
+                    criadoPorAtendenteId = equipe?.atendenteId,
                 ),
             )
         val gravados =
@@ -172,6 +221,18 @@ class PedidoService(
         return ResultadoPedido.Ok(PedidoDetalhe(pedido, gravados), nova = true)
     }
 
+    /** O pedido de uma comanda pelo id, se existir (usado para conferir um reenvio feito pelo link antigo, depois de um "QR novo"). */
+    @Transactional(readOnly = true)
+    fun pedidoDaComanda(
+        comandaId: UUID,
+        pedidoId: UUID,
+    ): PedidoDetalhe? =
+        pedidos
+            .findById(pedidoId)
+            .orElse(null)
+            ?.takeIf { it.comandaId == comandaId }
+            ?.let { detalhe(it) }
+
     /** Cardápio que o cliente vê: só o que está no cardápio (ativo); o esgotado aparece, mas não dá para pedir. */
     @Transactional(readOnly = true)
     fun cardapioDoCliente(barraca: Barraca): List<SecaoCardapio> = cardapio.secoes(barraca).filter { it.noCardapio.isNotEmpty() }
@@ -188,11 +249,16 @@ class PedidoService(
         return lista.map { PedidoDetalhe(it, itensPorPedido[it.id].orEmpty()) }
     }
 
-    /** Por que esta comanda não aceita pedido agora (ou `null`, se aceita). */
+    /**
+     * Por que esta comanda não aceita pedido agora (ou `null`, se aceita).
+     * Quando é a equipe que lança (`pelaEquipe`), a pausa e o limite de saldo não valem: quem está no balcão decide,
+     * e o lançamento feito sem sinal não pode ser recusado horas depois (ADR 0017). O resto continua valendo.
+     */
     fun bloqueio(
         barraca: Barraca,
         comanda: Comanda,
         saldoCentavos: Long,
+        pelaEquipe: Boolean = false,
     ): Bloqueio? {
         val limite = barraca.limiteSaldoAbertoCentavos
         return when {
@@ -214,17 +280,38 @@ class PedidoService(
             comanda.status == StatusComanda.FECHADA ->
                 Bloqueio("comanda-fechada", "Esta comanda foi encerrada. Obrigado pela visita!")
             comanda.status == StatusComanda.CANCELADA -> Bloqueio("comanda-cancelada", "Esta comanda foi cancelada. Fale com um atendente.")
-            barraca.pedidosPausados ->
+            barraca.pedidosPausados && !pelaEquipe ->
                 Bloqueio(
                     "pedidos-pausados",
                     barraca.mensagemPausa?.let { "O quiosque pausou os pedidos: $it" }
                         ?: "O quiosque pausou os pedidos por agora. Chame um atendente ou tente de novo daqui a pouco.",
                 )
             // Limite atingido: a conta chegou ao valor que o dono definiu, então paga uma parte antes de pedir mais
-            limite != null && saldoCentavos >= limite ->
+            limite != null && saldoCentavos >= limite && !pelaEquipe ->
                 Bloqueio("limite-saldo", "Sua conta chegou a ${Money.format(limite)}. Para pedir mais, pague uma parte com um atendente.")
             else -> null
         }
+    }
+
+    /**
+     * Um pedido lançado pela equipe nesta comanda, na última [JANELA_CONCILIACAO], com exatamente os mesmos produtos
+     * e quantidades (a observação não conta), e que não foi cancelado. Só vale para reenvios: um pedido igual feito de
+     * propósito pelo cliente, que chega na primeira tentativa, nunca é confundido com o da equipe.
+     */
+    private fun lancadoPelaEquipe(
+        comandaId: UUID,
+        recebidos: List<ItemRequest>,
+    ): Pedido? {
+        if (recebidos.any { it.produtoId == null }) return null
+        val quer = recebidos.groupBy { it.produtoId!! }.mapValues { (_, l) -> l.sumOf { it.quantidade } }
+        if (quer.isEmpty()) return null
+        val desde = Instant.now(clock).minus(JANELA_CONCILIACAO)
+        return pedidos
+            .findAllByComandaIdOrderByCriadoEmAscNumeroPedidoAsc(comandaId)
+            .filter { it.origem == OrigemPedido.ATENDENTE && it.status != StatusPedido.CANCELADO && !it.criadoEm.isBefore(desde) }
+            .lastOrNull { p ->
+                itens.findAllByPedidoIdOrderByLinha(p.id).groupBy { it.produtoId }.mapValues { (_, l) -> l.sumOf { it.quantidade } } == quer
+            }
     }
 
     private fun detalhe(p: Pedido) = PedidoDetalhe(p, itens.findAllByPedidoIdOrderByLinha(p.id))
@@ -233,6 +320,7 @@ class PedidoService(
         val produtoId: UUID,
         val quantidade: Int,
         val observacao: String?,
+        val precoVisto: Long?,
     )
 
     private sealed interface Linhas {
@@ -271,7 +359,7 @@ class PedidoService(
             ) {
                 return erro("itens[$i].observacao", "A observação pode ter até $OBSERVACAO_MAX letras.")
             }
-            validas += Linha(produtoId, r.quantidade, observacao)
+            validas += Linha(produtoId, r.quantidade, observacao, r.precoCentavos)
         }
         if (validas.sumOf { it.quantidade } >
             MAX_UNIDADES
@@ -282,6 +370,8 @@ class PedidoService(
     }
 
     companion object {
+        /** Até quanto tempo depois um reenvio do cliente ainda é reconhecido como o pedido que a equipe lançou. */
+        val JANELA_CONCILIACAO: java.time.Duration = java.time.Duration.ofMinutes(60)
         const val MAX_LINHAS = 30
         const val MAX_QUANTIDADE = 20
         const val MAX_UNIDADES = 60

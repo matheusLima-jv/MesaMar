@@ -7,6 +7,8 @@ import org.springframework.context.SmartLifecycle
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.sql.Connection
 import java.sql.DriverManager
@@ -38,6 +40,11 @@ sealed interface EventoTempoReal {
         override val barracaId: UUID,
     ) : EventoTempoReal
 
+    /** O cardápio mudou (preço, esgotado, produto ou categoria): o app e as páginas abertas buscam o cardápio de novo. */
+    data class CardapioMudou(
+        override val barracaId: UUID,
+    ) : EventoTempoReal
+
     /** A conta de uma comanda mudou (fechou, avisou que vai pagar, recebeu pagamento, foi bloqueada…). */
     data class ContaMudou(
         override val barracaId: UUID,
@@ -56,6 +63,7 @@ sealed interface EventoTempoReal {
         when (this) {
             is PedidoMudou -> """{"t":"pedido","b":"$barracaId","c":"$comandaId","p":"$pedidoId"}"""
             is PausaMudou -> """{"t":"pausa","b":"$barracaId"}"""
+            is CardapioMudou -> """{"t":"cardapio","b":"$barracaId"}"""
             is ContaMudou -> """{"t":"conta","b":"$barracaId","c":"$comandaId"}"""
             is PedidoAtrasado -> """{"t":"atraso","b":"$barracaId","p":"$pedidoId","n":$numero}"""
         }
@@ -77,6 +85,7 @@ sealed interface EventoTempoReal {
             return when (texto(json, "t")) {
                 "pedido" -> PedidoMudou(barraca, id(json, "c") ?: return null, id(json, "p") ?: return null)
                 "pausa" -> PausaMudou(barraca)
+                "cardapio" -> CardapioMudou(barraca)
                 "conta" -> ContaMudou(barraca, id(json, "c") ?: return null)
                 "atraso" ->
                     PedidoAtrasado(
@@ -115,6 +124,8 @@ class PublicadorEventos(
 
     fun pausaMudou(barracaId: UUID) = publicar(EventoTempoReal.PausaMudou(barracaId))
 
+    fun cardapioMudou(barracaId: UUID) = publicar(EventoTempoReal.CardapioMudou(barracaId))
+
     fun contaMudou(
         barracaId: UUID,
         comandaId: UUID,
@@ -132,6 +143,8 @@ private typealias Registro = ConcurrentHashMap<UUID, CopyOnWriteArrayList<Assina
 /** Quem está ouvindo (um celular). Os envios são serializados: o `SseEmitter` não aceita duas escritas ao mesmo tempo. */
 class Assinante(
     private val emitter: SseEmitter,
+    /** O app do quiosque informa como conferir se quem abriu a conexão ainda pode estar nela; a página do cliente, não. */
+    val aindaTemAcesso: (() -> Boolean)? = null,
 ) {
     @Synchronized
     fun enviar(evento: SseEmitter.SseEventBuilder): Boolean =
@@ -162,7 +175,10 @@ class HubEventos {
     // Cada envio vai numa thread virtual: um celular lento não segura a entrega para os outros.
     private val executor = Executors.newVirtualThreadPerTaskExecutor()
 
-    fun assinarBarraca(barracaId: UUID): SseEmitter = assinar(listOf(quiosques to barracaId), LIMITE_POR_BARRACA)
+    fun assinarBarraca(
+        barracaId: UUID,
+        aindaTemAcesso: (() -> Boolean)? = null,
+    ): SseEmitter = assinar(listOf(quiosques to barracaId), LIMITE_POR_BARRACA, aindaTemAcesso)
 
     fun assinarComanda(
         comandaId: UUID,
@@ -183,6 +199,10 @@ class HubEventos {
                 enviarA(quiosques, e.barracaId) { SseEmitter.event().name("fila").data("""{"pausa":true}""") }
                 enviarA(clientesDaBarraca, e.barracaId) { SseEmitter.event().name("pedido").data("""{"pausa":true}""") }
             }
+            is EventoTempoReal.CardapioMudou -> {
+                enviarA(quiosques, e.barracaId) { SseEmitter.event().name("cardapio").data("{}") }
+                enviarA(clientesDaBarraca, e.barracaId) { SseEmitter.event().name("cardapio").data("{}") }
+            }
             is EventoTempoReal.PedidoAtrasado ->
                 enviarA(
                     quiosques,
@@ -202,7 +222,46 @@ class HubEventos {
      */
     @Scheduled(fixedDelayString = "\${mesamar.sse.batimento:PT25S}")
     fun batimento() {
+        // A autorização é conferida só ao abrir a conexão; aqui ela é conferida de novo, para quem perdeu o acesso
+        // (atendente desativado, sessões revogadas, senha trocada, barraca desativada) não continuar recebendo eventos
+        revisarAcessos()
         todos().forEach { (registro, chave) -> enviarA(registro, chave) { SseEmitter.event().comment("ping") } }
+    }
+
+    /**
+     * Derruba as conexões do app cujo dono perdeu o acesso. Roda a cada batimento e logo depois de uma revogação
+     * explícita (desativar atendente, "sair de todos os aparelhos", troca de senha).
+     */
+    fun revisarAcessos() {
+        quiosques.values
+            .flatten()
+            .filter { a -> a.aindaTemAcesso?.let { conferir -> !runCatching { conferir() }.getOrDefault(true) } == true }
+            .forEach { a ->
+                log.debug("Conexão do app sem acesso; encerrando")
+                retirarDeTodos(a)
+                a.encerrar()
+            }
+    }
+
+    /** Como [revisarAcessos], mas só depois do commit da transação em andamento (o banco já mostra a revogação). */
+    fun revisarAcessosAposCommit() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                object : TransactionSynchronization {
+                    override fun afterCommit() = revisarAcessos()
+                },
+            )
+        } else {
+            revisarAcessos()
+        }
+    }
+
+    /** Fecha as conexões em tempo real de uma comanda (o link foi trocado por um QR novo). */
+    fun encerrarComanda(comandaId: UUID) {
+        comandas[comandaId]?.toList()?.forEach { a ->
+            retirarDeTodos(a)
+            a.encerrar()
+        }
     }
 
     /** Assinantes agora (cada conexão conta uma vez), só para os testes e o diagnóstico. */
@@ -214,9 +273,10 @@ class HubEventos {
     private fun assinar(
         destinos: List<Pair<Registro, UUID>>,
         limite: Int,
+        aindaTemAcesso: (() -> Boolean)? = null,
     ): SseEmitter {
         val emitter = SseEmitter(TEMPO_MAXIMO_MS)
-        val assinante = Assinante(emitter)
+        val assinante = Assinante(emitter, aindaTemAcesso)
         destinos.forEach { (registro, chave) ->
             registro.compute(chave) { _, atual -> (atual ?: CopyOnWriteArrayList()).also { it += assinante } }
         }

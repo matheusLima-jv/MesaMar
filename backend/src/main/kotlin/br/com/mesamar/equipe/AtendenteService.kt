@@ -1,6 +1,7 @@
 package br.com.mesamar.equipe
 
 import br.com.mesamar.barraca.Barraca
+import br.com.mesamar.barraca.BarracaRepository
 import org.slf4j.LoggerFactory
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -58,6 +59,9 @@ sealed interface ResultadoPin {
 class AtendenteService(
     private val repository: AtendenteRepository,
     private val encoder: PasswordEncoder,
+    private val barracas: BarracaRepository,
+    private val pushSubs: br.com.mesamar.push.PushSubscriptionRepository,
+    private val hub: br.com.mesamar.eventos.HubEventos,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -70,6 +74,8 @@ class AtendenteService(
         form: AtendenteForm,
         errors: Errors,
     ): Atendente? {
+        // Uma criação por vez na barraca: o limite e o nome repetido são conferidos sem corrida
+        barracas.travar(barraca.id)
         val nome = validarNome(barraca, form.nome, exceto = null, errors)
         PinRules.problema(form.pin)?.let { errors.rejectValue("pin", "pin", it) }
         if (!errors.hasErrors() && repository.findAllByBarracaIdOrderByNome(barraca.id).size >= MAX_POR_BARRACA) {
@@ -116,8 +122,41 @@ class AtendenteService(
     ): Atendente? {
         val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return null
         atendente.ativo = ativo
+        // Desativar mata as sessões abertas para sempre: reativar depois não as faz voltar a valer (o atendente entra de novo)
+        if (!ativo) revogar(atendente)
         salvar(atendente)
+        revogarPush(atendente, ativo)
         return atendente
+    }
+
+    /**
+     * "Sair de todos os aparelhos": celular perdido ou emprestado. As sessões abertas deste atendente caem na próxima
+     * ação (e as conexões em tempo real, em instantes), e os avisos de pedido nos celulares dele são cancelados.
+     * O PIN continua o mesmo; quem quiser trocar o PIN também usa "Trocar PIN".
+     */
+    @Transactional
+    fun revogarSessoes(
+        barraca: Barraca,
+        id: UUID,
+    ): Atendente? {
+        val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return null
+        revogar(atendente)
+        salvar(atendente)
+        revogarPush(atendente, ativo = false)
+        return atendente
+    }
+
+    private fun revogar(atendente: Atendente) {
+        atendente.sessoesRevogadasEm = Instant.now(clock)
+    }
+
+    /** Desativado ou com sessões revogadas: os avisos de pedido (push) deixam de ir para os celulares dele. */
+    private fun revogarPush(
+        atendente: Atendente,
+        ativo: Boolean,
+    ) {
+        if (!ativo) pushSubs.removerDoAtendente(atendente.id, atendente.barracaId)
+        hub.revisarAcessosAposCommit()
     }
 
     @Transactional
@@ -134,7 +173,7 @@ class AtendenteService(
     /**
      * Confere o PIN (usado pelo login do app do quiosque).
      *
-     * O bloqueio é **por aparelho** (a origem, o IP): 5 PINs errados de um lugar bloqueiam aquele lugar por 15 minutos,
+     * O bloqueio é **por origem** (o endereço de rede, o IP; vários aparelhos na mesma rede dividem a mesma origem): 5 PINs errados de um lugar bloqueiam aquele lugar por 15 minutos,
      * sem trancar a atendente no celular do quiosque. Antes, qualquer um que soubesse o código da barraca bloqueava a
      * equipe inteira errando o PIN de propósito. Para quem tenta de muitos lugares, há um teto da conta: 20 erros
      * (sem um acerto no meio) bloqueiam a atendente para todos, e o dono desbloqueia no painel. Cada origem soma no

@@ -122,6 +122,15 @@ class StaffController(
         csrf: CsrfToken,
     ): ResponseEntity<Any> {
         if (!rateLimiter.tryAcquire("staff-dono:${request.remoteAddr}", LOGIN_LIMITE, JANELA)) return muitasTentativas()
+        // Também por conta: tentativas espalhadas por muitos IPs (ou a mesma rede de 4G de várias barracas) não passam disto
+        if (!rateLimiter.tryAcquire(
+                "staff-dono-conta:${body.email.trim().lowercase()}",
+                LOGIN_LIMITE_CONTA,
+                JANELA_CONTA,
+            )
+        ) {
+            return muitasTentativas()
+        }
         return responder(login.entrarDono(body.email, body.senha), request, response, csrf)
     }
 
@@ -237,6 +246,10 @@ class StaffController(
 
     companion object {
         const val LOGIN_LIMITE = 10
+
+        /** Por e-mail, em qualquer IP. Maior que o por IP: o dono errando a senha uma vez ou outra não se tranca. */
+        const val LOGIN_LIMITE_CONTA = 15
+        val JANELA_CONTA: Duration = Duration.ofMinutes(15)
         const val PIN_LIMITE = 20
         const val LISTA_LIMITE = 30
         val JANELA: Duration = Duration.ofMinutes(10)

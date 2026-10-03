@@ -1,5 +1,6 @@
-import { ApiError, bloquearComanda, desbloquearComanda, encerrarComanda, reais, type ContaAPagar, type Sessao } from '../api'
-import { h, mount } from '../dom'
+import { ApiError, descartada, bloquearComanda, desbloquearComanda, encerrarComanda, reais, type ContaAPagar, type Sessao } from '../api'
+import { adiarSeEmUso, mountPreservando } from '../a11y'
+import { h } from '../dom'
 import { estado as estadoDaFila } from '../fila-store'
 import { agoraDoServidor, estado, observar, recarregar } from '../pagamentos-store'
 import { avisar } from '../toast'
@@ -18,6 +19,8 @@ export function abaPagamentos (root: HTMLElement, sessao: Sessao): void {
   const desenhar = (): void => {
     // Trocou de aba: para de ouvir
     if (location.hash !== '#/pagamentos') { sairDaTela?.(); return }
+    // Escolhendo num select ou digitando: não redesenha por baixo da pessoa (espera ela sair do campo)
+    if (adiarSeEmUso(root, desenhar)) return
     render(root, sessao)
   }
   const parar = observar(desenhar)
@@ -41,7 +44,7 @@ function render (root: HTMLElement, sessao: Sessao): void {
   const { dados, falhou } = estado()
   const { conectado } = estadoDaFila()
   if (dados === null) {
-    mount(root,
+    mountPreservando(root,
       h('header', { class: 'tab-head' }, h('h1', {}, 'Pagamentos')),
       falhou
         ? h('div', { class: 'empty' },
@@ -54,7 +57,7 @@ function render (root: HTMLElement, sessao: Sessao): void {
   const dono = sessao.usuario?.papel === 'DONO'
   const { aguardando, abertas } = dados
   const devendo = abertas.reduce((soma, c) => soma + c.saldoCentavos, 0)
-  mount(root,
+  mountPreservando(root,
     h('header', { class: 'tab-head' },
       h('h1', {}, 'Pagamentos'),
       h('p', { class: 'hint' }, aguardando.length === 0
@@ -104,7 +107,7 @@ function cartao (root: HTMLElement, sessao: Sessao, c: ContaAPagar, dono: boolea
     render(root, sessao)
     chamada()
       .then(() => { avisar(sucesso) })
-      .catch((e: unknown) => { avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
+      .catch((e: unknown) => { if (!descartada(e)) avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
       .finally(() => {
         ocupados.delete(c.comandaId)
         void recarregar()

@@ -1,5 +1,6 @@
-import { ApiError, mudarStatus, pausar, type Fila, type PedidoFila } from '../api'
-import { h, mount } from '../dom'
+import { ApiError, descartada, mudarStatus, pausar, type Fila, type PedidoFila } from '../api'
+import { adiarSeEmUso, mountPreservando } from '../a11y'
+import { h } from '../dom'
 import { agoraDoServidor, ehNovo, estado, observar, recarregar } from '../fila-store'
 import { definirSom, somLigado } from '../som'
 import { avisar } from '../toast'
@@ -23,6 +24,8 @@ export function abaFila (root: HTMLElement): void {
   const desenhar = (): void => {
     // Trocou de aba: para de ouvir e de contar o tempo
     if (location.hash !== '#/fila') { sairDaTela?.(); return }
+    // Escolhendo num select ou digitando: não redesenha por baixo da pessoa (espera ela sair do campo)
+    if (adiarSeEmUso(root, desenhar)) return
     render(root)
   }
   const parar = observar(desenhar)
@@ -53,7 +56,7 @@ export function nivelDeEspera (min: number, alertaMin: number): 'ok' | 'atencao'
 function render (root: HTMLElement): void {
   const { dados, conectado, falhou } = estado()
   if (dados === null) {
-    mount(root,
+    mountPreservando(root,
       h('header', { class: 'tab-head' }, h('h1', {}, 'Fila')),
       falhou
         ? h('div', { class: 'empty' },
@@ -88,7 +91,7 @@ function render (root: HTMLElement): void {
   )
 
   const total = dados.pedidos.length
-  mount(root,
+  mountPreservando(root,
     h('header', { class: 'tab-head' },
       h('h1', {}, 'Fila'),
       h('p', { class: 'hint' }, total === 0
@@ -129,7 +132,7 @@ function blocoPausa (dados: Fila): HTMLElement {
     voltar.disabled = true
     pausar(false)
       .then(() => { avisar('Voltou a receber pedidos.') })
-      .catch((e: unknown) => { avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
+      .catch((e: unknown) => { if (!descartada(e)) avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
       .finally(() => { void recarregar() })
   })
   return h('div', { class: 'pausa', role: 'status' },
@@ -160,7 +163,7 @@ function cartao (root: HTMLElement, p: PedidoFila, alertaMin: number): HTMLLIEle
     render(root)
     mudarStatus(p.id, novo)
       .then(() => { avisar(novo === 'ENTREGUE' ? `Pedido nº ${p.numero} entregue.` : `Pedido nº ${p.numero} em preparo.`) })
-      .catch((e: unknown) => { avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
+      .catch((e: unknown) => { if (!descartada(e)) avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
       .finally(() => {
         ocupados.delete(p.id)
         void recarregar()

@@ -200,4 +200,68 @@ class AnonimizacaoTest(
         assertTrue(!existe(velho), "o aviso de 91 dias some")
         assertTrue(existe(recente), "o de 89 dias fica")
     }
+
+    @Test
+    fun `o texto livre tambem some depois de 90 dias, e fica so a categoria do motivo`() {
+        val q = apoio.quiosque("Barraca LGPD Texto")
+        val app = app(q)
+        val velha = apoio.novaComanda(q, "Ana")
+        val recente = apoio.novaComanda(q, "Beto")
+        val observacao = "sem gelo, é para o filho do Marcos"
+        val pedidoVelho = UUID.randomUUID()
+        val pedidoRecente = UUID.randomUUID()
+        assertEquals(
+            201,
+            apoio.pedir(apoio.celular(), velha, pedidoVelho, Item(q.coco.id, 1, observacao), Item(q.pastel.id, 1)).statusCode(),
+        )
+        assertEquals(
+            201,
+            apoio.pedir(apoio.celular(), recente, pedidoRecente, Item(q.coco.id, 1, observacao), Item(q.pastel.id, 1)).statusCode(),
+        )
+
+        fun itemDe(
+            pedido: UUID,
+            nome: String,
+        ) = jdbc.queryForObject("SELECT id FROM item_pedido WHERE pedido_id = ? AND nome_snapshot = ?", UUID::class.java, pedido, nome)
+        for ((pedido, item) in listOf(
+            pedidoVelho to itemDe(pedidoVelho, "Pastel"),
+            pedidoRecente to itemDe(pedidoRecente, "Água de coco"),
+        )) {
+            val r =
+                app.post(
+                    "/api/staff/pedidos/$pedido/itens/$item/cancelar",
+                    """{"motivo":"OUTRO","detalhe":"cliente Marcos foi embora"}""",
+                )
+            assertEquals(200, r.statusCode(), r.body())
+        }
+        assertEquals(
+            200,
+            app.post("/api/staff/comandas/${idDe(velha)}/fechamento-forcado", """{"motivo":"Marcos Silva saiu sem pagar"}""").statusCode(),
+        )
+        assertEquals(
+            200,
+            app.post("/api/staff/comandas/${idDe(recente)}/fechamento-forcado", """{"motivo":"Beto saiu sem pagar"}""").statusCode(),
+        )
+        envelhecer(velha, 91)
+
+        anonimizacao.anonimizar()
+
+        fun observacoes(pedido: UUID) =
+            jdbc.queryForList(
+                "SELECT observacao FROM item_pedido WHERE pedido_id = ? AND observacao IS NOT NULL",
+                String::class.java,
+                pedido,
+            )
+        assertEquals(emptyList(), observacoes(pedidoVelho), "a observação do cliente anonimizado some")
+        assertEquals(listOf(observacao), observacoes(pedidoRecente), "a de quem ainda não passou do prazo continua")
+
+        fun motivosDe(pedido: UUID) =
+            jdbc.queryForList("SELECT motivo_cancelamento FROM item_pedido WHERE pedido_id = ? AND cancelado", String::class.java, pedido)
+        assertEquals(listOf("Outro"), motivosDe(pedidoVelho), "fica só a categoria")
+        assertEquals(listOf("Outro: cliente Marcos foi embora"), motivosDe(pedidoRecente))
+
+        fun motivoDoFechamento(token: String) = comandas.findByTokenAcesso(token)!!.fechamentoForcadoMotivo
+        assertEquals("Removido (LGPD)", motivoDoFechamento(velha))
+        assertEquals("Beto saiu sem pagar", motivoDoFechamento(recente))
+    }
 }

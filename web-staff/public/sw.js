@@ -1,23 +1,35 @@
 // Service worker do app do quiosque.
+// - Instalação: guarda a página e TODOS os arquivos desta publicação (JS, CSS, fontes, ícones), para a primeira
+//   reabertura sem rede funcionar mesmo que esses arquivos tenham sido baixados antes de o service worker existir.
 // - Páginas (/staff/): rede primeiro; sem rede, abre a última versão salva (o app não fica em branco).
-// - /staff/assets/*: arquivos com hash no nome, então podem ficar no cache para sempre.
+// - /staff/assets/*: arquivos com hash no nome, servidos do cache.
 // - /api/: NUNCA passa pelo cache (dados de pedidos e sessão sempre vêm do servidor).
 // - Avisos de pedido (Web Push): o servidor manda o aviso cifrado, o navegador o entrega aqui, e tocar nele abre a fila.
-// O modo offline completo (fila de ações para reenviar) chega na Fase 6.
-const VERSAO = 'mesamar-staff-v1'
-const SHELL = ['/staff/', '/staff/manifest.json', '/staff/icons/icon-192.png']
+// Um cache por publicação (a versão é gravada no build): ao ativar, apaga só as versões antigas DESTE app.
+const PREFIXO = 'mesamar-staff-'
+const VERSAO = 'mesamar-staff-dev'
+const ARQUIVOS = /* ARQUIVOS */ []
+const SHELL = ['/staff/', '/staff/manifest.json']
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(VERSAO).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()))
+  event.waitUntil(caches.open(VERSAO).then((cache) => cache.addAll([...SHELL, ...ARQUIVOS])).then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((nomes) => Promise.all(nomes.filter((n) => n !== VERSAO).map((n) => caches.delete(n))))
+      .then((nomes) => Promise.all(nomes.filter((n) => n.startsWith(PREFIXO) && n !== VERSAO).map((n) => caches.delete(n))))
       .then(() => self.clients.claim())
   )
 })
+
+/** Guarda a cópia sem deixar o navegador encerrar o service worker no meio, e sem quebrar se o espaço acabou. */
+function guardar (event, chave, res) {
+  if (!res.ok) return res
+  const copia = res.clone()
+  event.waitUntil(caches.open(VERSAO).then((c) => c.put(chave, copia)).catch(() => undefined))
+  return res
+}
 
 self.addEventListener('fetch', (event) => {
   const req = event.request
@@ -26,22 +38,14 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return
 
   if (url.pathname.startsWith('/staff/assets/') || url.pathname.startsWith('/staff/fonts/') || url.pathname.startsWith('/staff/icons/')) {
-    event.respondWith(
-      caches.match(req).then((cached) => cached ?? fetch(req).then((res) => {
-        if (res.ok) { const copia = res.clone(); caches.open(VERSAO).then((c) => c.put(req, copia)) }
-        return res
-      }))
-    )
+    event.respondWith(caches.match(req).then((cached) => cached ?? fetch(req).then((res) => guardar(event, req, res))))
     return
   }
 
   if (req.mode === 'navigate' && url.pathname.startsWith('/staff/')) {
     event.respondWith(
       fetch(req)
-        .then((res) => {
-          if (res.ok) { const copia = res.clone(); caches.open(VERSAO).then((c) => c.put('/staff/', copia)) }
-          return res
-        })
+        .then((res) => guardar(event, '/staff/', res))
         .catch(() => caches.match('/staff/').then((cached) => cached ?? Response.error()))
     )
   }

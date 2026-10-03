@@ -38,4 +38,15 @@ class MoneyTest {
         assertEquals("R$ 1.000.000,00", Money.format(100_000_000))
         assertEquals("150,00", Money.toInput(15000))
     }
+
+    @Test
+    fun `valores enormes viram null em vez de estourar ou virar outro numero`() {
+        // 184467440737095517 reais × 100 dava a volta no Long e virava 84 centavos
+        assertNull(Money.parseReais("184467440737095517"))
+        assertNull(Money.parseReais("9".repeat(13)))
+        assertNull(Money.parseReais("1".repeat(10_000)))
+        assertNull(Money.parseReais("1" + ".000".repeat(10)))
+        assertEquals(99_999_999_999_999L, Money.parseReais("999.999.999.999,99"))
+        assertEquals(1200, Money.parseReais("000000000000012,00"))
+    }
 }

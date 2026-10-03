@@ -1,5 +1,6 @@
 package br.com.mesamar.push
 
+import br.com.mesamar.barraca.BarracaRepository
 import br.com.mesamar.config.SiteProperties
 import br.com.mesamar.equipe.AtendenteRepository
 import jakarta.persistence.Column
@@ -60,6 +61,15 @@ interface PushSubscriptionRepository : JpaRepository<PushSubscription, UUID> {
     @Query("delete from PushSubscription s where s.endpoint = :endpoint and s.barracaId = :barracaId")
     fun removerDaBarraca(
         @Param("endpoint") endpoint: String,
+        @Param("barracaId") barracaId: UUID,
+    ): Int
+
+    /** Os avisos de um atendente que perdeu o acesso: só da barraca dele. */
+    @Modifying
+    @Transactional
+    @Query("delete from PushSubscription s where s.atendenteId = :atendenteId and s.barracaId = :barracaId")
+    fun removerDoAtendente(
+        @Param("atendenteId") atendenteId: UUID,
         @Param("barracaId") barracaId: UUID,
     ): Int
 
@@ -134,6 +144,7 @@ class PushService(
     site: SiteProperties,
     private val subs: PushSubscriptionRepository,
     private val atendentes: AtendenteRepository,
+    private val barracas: BarracaRepository,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -176,6 +187,8 @@ class PushService(
         val autenticacaoOk = runCatching { Base64Url.decodificar(auth.orEmpty()).size == 16 }.getOrDefault(false)
         if (!chaveOk || !autenticacaoOk) return ResultadoInscricao.Invalido("As chaves do aparelho são inválidas. Ative os avisos de novo.")
 
+        // Uma inscrição por vez na barraca: o teto de aparelhos não é furado por pedidos simultâneos
+        barracas.travar(barracaId)
         val existente = subs.findByEndpoint(endpoint)
         val agora = Instant.now(clock)
         if (existente == null) {

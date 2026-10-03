@@ -140,6 +140,29 @@ class FilaService(
         return ResultadoFila.Ok(montar(pedido))
     }
 
+    /**
+     * Cancela um pedido que ainda esperava pagamento, dentro do fechamento forçado da conta. Diferente do cancelamento
+     * comum: quem chama já travou a comanda e já conferiu que a conta não fica negativa, e **não libera** os pedidos
+     * seguintes para a fila (a conta está sendo encerrada, ninguém vai preparar nada).
+     */
+    fun cancelarNoEncerramento(
+        pedido: Pedido,
+        texto: String,
+        quem: AbertaPor,
+    ) {
+        em.refresh(pedido, LockModeType.PESSIMISTIC_WRITE)
+        if (pedido.status != StatusPedido.AGUARDANDO_PAGAMENTO) return
+        val linhas = itens.findAllByPedidoIdOrderByLinha(pedido.id)
+        linhas.filter { !it.cancelado }.forEach {
+            it.cancelado = true
+            it.motivoCancelamento = texto
+        }
+        itens.saveAll(linhas)
+        cancelar(pedido, texto, quem)
+        pedidos.save(pedido)
+        eventos.pedidoMudou(pedido.barracaId, pedido.comandaId, pedido.id)
+    }
+
     /** Cancela só uma linha ("acabou o pastel"). Se era a última, o pedido todo fica cancelado. */
     @Transactional
     fun cancelarItem(

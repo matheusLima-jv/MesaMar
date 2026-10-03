@@ -4,6 +4,8 @@ import {
   type Comanda, type Conta, type Metodo, type Pedido, type Produto
 } from './api'
 import { Carrinho, pendente } from './carrinho'
+import { mountPreservando } from './a11y'
+import { esquecerComanda, limparComandasAntigas, marcarVisto } from './armazenamento'
 import { h, lembrar, mount } from './dom'
 import { type Contexto } from './views/casca'
 import { telaCardapio } from './views/cardapio'
@@ -54,22 +56,28 @@ function usar (dados: Comanda): void {
  * cardápio. `topo` leva a página ao início (as atualizações automáticas não mexem na rolagem).
  */
 function desenhar (topo = true): void {
+  // Tela nova (a pessoa navegou): troca tudo e volta ao topo. Atualização automática (tempo real, consulta): troca mas
+  // mantém o foco, o cursor e a rolagem de quem está usando (e espera quem está digitando num campo)
+  const colocar = (...nodes: Node[]): void => {
+    if (topo) mount(root, ...nodes)
+    else mountPreservando(root, () => { desenhar(false) }, ...nodes)
+  }
   const emEnvio = pendente.ler(token)
   if (emEnvio !== null) {
-    mount(root, ...telaEnvio(ctx, emEnvio, semSinal))
+    colocar(...telaEnvio(ctx, emEnvio, semSinal))
   } else if (location.hash === '#carrinho') {
-    mount(root, ...telaCarrinho(ctx, erroCarrinho, () => { void enviar() }, () => { desenhar() }))
+    colocar(...telaCarrinho(ctx, erroCarrinho, () => { void enviar() }, () => { desenhar() }))
   } else if (location.hash === '#pedidos') {
-    mount(root, ...telaPedidos(ctx, meus, meusSemSinal))
+    colocar(...telaPedidos(ctx, meus, meusSemSinal))
   } else if (location.hash === '#problema') {
-    mount(root, ...telaProblema(ctx, token, telaAnterior, tempoReal))
+    colocar(...telaProblema(ctx, token, telaAnterior, tempoReal))
   } else if (location.hash === '#conta') {
-    mount(root, ...telaConta(ctx, estadoConta, acoesConta))
+    colocar(...telaConta(ctx, estadoConta, acoesConta))
   } else if (location.hash === '#pedido' && confirmado !== null) {
-    mount(root, ...telaConfirmacao(ctx, confirmado, () => { location.hash = '' }))
+    colocar(...telaConfirmacao(ctx, confirmado, () => { location.hash = '' }))
   } else {
     erroCarrinho = null
-    mount(root, ...telaCardapio(ctx))
+    colocar(...telaCardapio(ctx))
   }
   if (topo) window.scrollTo(0, 0)
 }
@@ -255,6 +263,8 @@ function trocouDeTela (): void {
   const atual = location.hash === '' ? 'cardapio' : location.hash.slice(1)
   if (atual !== 'problema') telaAnterior = atual
   desenhar()
+  // Navegou por toque ou teclado: o foco vai para o conteúdo novo (quem usa leitor de tela começa por ele)
+  document.getElementById('conteudo')?.focus({ preventScroll: true })
   acompanharPedidos()
   // Voltando ao cardápio depois de um tempo: confere se algo acabou ou se o limite da conta mudou
   if (location.hash === '' && Date.now() - atualizadoEm > 10_000) void atualizar(true)
@@ -264,8 +274,13 @@ function trocouDeTela (): void {
 async function enviar (): Promise<void> {
   if (ctx.carrinho.linhas.length === 0 || enviando) return
   erroCarrinho = null
-  pendente.guardar(token, { id: novoId(), itens: ctx.carrinho.itens() })
+  pendente.guardar(token, { id: novoId(), itens: ctx.carrinho.itens(ctx.produtos) })
   await tentarEnviar()
+}
+
+/** Espera com ±20% de variação: vários celulares que perderam o sinal juntos não tentam todos no mesmo segundo. */
+function comVariacao (ms: number): number {
+  return Math.round(ms * (0.8 + Math.random() * 0.4))
 }
 
 function esperar (ms: number): Promise<void> {
@@ -297,7 +312,7 @@ async function tentarEnviar (): Promise<void> {
       const pedido = pendente.ler(token)
       if (pedido === null) return
       try {
-        const feito = await enviarPedido(token, pedido)
+        const feito = await enviarPedido(token, { ...pedido, reenvio: pedido.reenvio === true })
         pendente.apagar(token)
         ctx.carrinho.limpar()
         confirmado = feito
@@ -314,8 +329,11 @@ async function tentarEnviar (): Promise<void> {
           await recusado(e instanceof ApiError ? e : new ApiError(0, 'erro', 'Algo deu errado. Tente de novo.'))
           return
         }
+        // A próxima tentativa é um reenvio: se a equipe lançar este pedido nesse meio-tempo, o servidor reconhece
+        if (pedido.reenvio !== true) pendente.guardar(token, { ...pedido, reenvio: true })
         if (!semSinal) { semSinal = true; desenhar() }
-        await esperar(espera)
+        // 429: espera o que o servidor pediu. O resto: espera crescente com variação (aparelhos não voltam juntos)
+        await esperar(e.esperaMs ?? comVariacao(espera))
         espera = Math.min(espera * 2, ESPERA_MAXIMA_MS)
       }
     }
@@ -330,6 +348,9 @@ async function recusado (e: ApiError): Promise<void> {
   if (e.codigo === 'indisponivel') {
     // Tira do carrinho o que acabou e atualiza o cardápio, para o resto continuar valendo
     ctx.carrinho.remover(e.produtos)
+    await atualizar(false)
+  } else if (e.codigo === 'preco-mudou') {
+    // Cardápio novo: o carrinho passa a mostrar o total com o preço de agora, e o cliente envia de novo se concordar
     await atualizar(false)
   } else if (e.status === 409 && e.codigo !== 'conflito') {
     // Pedidos pausados, conta fechando…: o cardápio passa a avisar também
@@ -369,10 +390,17 @@ async function iniciar (): Promise<void> {
   try {
     usar(await comanda(token))
   } catch (e) {
-    if (e instanceof ApiError && e.status === 404) telaErro('Esse link não vale mais', e.message, false)
+    if (e instanceof ApiError && e.status === 404) {
+      // O link não vale mais (comanda vencida ou QR trocado): o que a página guardou dela no aparelho não serve para nada
+      esquecerComanda(token)
+      telaErro('Esse link não vale mais', e.message, false)
+    }
     else telaErro('Sem sinal', 'Não deu para abrir a sua comanda. Confira a internet e tente de novo.', true)
     return
   }
+  // Esta comanda foi aberta agora; as de outros dias, sem uso há mais de 7 dias, saem do aparelho
+  marcarVisto(token)
+  limparComandasAntigas(token)
   try {
     avisados = new Set(JSON.parse(lembrar.get(`avisados.${token}`) ?? '[]') as string[])
   } catch { avisados = new Set() }
@@ -405,5 +433,15 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/c/sw.js', { scope: '/c/' }).catch(() => undefined)
   })
 }
+
+/** Campos de texto abertos = teclado na tela: a barra fixa do pedido sai do caminho (ver `body.teclado` no CSS). */
+function ehCampoDeTexto (el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement) || !['INPUT', 'TEXTAREA'].includes(el.tagName)) return false
+  return !(el instanceof HTMLInputElement) || !['checkbox', 'radio', 'button', 'submit', 'range'].includes(el.type)
+}
+document.addEventListener('focusin', (ev) => { if (ehCampoDeTexto(ev.target)) document.body.classList.add('teclado') })
+document.addEventListener('focusout', () => {
+  window.setTimeout(() => { if (!ehCampoDeTexto(document.activeElement)) document.body.classList.remove('teclado') }, 100)
+})
 
 void iniciar()

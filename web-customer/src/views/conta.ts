@@ -1,3 +1,4 @@
+import { tecladoDoGrupo } from '../a11y'
 import { reais, type Conta, type Metodo, type Pedido } from '../api'
 import { h } from '../dom'
 import { qrSvg } from '../qr'
@@ -51,7 +52,7 @@ export function telaConta (ctx: Contexto, e: EstadoConta, acoes: AcoesConta): No
   const semSinal = e.semSinal
     ? h('p', { class: 'alert', role: 'status' }, c === null ? 'Sem sinal. Não deu para carregar a conta.' : 'Sem sinal. Mostrando a última conta que carregou.')
     : ''
-  const erro = e.erro !== null ? h('p', { class: 'alert', role: 'alert' }, e.erro) : ''
+  const erro = e.erro !== null ? h('p', { class: 'alert', role: 'alert', id: 'conta-erro' }, e.erro) : ''
   if (c === null) {
     return casca(ctx, 'conta', titulo, semSinal, e.semSinal ? '' : h('p', { class: 'hint' }, 'Carregando a sua conta…'))
   }
@@ -65,6 +66,16 @@ export function telaConta (ctx: Contexto, e: EstadoConta, acoes: AcoesConta): No
       corpo.push(...(e.trocando ? [...extrato(c), ...escolha(c, e, acoes)] : [...aguardando(c, e, acoes), ...extrato(c)]))
       break
     case 'FECHADA':
+      if (c.encerradaComSaldo === true) {
+        corpo.push(
+          h('div', { class: 'done', role: 'status' },
+            h('h2', {}, 'Conta encerrada pelo quiosque'),
+            h('p', {}, `Ficaram ${reais(c.saldoCentavos)} sem pagamento registrado. Se você já pagou, fale com o quiosque.`)
+          ),
+          ...extrato(c)
+        )
+        break
+      }
       corpo.push(
         h('div', { class: 'done', role: 'status' },
           h('p', { class: 'done-mark', 'aria-hidden': 'true' }, '✓'),
@@ -105,7 +116,7 @@ function extrato (c: Conta): Array<Node | string> {
     h('dl', { class: 'resumo' },
       linhaResumo('Pedidos', reais(c.pedidoCentavos)),
       c.pagoCentavos > 0 ? linhaResumo('Já pago', `− ${reais(c.pagoCentavos)}`) : '',
-      linhaResumo('Falta pagar', reais(c.saldoCentavos), true)
+      linhaResumo(c.status === 'FECHADA' && c.encerradaComSaldo === true ? 'Ficou sem pagar' : 'Falta pagar', reais(c.saldoCentavos), true)
     )
   ]
 }
@@ -130,6 +141,21 @@ function cartaoPedido (p: Pedido): HTMLElement {
   )
 }
 
+/** As formas de pagamento: um grupo de radios (as setas movem e escolhem; o Tab entra e sai do grupo). */
+function grupoDeFormas (formas: Metodo[], e: EstadoConta, acoes: AcoesConta): HTMLElement {
+  const grupo = h('div', { class: 'formas', id: 'formas-pagamento', role: 'radiogroup', 'aria-label': 'Forma de pagamento' }, ...formas.map((m) =>
+    h('button', {
+      type: 'button',
+      role: 'radio',
+      class: e.metodo === m ? 'forma on' : 'forma',
+      'aria-checked': e.metodo === m ? 'true' : 'false',
+      onclick: () => { acoes.escolher(m) }
+    }, h('strong', {}, ROTULO_METODO[m]), h('span', {}, AJUDA_METODO[m]))
+  ))
+  tecladoDoGrupo(grupo, (el) => el.getAttribute('aria-checked') === 'true')
+  return grupo
+}
+
 /** A escolha da forma de pagamento e o botão que fecha a conta (ou troca a forma, se já estava fechando). */
 function escolha (c: Conta, e: EstadoConta, acoes: AcoesConta): Array<Node | string> {
   if (c.saldoCentavos <= 0) {
@@ -139,15 +165,7 @@ function escolha (c: Conta, e: EstadoConta, acoes: AcoesConta): Array<Node | str
   const trocando = c.status === 'AGUARDANDO_PAGAMENTO'
   return [
     h('h3', { class: 'sub' }, 'Como você vai pagar?'),
-    h('div', { class: 'formas', role: 'radiogroup', 'aria-label': 'Forma de pagamento' }, ...formas.map((m) =>
-      h('button', {
-        type: 'button',
-        role: 'radio',
-        class: e.metodo === m ? 'forma on' : 'forma',
-        'aria-checked': e.metodo === m ? 'true' : 'false',
-        onclick: () => { acoes.escolher(m) }
-      }, h('strong', {}, ROTULO_METODO[m]), h('span', {}, AJUDA_METODO[m]))
-    )),
+    grupoDeFormas(formas, e, acoes),
     e.metodo === 'DINHEIRO'
       ? h('div', { class: 'field' },
         h('label', { for: 'troco' }, 'Vou pagar com R$ ', h('span', { class: 'opt' }, '(opcional, para separarem o troco)')),
@@ -157,6 +175,9 @@ function escolha (c: Conta, e: EstadoConta, acoes: AcoesConta): Array<Node | str
           inputmode: 'decimal',
           autocomplete: 'off',
           placeholder: 'Ex.: 100',
+          // O erro da conta fica ligado ao campo do troco quando é dele (o leitor de tela lê junto)
+          'aria-invalid': e.erro !== null && e.erro.includes('troco') ? 'true' : undefined,
+          'aria-describedby': e.erro !== null && e.erro.includes('troco') ? 'conta-erro' : undefined,
           value: e.troco,
           oninput: (ev: Event) => { acoes.digitarTroco((ev.target as HTMLInputElement).value) }
         }))

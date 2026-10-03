@@ -26,7 +26,7 @@ class PausaService(
         pausado: Boolean,
         mensagem: String?,
     ): Barraca {
-        val barraca = barracas.findById(barracaId).orElseThrow()
+        val barraca = barracas.travar(barracaId) ?: throw NoSuchElementException("barraca $barracaId")
         val recado = if (pausado) limpar(mensagem) else null
         if (barraca.pedidosPausados == pausado && barraca.mensagemPausa == recado) return barraca
         barraca.pedidosPausados = pausado

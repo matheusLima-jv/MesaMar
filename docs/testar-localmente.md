@@ -51,7 +51,7 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 3 | Landing → "Entrar na lista do piloto" | Enviar vazio | Uma mensagem em português por campo |
 | 4 | Mesmo formulário | Enviar com WhatsApp `(13) 1234` | Só o WhatsApp com erro; o resto continua preenchido |
 | 5 | Mesmo formulário | Enviar certo | "Pronto, você está na lista." |
-| 6 | Mesmo formulário | Enviar vazio 9 vezes seguidas | Na 9ª: "Recebemos muitos envios deste aparelho" (espere 10 min ou reinicie o app para zerar) |
+| 6 | Mesmo formulário | Enviar vazio 9 vezes seguidas | Na 9ª: "Recebemos muitos envios desta conexão" (espere 10 min ou reinicie o app para zerar) |
 | 7 | Botão "Falar no WhatsApp" | Tocar | Abre o WhatsApp com a mensagem pronta |
 | 8 | http://localhost:8080/teste-sinal (no celular) | Escolher praia e medir | 3 números + veredito "✅ … Medição salva" |
 | 9 | http://localhost:8080/admin | Entrar com `admin` + a sua senha | Lead do passo 5 e medição do passo 8 aparecem |
@@ -320,6 +320,67 @@ Estes itens são **no servidor de produção** (ou num ambiente igual a ele), se
 | 149 | Cliente com comanda de **ontem** que ainda deve (mude o `dia` da comanda no banco para ontem) | Tentar pedir de novo pela página do cliente | "Esta comanda é de outro dia e já não aceita pedidos." O pedido **não** é feito. "Voltar e pedir mais" também é recusado |
 | 150 | Mesma comanda, no app do quiosque (aba Pagamentos) | Receber o que ela deve | O pagamento funciona e a comanda se encerra |
 | 151 | **Celular do dono**, app do quiosque entrando **como dono** → aba Mais → ativar avisos. Depois, outro celular manda "Reportar problema" (quiosque ou página do cliente) | Olhar a tela do celular do dono (com o navegador ou o app em segundo plano) | Chega uma notificação **"Aviso de problema · Cliente"** (ou "Equipe") com o começo do texto. Tocar abre a página **Avisos** do painel (pede o login do painel se preciso). Atendentes, no mesmo estabelecimento, **não** recebem. Vários avisos seguidos viram uma notificação só |
+
+### Lançar pedido para cliente (Fase 6 · checkpoint 6.1)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 152 | App do quiosque, aba Clientes, um cliente com comanda aberta | Tocar em **Pedir** ao lado do nome, escolher 2 águas de coco com o **+** e tocar em **Lançar pedido** | Aviso "Pedido N lançado para …". Na aba **Fila** o pedido aparece como qualquer outro. Na página do cliente (se ele tiver o QR aberto), o pedido aparece em Meus pedidos sem recarregar |
+| 153 | Mesma tela, sem escolher nada | Olhar o botão | **Lançar pedido** fica desligado e o texto diz "Nenhum item escolhido." |
+| 154 | Barraca com **Pausar pedidos** ligado, e o cliente tentando pedir pelo celular dele | Lançar o pedido pelo app do quiosque | O cliente é barrado ("O quiosque pausou os pedidos"), e a **equipe consegue lançar** |
+| 155 | Comanda **bloqueada** (aba Pagamentos → Bloquear) | Tentar lançar pedido para ela | Recusado com "Sua comanda está bloqueada…" (a mensagem é a mesma do cliente) |
+| 156 | Produto marcado como **Esgotou** na aba Cardápio | Abrir Pedir | O item aparece riscado, com a tag "Esgotado", e **sem** os botões + e − |
+
+O token de QR gerado no aparelho (check-in sem sinal) só tem teste automático neste checkpoint; a tela de check-in offline vem no 6.2.
+
+### Correções da revisão (lote 1)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 157 | Página do cliente com o DevTools aberto (aba Network, "Slow 3G") | Enviar um pedido e, assim que o servidor responder, ficar sem rede (modo avião) antes de a página mostrar "enviado". Voltar a rede | A página tenta de novo sozinha e mostra **um** pedido. Em Meus pedidos e na Fila, um só |
+| 158 | App do quiosque, aba Pagamentos | Abrir "Receber", ligar o modo avião e tocar em Confirmar. Fechar o diálogo, voltar a rede e abrir "Receber" de novo | Aparece o aviso "O último pagamento (R$ …) foi enviado e a resposta não chegou", com o valor e a forma travados. Confirmar registra **um** pagamento só |
+| 159 | App do quiosque na aba Pagamentos, e o cliente pedindo pelo celular | Fazer um pedido pelo celular | O saldo da conta na aba Pagamentos sobe sozinho, sem recarregar |
+| 160 | Página do cliente numa aba anônima com o armazenamento do site bloqueado (configurações do navegador) | Montar o carrinho e enviar | O pedido é enviado normalmente (só não sobrevive a recarregar a página) |
+| 161 | Painel → Cardápio, e um cliente com o carrinho montado | Mudar o preço da água de coco e o cliente enviar o pedido | "O preço mudou: Água de coco. Confira o total novo e envie de novo." O carrinho mostra o total novo |
+| 162 | App do quiosque, aba Pagamentos, conta **bloqueada** sem nada a pagar | Olhar a lista | A conta aparece em "Contas abertas", com Desbloquear e Encerrar conta |
+| 163 | Conta fechada **sem receber** (dono, aba Pagamentos) | Abrir a página do cliente, aba Conta | "Conta encerrada pelo quiosque" e "Ficou sem pagar R$ …", **não** "Conta paga" |
+| 164 | Cadastro de conta do painel | Tentar uma senha com 40 letras acentuadas (ex.: "é" repetido) | Mensagem "A senha está longa demais…", sem erro interno |
+
+### Correções da revisão (lote 2)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 165 | App do quiosque com o DevTools (Network → "Slow 3G") | Abrir Clientes e, antes de carregar, tocar em Cardápio | A aba Cardápio fica. A lista de clientes não aparece por cima quando chega |
+| 166 | App do quiosque, aba Cardápio | Tocar "Esgotou" 5 vezes bem rápido no mesmo produto | O botão termina no estado do último toque, e o painel mostra o mesmo |
+| 167 | Lançar pedido, com "Slow 3G" | Tocar Lançar e tentar mexer no + e − | Os botões ficam travados até a resposta |
+| 168 | Lançar pedido em modo avião | Tocar Lançar, esperar o erro, ir para outra aba, voltar e tocar Pedir na mesma pessoa | A tela mostra "Este pedido foi enviado e a resposta não chegou" com os itens travados. Com a rede de volta, Reenviar cria **um** pedido |
+| 169 | Novo cliente em modo avião | Preencher e tocar Gerar QR. Recarregar o app e abrir Novo cliente | O formulário volta preenchido e travado. Com a rede, Gerar QR cria **uma** comanda |
+| 170 | Aba Mais em modo avião | Tocar "Sair deste celular" | Mensagem "Não deu para sair agora". Recarregar a página continua logado (não finge que saiu) |
+| 171 | Aba Pagamentos, diálogo Receber aberto | Tocar em outra aba | O diálogo some |
+| 172 | Aba Mais em modo avião | Olhar o cartão "Avisos de pedido" | "Não deu para falar com o servidor agora", com Tentar de novo (não "servidor sem chaves") |
+| 173 | Página do cliente aberta, e o dono no app | Marcar um produto como esgotado | A página do cliente mostra o esgotado sozinha, sem recarregar. A aba Cardápio de outro celular do quiosque também |
+| 174 | Página do cliente: abrir uma vez com sinal, fechar, ligar o modo avião e abrir de novo | Olhar o topo | "Sem sinal. Mostrando o cardápio salvo às HH:MM…". A página abre com estilo (CSS) mesmo na primeira reabertura |
+| 175 | DevTools → Application → Cache Storage, com a página do cliente e o app abertos no mesmo navegador | Publicar uma versão nova e recarregar os dois | Cada app fica só com o cache da versão nova dele; o cache do outro continua lá |
+| 176 | Cliente com o pedido "Sem sinal. Tentaremos de novo" e o atendente lança os mesmos itens pelo app | Voltar o sinal no celular do cliente | O cliente vê o pedido como enviado, e a Fila tem **um** pedido |
+| 177 | App do quiosque em segundo plano (outro app na frente) por alguns minutos, sem tempo real | Voltar ao app | A fila e os pagamentos se atualizam na hora |
+
+### Correções da revisão (lote 3)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 178 | App do quiosque, com leitor de tela (TalkBack ou VoiceOver) | Abrir o QR de um cliente e navegar pelos controles | O leitor só enxerga o QR (o resto do app fica de fora), o Tab não sai dele, e ao fechar o foco volta ao botão que abriu |
+| 179 | Check-in, com teclado externo ou leitor de tela | Escolher o guarda-sol com as setas | Um grupo "Guarda-sol" de radios: setas movem e escolhem, o Tab entra e sai do grupo |
+| 180 | Aba Fila aberta e um pedido novo chegando | Deixar o foco num botão da fila e esperar um pedido chegar. Repetir com o filtro de guarda-sol aberto | O foco continua no mesmo botão; a lista do filtro não fecha sozinha (a fila se atualiza quando você sai do campo) |
+| 181 | Pedido parado além do tempo da barraca, e um cliente tocando em "fechar a conta" | Ir para a aba Cardápio | No topo fica uma faixa "Pedido nº … está esperando há N min" e "… está indo pagar", com Ver e Entendi. Não some sozinha; some quando o pedido sai da fila ou a conta é recebida |
+| 182 | Tela de entrada do app | Tocar em "Sou o dono" | Aparece "Esqueci a minha senha", que abre o fluxo do painel. Na do atendente: "Esqueceu o PIN? Peça ao dono…" |
+| 183 | Celular que usou a página do cliente em comandas de dias diferentes | Abrir uma comanda nova e olhar os dados do site (DevTools → Application → Local Storage) | As entradas de comandas sem uso há mais de 7 dias foram apagadas. Link que dá "não vale mais" apaga as da própria comanda |
+| 184 | Página /privacidade, seção 5 | Ler | Fala da cópia da comanda no celular, dos 7 dias, dos textos livres apagados aos 90 dias, da notificação sem texto e dos pedidos de exclusão em até 15 dias |
+| 185 | Painel do dono → Equipe, atendente logado no celular dela | "Celular perdido? Tirar … de todos os aparelhos" → Sair de todos os aparelhos | O app dela volta ao login na hora (mesmo com a fila aberta). O PIN antigo ainda entra. Desativar e reativar não traz a sessão de volta |
+| 186 | App do quiosque → Clientes → QR de um cliente | "Trocar o QR deste cliente" → Gerar QR novo agora | Aparece o QR novo. Abrir o link antigo no celular do cliente: "Esse link não vale mais". A conta e os pedidos continuam no QR novo |
+| 187 | Cliente que fez um pedido com a página "Sem sinal" | Trocar o QR dele antes de o sinal voltar | Se o pedido já tinha chegado, a página antiga para de reenviar. Se não tinha, ela mostra o erro e o atendente lança de novo |
+| 188 | Pedido com observação "sem gelo, é para o filho do Marcos", depois cancelado com "Outro: …" (mude a data do cliente para 91 dias atrás e rode o job, ou espere) | Olhar o relatório e a comanda | A observação e o detalhe do motivo sumiram; o relatório continua agrupando em "Outro" |
+| 189 | Reportar um problema na página do cliente, com o celular do dono bloqueado | Olhar a tela do dono | A notificação diz "Toque para ler o aviso no painel", **sem** o texto digitado |
+| 190 | Servidor com `deploy/lgpd/excluir-cliente.sh --link …` (ver `docs/lgpd-procedimento.md`) | Rodar, depois restaurar um backup antigo no banco de treino | O cliente aparece como "Cliente", o link antigo dá 404, e o treino restaurado já sai com a exclusão refeita |
 
 ## 5. Testes E2E (os mesmos do CI)
 

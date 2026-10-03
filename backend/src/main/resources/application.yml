@@ -61,6 +61,8 @@ mesamar:
   # Remetente dos e-mails do painel
   mail:
     from: ${MESAMAR_MAIL_FROM:MesaMar <nao-responda@localhost>}
+    # Só para desenvolvimento: sem SMTP, o e-mail (com o link de troca de senha) vai inteiro para o log. Em produção, desligado.
+    logar-corpo-sem-smtp: ${MESAMAR_MAIL_LOGAR_CORPO:false}
   # Web Push (avisos de pedido com o app fechado). Sem as duas chaves VAPID, o push fica desligado e o app avisa o dono.
   # Gere o par com: ./gradlew --console=plain -q :backend:gerarVapid  (a privada é segredo: só no .env)
   push:

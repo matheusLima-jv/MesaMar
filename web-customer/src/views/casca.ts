@@ -30,12 +30,17 @@ export function casca (ctx: Contexto, aba: Aba, ...conteudo: Array<Node | string
       h('h1', {}, `Olá, ${dados.nome}`, dados.guardaSol !== null ? ` · Guarda-sol ${dados.guardaSol}` : ''),
       h('p', { class: 'conta' }, 'Sua conta: ', h('strong', {}, reais(dados.saldoCentavos)))
     ),
+    // Sem sinal, o cardápio veio do cache do aparelho: diz de quando ele é, para ninguém achar que está confirmado agora
+    ...(dados.salvoEm !== undefined
+      ? [h('p', { class: 'alert', role: 'status' },
+          `Sem sinal. Mostrando o cardápio salvo às ${new Date(dados.salvoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}: preços e itens podem ter mudado.`)]
+      : []),
     h('nav', { class: 'abas', 'aria-label': 'Seções da sua comanda' },
       link('cardapio', '#', 'Cardápio'),
       link('pedidos', '#pedidos', 'Meus pedidos'),
       link('conta', '#conta', 'Conta')
     ),
-    h('main', { id: 'conteudo', class: 'page' },
+    h('main', { id: 'conteudo', class: 'page', tabindex: -1 },
       ctx.avisos.length > 0
         ? h('section', { class: 'avisos', role: 'status', 'aria-label': 'Avisos do quiosque' },
           ...ctx.avisos.map((t) => h('p', {}, t)),

@@ -538,7 +538,7 @@ class PushEnvioTest(
     }
 
     @Test
-    fun `problema reportado avisa so o aparelho do dono, com o comeco do texto, e nao os atendentes nem outra barraca`() {
+    fun `problema reportado avisa so o aparelho do dono, sem o texto digitado, e nao os atendentes nem outra barraca`() {
         FakePushServer().use { servidor ->
             val a = apoio.quiosque("Barraca Push Problema A")
             val b = apoio.quiosque("Barraca Push Problema B")
@@ -557,13 +557,13 @@ class PushEnvioTest(
             val recebido = servidor.em("/push/dono").single()
             val texto = aparelhoDono.decifrar(recebido.corpo)
             assertContains(texto, """"titulo":"Aviso de problema · Cliente"""")
-            assertContains(texto, """"corpo":"Não consegui ver o Pix. Não consegui ver o Pix.""")
+            // O que a pessoa digitou pode ter dado pessoal e a notificação aparece na tela bloqueada: o texto não vai
+            assertContains(texto, """"corpo":"${NotificadorPush.CORPO_DO_AVISO_DE_PROBLEMA}"""")
+            assertFalse(texto.contains("Pix"), "o texto do aviso não vai na notificação: $texto")
             assertContains(texto, """"url":"/painel/problemas"""")
             assertContains(texto, """"tag":"problema"""")
             assertContains(texto, """"tipo":"PROBLEMA"""")
             assertFalse(texto.contains("Ana"), "o nome do cliente não vai no aviso: $texto")
-            val corpo = Regex(""""corpo":"([^"]*)"""").find(texto)!!.groupValues[1]
-            assertTrue(corpo.length <= NotificadorPush.MENSAGEM_NO_AVISO, "só o começo do texto: ${corpo.length}")
             assertEquals("3600", recebido.cabecalhos["ttl"])
         }
     }

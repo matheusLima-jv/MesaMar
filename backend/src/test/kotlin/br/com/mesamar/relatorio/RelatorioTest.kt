@@ -103,7 +103,7 @@ class RelatorioTest(
         assertEquals(200, app.post("/api/staff/comandas/${idDe(caio)}/fechamento-forcado", """{"motivo":"foi embora"}""").statusCode())
         // Dani: lançada pelo atendente (R$ 25,00), entregue em 10 min, ainda não pagou
         val pedidoDani = pedido(dani, Item(q.pastel.id, 1))
-        jdbc.update("UPDATE pedido SET origem = 'ATENDENTE' WHERE id = ?", pedidoDani)
+        jdbc.update("UPDATE pedido SET origem = 'ATENDENTE', criado_por_usuario_id = ? WHERE id = ?", q.usuarioId, pedidoDani)
         entregue(pedidoAna, 300)
         entregue(pedidoDani, 600)
         return q

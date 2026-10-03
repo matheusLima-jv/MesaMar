@@ -122,8 +122,9 @@ class NotificadorPush(
     }
 
     /**
-     * Alguém reportou um problema: o dono recebe o aviso no aparelho dele, com o começo do texto. A etiqueta é a mesma para
-     * todos os avisos, então vários seguidos viram uma notificação só (a mais recente), e não enchem a tela.
+     * Alguém reportou um problema: o dono recebe o aviso no aparelho dele, **sem o texto**: o que a pessoa digitou pode
+     * ter dado pessoal, e a notificação aparece na tela bloqueada. O texto fica na página Avisos do painel (com login).
+     * A etiqueta é a mesma para todos os avisos, então vários seguidos viram uma notificação só.
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun aoReportarProblema(e: ProblemaReportado) {
@@ -134,7 +135,7 @@ class NotificadorPush(
                     e.barracaId,
                     MensagemPush(
                         titulo = "Aviso de problema · ${if (e.origem == "CLIENTE") "Cliente" else "Equipe"}",
-                        corpo = e.mensagem.replace(ESPACOS, " ").take(MENSAGEM_NO_AVISO),
+                        corpo = CORPO_DO_AVISO_DE_PROBLEMA,
                         url = URL_PROBLEMAS,
                         tag = "problema",
                         tipo = "PROBLEMA",
@@ -157,9 +158,7 @@ class NotificadorPush(
         /** Tocar no aviso de problema abre a página Avisos do painel do dono. */
         const val URL_PROBLEMAS = "/painel/problemas"
 
-        /** O texto do problema aparece na tela de bloqueio: só o começo. */
-        const val MENSAGEM_NO_AVISO = 100
-
-        private val ESPACOS = Regex("\\s+")
+        /** O aviso de problema não leva o texto digitado (tela bloqueada): só diz que há um, e o painel mostra. */
+        const val CORPO_DO_AVISO_DE_PROBLEMA = "Toque para ler o aviso no painel."
     }
 }

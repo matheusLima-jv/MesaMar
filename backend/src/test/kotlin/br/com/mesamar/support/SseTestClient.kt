@@ -51,6 +51,12 @@ class SseTestClient(
         ms: Long = 1_500,
     ): Boolean = esperar(prefixo, ms) == null
 
+    /** `true` se o servidor encerrou a conexão (o fluxo acabou) dentro de [ms]. */
+    fun encerrado(ms: Long = 5_000): Boolean {
+        leitor.join(ms)
+        return !leitor.isAlive
+    }
+
     override fun close() {
         if (aberto) {
             aberto = false
