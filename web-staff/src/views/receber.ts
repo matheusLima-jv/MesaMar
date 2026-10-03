@@ -1,5 +1,5 @@
 import { ApiError, fecharSemReceber, lerReais, novoId, receberPagamento, reais, type ContaAPagar, type Metodo } from '../api'
-import { h, lembrar } from '../dom'
+import { h, lembrar, registrarSobreposicao } from '../dom'
 import { avisar } from '../toast'
 
 const FORMAS: Array<{ valor: Metodo, rotulo: string }> = [
@@ -14,6 +14,7 @@ const local = (c: ContaAPagar): string => (c.guardaSol === null ? 'Balcão' : `G
 function abrirDialogo (titulo: string, idTitulo: string, conteudo: Array<Node | null>, foco: () => HTMLElement | null): () => void {
   const anterior = document.activeElement as HTMLElement | null
   const fechar = (): void => {
+    desregistrar()
     document.removeEventListener('keydown', teclas)
     tela.remove()
     anterior?.focus()
@@ -23,6 +24,8 @@ function abrirDialogo (titulo: string, idTitulo: string, conteudo: Array<Node | 
     h('div', { class: 'dialogo-painel' }, h('h2', { id: idTitulo }, titulo), ...conteudo)
   )
   document.body.append(tela)
+  // Trocou de aba, saiu ou a sessão acabou: o diálogo some junto
+  const desregistrar = registrarSobreposicao(() => { document.removeEventListener('keydown', teclas); tela.remove() })
   document.addEventListener('keydown', teclas)
   foco()?.focus()
   return fechar

@@ -3,6 +3,7 @@ package br.com.mesamar.cardapio
 import br.com.mesamar.barraca.Barraca
 import br.com.mesamar.barraca.BarracaRepository
 import br.com.mesamar.common.Money
+import br.com.mesamar.eventos.PublicadorEventos
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -42,6 +43,7 @@ class CardapioService(
     private val categorias: CategoriaRepository,
     private val produtos: ProdutoRepository,
     private val barracas: BarracaRepository,
+    private val tempoReal: PublicadorEventos,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -67,6 +69,8 @@ class CardapioService(
         barraca: Barraca,
         nomeBruto: String,
     ): String? {
+        // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        tempoReal.cardapioMudou(barraca.id)
         val nome = limpar(nomeBruto)
         // Uma criação por vez na barraca: o limite e o nome repetido são conferidos sem corrida
         barracas.travar(barraca.id)
@@ -85,6 +89,8 @@ class CardapioService(
         id: UUID,
         nomeBruto: String,
     ): String? {
+        // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        tempoReal.cardapioMudou(barraca.id)
         val categoria = categorias.findByIdAndBarracaId(id, barraca.id) ?: return NAO_ENCONTRADA
         val nome = limpar(nomeBruto)
         problemaNomeCategoria(barraca, nome, exceto = id)?.let { return it }
@@ -99,6 +105,8 @@ class CardapioService(
         barraca: Barraca,
         id: UUID,
     ): String? {
+        // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        tempoReal.cardapioMudou(barraca.id)
         val categoria = categorias.findByIdAndBarracaId(id, barraca.id) ?: return NAO_ENCONTRADA
         val qtd = produtos.countByBarracaIdAndCategoriaId(barraca.id, id)
         if (qtd > 0) {
@@ -115,6 +123,8 @@ class CardapioService(
         id: UUID,
         direcao: Direcao,
     ): String? {
+        // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        tempoReal.cardapioMudou(barraca.id)
         val lista = categorias.findAllByBarracaIdOrderByOrdem(barraca.id)
         if (lista.none { it.id == id }) return NAO_ENCONTRADA
         trocar(lista, id, direcao, { it.id }, { it.ordem }, { c, o -> c.ordem = o })
@@ -130,6 +140,8 @@ class CardapioService(
         form: ProdutoForm,
         errors: Errors,
     ): Produto? {
+        // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        tempoReal.cardapioMudou(barraca.id)
         barracas.travar(barraca.id)
         val dados = validar(barraca, form, errors) ?: return null
         if (produtos.countByBarracaId(barraca.id) >= MAX_PRODUTOS) {
@@ -163,6 +175,8 @@ class CardapioService(
         form: ProdutoForm,
         errors: Errors,
     ): Produto? {
+        // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        tempoReal.cardapioMudou(barraca.id)
         val produto = produtos.findByIdAndBarracaId(id, barraca.id) ?: return null
         val dados = validar(barraca, form, errors) ?: return null
         if (produto.categoriaId != dados.categoria.id) {
@@ -181,7 +195,12 @@ class CardapioService(
     fun alternarEsgotado(
         barraca: Barraca,
         id: UUID,
-    ): Produto? = produtos.findByIdAndBarracaId(id, barraca.id)?.also { it.esgotado = !it.esgotado }?.let(::salvar)
+    ): Produto? =
+        produtos
+            .findByIdAndBarracaId(id, barraca.id)
+            ?.also { it.esgotado = !it.esgotado }
+            ?.let(::salvar)
+            ?.also { tempoReal.cardapioMudou(barraca.id) }
 
     /** Versão "definir" (não alternar) para o app: repetir a mesma chamada não desfaz a ação. */
     @Transactional
@@ -189,14 +208,24 @@ class CardapioService(
         barraca: Barraca,
         id: UUID,
         esgotado: Boolean,
-    ): Produto? = produtos.findByIdAndBarracaId(id, barraca.id)?.also { it.esgotado = esgotado }?.let(::salvar)
+    ): Produto? =
+        produtos
+            .findByIdAndBarracaId(id, barraca.id)
+            ?.also { it.esgotado = esgotado }
+            ?.let(::salvar)
+            ?.also { tempoReal.cardapioMudou(barraca.id) }
 
     @Transactional
     fun definirNoCardapio(
         barraca: Barraca,
         id: UUID,
         ativo: Boolean,
-    ): Produto? = produtos.findByIdAndBarracaId(id, barraca.id)?.also { it.ativo = ativo }?.let(::salvar)
+    ): Produto? =
+        produtos
+            .findByIdAndBarracaId(id, barraca.id)
+            ?.also { it.ativo = ativo }
+            ?.let(::salvar)
+            ?.also { tempoReal.cardapioMudou(barraca.id) }
 
     @Transactional
     fun moverProduto(
@@ -204,6 +233,8 @@ class CardapioService(
         id: UUID,
         direcao: Direcao,
     ): String? {
+        // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        tempoReal.cardapioMudou(barraca.id)
         val produto = produtos.findByIdAndBarracaId(id, barraca.id) ?: return NAO_ENCONTRADO
         val lista = produtos.findAllByBarracaIdAndCategoriaIdOrderByOrdem(barraca.id, produto.categoriaId)
         trocar(lista, id, direcao, { it.id }, { it.ordem }, { p, o -> p.ordem = o })

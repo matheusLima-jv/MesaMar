@@ -1,5 +1,5 @@
 import { ApiError, pausar } from '../api'
-import { h } from '../dom'
+import { h, registrarSobreposicao } from '../dom'
 import { avisar } from '../toast'
 
 /**
@@ -13,6 +13,7 @@ export function dialogoPausar (aoConcluir: () => void): void {
   const confirmar = h('button', { type: 'submit', class: 'btn btn-danger btn-block btn-big' }, 'Pausar pedidos')
 
   const fechar = (): void => {
+    desregistrar()
     document.removeEventListener('keydown', teclas)
     tela.remove()
     anterior?.focus()
@@ -54,6 +55,8 @@ export function dialogoPausar (aoConcluir: () => void): void {
     h('div', { class: 'dialogo-painel' }, h('h2', { id: 'pausa-titulo' }, 'Pausar pedidos'), form)
   )
   document.body.append(tela)
+  // Trocou de aba, saiu ou a sessão acabou: o diálogo some junto (sem rodar o "ao concluir")
+  const desregistrar = registrarSobreposicao(() => { document.removeEventListener('keydown', teclas); tela.remove() })
   document.addEventListener('keydown', teclas)
   recado.focus()
 }

@@ -268,6 +268,11 @@ async function enviar (): Promise<void> {
   await tentarEnviar()
 }
 
+/** Espera com ±20% de variação: vários celulares que perderam o sinal juntos não tentam todos no mesmo segundo. */
+function comVariacao (ms: number): number {
+  return Math.round(ms * (0.8 + Math.random() * 0.4))
+}
+
 function esperar (ms: number): Promise<void> {
   return new Promise((resolve) => {
     const fim = (): void => {
@@ -297,7 +302,7 @@ async function tentarEnviar (): Promise<void> {
       const pedido = pendente.ler(token)
       if (pedido === null) return
       try {
-        const feito = await enviarPedido(token, pedido)
+        const feito = await enviarPedido(token, { ...pedido, reenvio: pedido.reenvio === true })
         pendente.apagar(token)
         ctx.carrinho.limpar()
         confirmado = feito
@@ -314,8 +319,11 @@ async function tentarEnviar (): Promise<void> {
           await recusado(e instanceof ApiError ? e : new ApiError(0, 'erro', 'Algo deu errado. Tente de novo.'))
           return
         }
+        // A próxima tentativa é um reenvio: se a equipe lançar este pedido nesse meio-tempo, o servidor reconhece
+        if (pedido.reenvio !== true) pendente.guardar(token, { ...pedido, reenvio: true })
         if (!semSinal) { semSinal = true; desenhar() }
-        await esperar(espera)
+        // 429: espera o que o servidor pediu. O resto: espera crescente com variação (aparelhos não voltam juntos)
+        await esperar(e.esperaMs ?? comVariacao(espera))
         espera = Math.min(espera * 2, ESPERA_MAXIMA_MS)
       }
     }

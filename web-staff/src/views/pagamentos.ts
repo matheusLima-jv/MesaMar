@@ -1,4 +1,4 @@
-import { ApiError, bloquearComanda, desbloquearComanda, encerrarComanda, reais, type ContaAPagar, type Sessao } from '../api'
+import { ApiError, descartada, bloquearComanda, desbloquearComanda, encerrarComanda, reais, type ContaAPagar, type Sessao } from '../api'
 import { h, mount } from '../dom'
 import { estado as estadoDaFila } from '../fila-store'
 import { agoraDoServidor, estado, observar, recarregar } from '../pagamentos-store'
@@ -104,7 +104,7 @@ function cartao (root: HTMLElement, sessao: Sessao, c: ContaAPagar, dono: boolea
     render(root, sessao)
     chamada()
       .then(() => { avisar(sucesso) })
-      .catch((e: unknown) => { avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
+      .catch((e: unknown) => { if (!descartada(e)) avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
       .finally(() => {
         ocupados.delete(c.comandaId)
         void recarregar()

@@ -115,7 +115,7 @@ cd e2e && npm ci && E2E_BASE_URL=http://localhost:8080 E2E_ADMIN_PASSWORD=<a do 
 ```
 
 ### Roteiro manual completo (para a entrega final)
-`docs/testar-localmente.md`, itens 1 a 164.
+`docs/testar-localmente.md`, itens 1 a 177.
 
 ### CI (GitHub Actions, `.github/workflows/ci.yml`)
 - ktlint → build e testes → imagem Docker → smoke do compose → E2E (Playwright, Pixel 7) → push para o GHCR (só na `main`).
@@ -240,6 +240,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 - **Service worker do cliente:** o escopo de um SW é a pasta dele, por isso ele é servido em `/c/sw.js` (rota em `FrontendRoutesConfig`), e não em `/cliente/`. Ele nunca pode cachear `POST` nem `/api/c/` além do `GET` da comanda.
 - **E2E e modo sem sinal:** `context.setOffline(true)` gera erro no console do Chrome ("Failed to load resource"). Chame o `checkConsole` **antes** de ficar offline (ver o passo 8d do `painel.spec.ts`).
 - **Porta 5432 ocupada neste Windows:** para o compose, use um arquivo de override com `ports: !override ["127.0.0.1:5433:5432"]` (fora do repositório), em vez de editar o `docker-compose.yml`.
+- **Os `sw.js` têm marcas que o build substitui** (`'mesamar-…-dev'` e `/* ARQUIVOS */ []`, em `vite.config.ts`). Não mude essas marcas sem mudar o plugin: o build falha de propósito se elas sumirem.
 - **`cd` persiste entre chamadas do shell:** use caminhos absolutos ou volte à raiz antes de rodar o Gradle.
 
 ---
@@ -299,6 +300,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 ### Fase 6: modo atendente offline
 - **6.1:** 🔶 pronto, aguardando aprovação (ver `docs/relatorios/fase-6.md` e [ADR 0017](docs/adr/0017-pedido-lancado-pela-equipe.md)). `POST /api/staff/comandas/{id}/pedidos` (origem `ATENDENTE`, autor gravado, V16), pausa e limite de saldo **não** barram a equipe, `CheckinRequest.token` do aparelho, tela Pedir no app. CI verde no PR #7 (412 testes, 11 E2E).
 - **Correções da revisão, lote 1 (itens 1 a 20):** feitas na mesma branch, antes do 6.2 (ver `docs/relatorios/fase-6.md`). 428 testes. Travas novas: `BarracaRepository.travar`, `UsuarioRepository.travar`, `ConviteRepository/ResetSenhaRepository.travarPorHash`. O Matheus vai mandar mais itens da revisão.
+- **Correções da revisão, lote 2 (itens 21 a 40):** feitas (ver o relatório). Base nova no app do quiosque: `api.ts` com prazo e `encerrarSessaoLocal`, `dom.ts` com `abrirTela` e `registrarSobreposicao`, `busca.ts` (`umaPorVez`), `pendencias.ts` (semente da fila offline). Service workers com versão por publicação gravada no build (`vite.config.ts`, fora do `tsc`). Evento SSE `cardapio`. 432 testes.
 - **6.2 (próximo):** fila de ações no IndexedDB (Dexie), reenvio em ordem com espera crescente, indicador 🟢/🟠/🔴, check-in offline (token gerado com `crypto.getRandomValues`), Service Worker do app. **6.3:** regras de conflito, última sincronização por aparelho visível ao dono, E2E offline.
 - Lançar pedido pelo atendente (`origem=ATENDENTE`); fila de ações no IndexedDB (Dexie) com UUID, reenvio em ordem e backoff; check-in offline; indicador 🟢/🟠/🔴; regras de conflito em ADR.
 - A API de "esgotado" já é um "definir", pensada para isso.
@@ -318,7 +320,7 @@ docs/             MESAMAR_PROMPT.md (plano), adr/0001–0015, relatorios/fase-0.
 - **Deploy** em `mesamar.0mega.fun`, seguindo o `docs/deploy.md`.
 - **SMTP em produção**, para o "esqueci a senha" funcionar: escolher o serviço e criar SPF/DKIM na Cloudflare, manualmente.
 - **Portão A:** divulgar a landing, visitar barracas e medir o sinal em ≥3 praias num domingo, das 12h às 15h. O resultado decide se a Fase 6 vem antes do piloto.
-- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 164 até aqui.
+- **Testes manuais da entrega final:** `docs/testar-localmente.md`, itens 1 a 177 até aqui.
 
 ## 9. Riscos conhecidos e decisões de escala
 

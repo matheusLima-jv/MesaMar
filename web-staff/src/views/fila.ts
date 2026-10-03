@@ -1,4 +1,4 @@
-import { ApiError, mudarStatus, pausar, type Fila, type PedidoFila } from '../api'
+import { ApiError, descartada, mudarStatus, pausar, type Fila, type PedidoFila } from '../api'
 import { h, mount } from '../dom'
 import { agoraDoServidor, ehNovo, estado, observar, recarregar } from '../fila-store'
 import { definirSom, somLigado } from '../som'
@@ -129,7 +129,7 @@ function blocoPausa (dados: Fila): HTMLElement {
     voltar.disabled = true
     pausar(false)
       .then(() => { avisar('Voltou a receber pedidos.') })
-      .catch((e: unknown) => { avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
+      .catch((e: unknown) => { if (!descartada(e)) avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
       .finally(() => { void recarregar() })
   })
   return h('div', { class: 'pausa', role: 'status' },
@@ -160,7 +160,7 @@ function cartao (root: HTMLElement, p: PedidoFila, alertaMin: number): HTMLLIEle
     render(root)
     mudarStatus(p.id, novo)
       .then(() => { avisar(novo === 'ENTREGUE' ? `Pedido nº ${p.numero} entregue.` : `Pedido nº ${p.numero} em preparo.`) })
-      .catch((e: unknown) => { avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
+      .catch((e: unknown) => { if (!descartada(e)) avisar(e instanceof ApiError ? e.message : 'Não deu para salvar. Tente de novo.', true) })
       .finally(() => {
         ocupados.delete(p.id)
         void recarregar()

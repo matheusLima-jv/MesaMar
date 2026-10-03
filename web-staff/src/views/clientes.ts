@@ -1,5 +1,6 @@
-import { ApiError, clientes, guardaSois, novoCliente, novoId, type Comanda, type GuardaSolOpcao, type Sessao } from '../api'
-import { h, mount } from '../dom'
+import { ApiError, clientes, descartada, guardaSois, novoCliente, novoId, type Comanda, type GuardaSolOpcao, type NovoCliente, type Sessao } from '../api'
+import { abrirTela, h, mount, registrarSobreposicao } from '../dom'
+import { pendencias } from '../pendencias'
 import { qrSvg } from '../qr'
 import { lancar } from './lancar'
 
@@ -8,10 +9,13 @@ import { lancar } from './lancar'
  * e o QR pessoal em tela cheia. A lista mostra quem está com comanda aberta, por ordem de chegada.
  */
 export function abaClientes (root: HTMLElement, sessao: Sessao): void {
+  // Resposta que chega depois de a pessoa ter trocado de aba (ou aberto outra tela) é descartada
+  const aberta = abrirTela(root)
   mount(root, h('p', { class: 'loading' }, 'Carregando os clientes…'))
   clientes()
-    .then((lista) => desenharLista(root, sessao, lista))
+    .then((lista) => { if (aberta()) desenharLista(root, sessao, lista) })
     .catch((e: unknown) => {
+      if (!aberta() || descartada(e)) return
       mount(root, h('div', { class: 'empty' },
         h('p', {}, e instanceof ApiError ? e.message : 'Não deu para carregar os clientes.'),
         h('button', { type: 'button', class: 'btn btn-line', onclick: () => abaClientes(root, sessao) }, 'Tentar de novo')
@@ -53,10 +57,18 @@ function desenharLista (root: HTMLElement, sessao: Sessao, lista: Comanda[]): vo
   )
 }
 
+/** Check-ins sem resposta ficam guardados por barraca: o mesmo aparelho pode entrar em outra barraca depois. */
+const escopoCheckin = (sessao: Sessao): string => sessao.barraca?.codigo ?? 'sem-barraca'
+
 function formNovo (root: HTMLElement, sessao: Sessao): void {
+  const aberta = abrirTela(root)
+  // Um check-in anterior ficou sem resposta: o formulário volta com os mesmos dados e o mesmo id, travado, para
+  // reenviar. Se ele já tinha chegado, o servidor devolve a mesma comanda (não cria outra).
+  const pendente = pendencias.ler<NovoCliente>('checkin', escopoCheckin(sessao))
   // O id nasce aqui e vale para todas as tentativas deste formulário: reenviar não duplica o cliente.
-  const id = novoId()
-  let escolhido: string | null = null
+  const id = pendente?.id ?? novoId()
+  let escolhido: string | null = pendente?.dados.guardaSolId ?? null
+  const travado = pendente !== null
 
   const erroGeral = h('p', { class: 'alert', role: 'alert', hidden: true })
   const erros: Record<string, HTMLParagraphElement> = {}
@@ -66,10 +78,13 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
   }
 
   const nome = h('input', {
-    id: 'nome', type: 'text', maxlength: 40, autocomplete: 'off', autocapitalize: 'words', enterkeyhint: 'next', required: true
+    id: 'nome', type: 'text', maxlength: 40, autocomplete: 'off', autocapitalize: 'words', enterkeyhint: 'next', required: true,
+    value: pendente?.dados.nome, readonly: travado
   })
-  const whatsapp = h('input', { id: 'whatsapp', type: 'tel', inputmode: 'tel', autocomplete: 'off', placeholder: '(13) 99999-8888' })
-  const consentimento = h('input', { id: 'consentimento', type: 'checkbox' })
+  const whatsapp = h('input', {
+    id: 'whatsapp', type: 'tel', inputmode: 'tel', autocomplete: 'off', placeholder: '(13) 99999-8888', value: pendente?.dados.whatsapp, readonly: travado
+  })
+  const consentimento = h('input', { id: 'consentimento', type: 'checkbox', checked: pendente?.dados.consentimento === true, disabled: travado })
   const grade = h('div', { class: 'umbrellas', role: 'group', 'aria-labelledby': 't-gs' }, h('p', { class: 'hint' }, 'Carregando…'))
   const botao = h('button', { type: 'submit', class: 'btn btn-ink btn-block btn-big' }, 'Gerar QR')
 
@@ -80,7 +95,8 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
         class: `umbrella${valor === null ? ' wide' : ''}${ocupado ? ' busy' : ''}${escolhido === valor ? ' on' : ''}`,
         'aria-pressed': String(escolhido === valor),
         'aria-label': rotulo,
-        onclick: () => { escolhido = valor; desenharGrade(opcoes) }
+        disabled: travado && escolhido !== valor,
+        onclick: () => { if (travado) return; escolhido = valor; desenharGrade(opcoes) }
       }, texto)
     grade.replaceChildren(
       opcao(null, 'Sem guarda-sol', 'Sem guarda-sol (balcão)', false),
@@ -105,8 +121,11 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
   }
 
   guardaSois()
-    .then(desenharGrade)
-    .catch(() => { desenharGrade([]); grade.append(h('p', { class: 'hint' }, 'Não deu para carregar os guarda-sóis. Dá para seguir sem.')) })
+    .then((opcoes) => { if (aberta()) desenharGrade(opcoes) })
+    .catch((e: unknown) => {
+      if (!aberta() || descartada(e)) return
+      desenharGrade([])
+      grade.append(h('p', { class: 'hint' }, 'Não deu para carregar os guarda-sóis. Dá para seguir sem.')) })
 
   const form = h('form', {
     class: 'checkin',
@@ -125,11 +144,20 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
       }
       botao.disabled = true
       botao.textContent = 'Gerando…'
-      novoCliente({ id, nome: nome.value, guardaSolId: escolhido, whatsapp: whatsapp.value, consentimento: consentimento.checked })
+      const envio: NovoCliente = pendente?.dados ?? { id, nome: nome.value, guardaSolId: escolhido, whatsapp: whatsapp.value, consentimento: consentimento.checked }
+      // Guardado antes de sair: trocar de aba ou recarregar o app no meio não perde o id deste check-in
+      pendencias.guardar('checkin', escopoCheckin(sessao), id, envio)
+      novoCliente(envio)
         .then((c) => {
-          telaQr(sessao, c, () => abaClientes(root, sessao))
+          pendencias.apagar('checkin', escopoCheckin(sessao))
+          if (aberta()) telaQr(sessao, c, () => abaClientes(root, sessao))
         })
         .catch((e: unknown) => {
+          if (descartada(e)) return
+          // Recusa do servidor (4xx): nada foi criado, dá para corrigir. Sem resposta: continua pendente
+          if (e instanceof ApiError && e.status >= 400 && e.status < 500) pendencias.apagar('checkin', escopoCheckin(sessao))
+          if (!aberta()) return
+          if (!travado && e instanceof ApiError && e.status === 0) { formNovo(root, sessao); return }
           botao.disabled = false
           botao.textContent = 'Gerar QR'
           if (e instanceof ApiError && Object.keys(e.campos).length > 0) {
@@ -156,8 +184,15 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
   h('button', { type: 'button', class: 'link center-block', onclick: () => abaClientes(root, sessao) }, 'Cancelar')
   )
 
-  mount(root, h('header', { class: 'tab-head' }, h('h1', {}, 'Novo cliente')), form)
-  nome.focus()
+  mount(root,
+    h('header', { class: 'tab-head' }, h('h1', {}, 'Novo cliente')),
+    ...(pendente !== null
+      ? [h('p', { class: 'alert', role: 'status' },
+          `O check-in de ${pendente.dados.nome} foi enviado e a resposta não chegou. Toque em Gerar QR: se ele já tinha chegado, a comanda é a mesma (não vira outra).`)]
+      : []),
+    form)
+  if (travado) botao.focus()
+  else nome.focus()
 }
 
 /** QR em tela cheia, grande o bastante para a câmera ler a ~50 cm, no sol. */
@@ -165,6 +200,7 @@ function telaQr (sessao: Sessao, c: Comanda, aoFechar: () => void): void {
   const anterior = document.activeElement as HTMLElement | null
   // Trocar de aba (ou voltar no navegador) com o QR aberto só tira a tela, sem redesenhar a aba antiga.
   const remover = (): void => {
+    desregistrar()
     document.removeEventListener('keydown', teclas)
     window.removeEventListener('hashchange', remover)
     tela.remove()
@@ -198,6 +234,8 @@ function telaQr (sessao: Sessao, c: Comanda, aoFechar: () => void): void {
     )
   )
   document.body.append(tela)
+  // Sessão acabou ou o app saiu: o QR some sem voltar para a lista de clientes
+  const desregistrar = registrarSobreposicao(remover)
   document.addEventListener('keydown', teclas)
   window.addEventListener('hashchange', remover)
   pronto.focus()

@@ -1,7 +1,8 @@
 // O que está para pagar, guardado fora das telas (como a fila): o número na aba Pagamentos e o aviso "indo pagar"
 // funcionam em qualquer aba. O servidor só avisa "uma conta mudou" (evento `conta`, pela mesma conexão em tempo
 // real da fila); o app busca a lista de novo (/api/staff/pagamentos), então a tela sempre mostra o que o servidor tem.
-import { ApiError, pagamentos, reais, type ContaAPagar, type Pagamentos } from './api'
+import { ApiError, descartada, pagamentos, reais, type ContaAPagar, type Pagamentos } from './api'
+import { umaPorVez } from './busca'
 import { avisarPagamento } from './som'
 import { avisar } from './toast'
 
@@ -14,6 +15,7 @@ let diferencaMs = 0
 let falhou = false
 let timerBusca: number | undefined
 let primeiraBusca = true
+let ativa = false
 /** Avisos que o app já mostrou: comanda + hora do aviso. Avisar de novo muda a hora, e então toca de novo. */
 const vistos = new Set<string>()
 const ouvintes = new Set<Ouvinte>()
@@ -50,9 +52,14 @@ export function textoDoAviso (c: ContaAPagar): string {
   return `${local} · ${c.cliente} está indo pagar · ${reais(c.saldoCentavos)} · ${forma}${troco}`
 }
 
-export async function recarregar (): Promise<void> {
+/** Uma busca por vez: respostas fora de ordem nunca voltam a lista para um estado antigo. */
+export const recarregar = umaPorVez(buscarPagamentos)
+
+async function buscarPagamentos (): Promise<void> {
+  if (!ativa) return
   try {
     const nova = await pagamentos()
+    if (!ativa) return
     diferencaMs = Date.parse(nova.agora) - Date.now()
     const novos = nova.aguardando.filter((c) => c.avisoEm !== null && !vistos.has(`${c.comandaId}@${c.avisoEm}`))
     nova.aguardando.forEach((c) => { if (c.avisoEm !== null) vistos.add(`${c.comandaId}@${c.avisoEm}`) })
@@ -65,6 +72,7 @@ export async function recarregar (): Promise<void> {
     dados = nova
     falhou = false
   } catch (e) {
+    if (descartada(e) || !ativa) return
     // 401: o app já volta para o login (evento da api). Sem sinal: segue com a última lista e tenta de novo.
     falhou = !(e instanceof ApiError && e.status === 401)
   }
@@ -73,15 +81,18 @@ export async function recarregar (): Promise<void> {
 
 /** Várias mudanças seguidas viram uma busca só. */
 export function agendarBusca (): void {
+  if (!ativa) return
   window.clearTimeout(timerBusca)
   timerBusca = window.setTimeout(() => { void recarregar() }, REDESENHO_MS)
 }
 
 export function iniciarPagamentos (): void {
+  ativa = true
   void recarregar()
 }
 
 export function pararPagamentos (): void {
+  ativa = false
   window.clearTimeout(timerBusca)
   dados = null
   falhou = false

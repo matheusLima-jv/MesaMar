@@ -138,10 +138,25 @@ export class ApiError extends Error {
     mensagem: string,
     readonly tentativasRestantes?: number,
     /** Erros por campo (400 de validação): { nome: 'Digite o nome…' } */
-    readonly campos: Record<string, string> = {}
+    readonly campos: Record<string, string> = {},
+    /** 429: quanto o servidor pediu para esperar (cabeçalho Retry-After), em ms. */
+    readonly esperaMs?: number
   ) {
     super(mensagem)
   }
+
+  /**
+   * A chamada foi descartada porque a sessão local acabou (saiu, trocou de pessoa) enquanto ela estava em andamento.
+   * Ninguém mostra este erro: a tela que pediu já não existe.
+   */
+  get descartada (): boolean {
+    return this.codigo === 'descartada'
+  }
+}
+
+/** Erro que não deve aparecer na tela (chamada de uma sessão que já acabou). */
+export function descartada (e: unknown): boolean {
+  return e instanceof ApiError && e.descartada
 }
 
 let csrf = ''
@@ -149,54 +164,97 @@ let csrf = ''
 /** Avisado quando a sessão acaba (ex.: o dono desativou o atendente): o app volta ao login. */
 export const eventos = new EventTarget()
 
+/**
+ * Prazo de cada chamada. Leitura que passa do prazo vira "sem conexão" e a tela oferece tentar de novo. Ação (POST)
+ * que passa do prazo tem resultado desconhecido: vira o mesmo erro de rede (status 0), e quem chama reenvia com o
+ * MESMO id, então o servidor não registra duas vezes.
+ */
+const PRAZO_LEITURA_MS = 15_000
+const PRAZO_ACAO_MS = 20_000
+
+/** Tudo o que está em andamento pertence a esta sessão local. Sair aborta e descarta (nada repopula telas nem stores). */
+let sessaoLocal = new AbortController()
+
+export function encerrarSessaoLocal (): void {
+  sessaoLocal.abort()
+  sessaoLocal = new AbortController()
+}
+
 async function lerErro (res: Response): Promise<ApiError> {
+  const retry = Number(res.headers.get('Retry-After'))
+  const esperaMs = res.status === 429 && Number.isFinite(retry) && retry > 0 ? retry * 1000 : undefined
   try {
     const body = await res.json() as { erro?: string, mensagem?: string, tentativasRestantes?: number, campos?: Record<string, string> }
-    return new ApiError(res.status, body.erro ?? 'erro', body.mensagem ?? 'Algo deu errado. Tente de novo.', body.tentativasRestantes, body.campos)
+    return new ApiError(res.status, body.erro ?? 'erro', body.mensagem ?? 'Algo deu errado. Tente de novo.', body.tentativasRestantes, body.campos, esperaMs)
   } catch {
-    return new ApiError(res.status, 'erro', 'Algo deu errado. Tente de novo.')
+    return new ApiError(res.status, 'erro', 'Algo deu errado. Tente de novo.', undefined, {}, esperaMs)
   }
 }
 
 async function chamar<T> (method: 'GET' | 'POST', path: string, body?: unknown, tentarDeNovo = true): Promise<T> {
-  let res: Response
+  const daSessao = sessaoLocal.signal
+  const descartar = (): ApiError => new ApiError(0, 'descartada', 'Ação descartada.')
+  if (daSessao.aborted) throw descartar()
+  const controle = new AbortController()
+  let estourou = false
+  const prazo = window.setTimeout(() => { estourou = true; controle.abort() }, method === 'GET' ? PRAZO_LEITURA_MS : PRAZO_ACAO_MS)
+  const aoEncerrar = (): void => { controle.abort() }
+  daSessao.addEventListener('abort', aoEncerrar)
+  // Falha de rede, prazo estourado ou corpo cortado: o que aconteceu no servidor é desconhecido
+  const semResposta = (): ApiError => {
+    if (daSessao.aborted) return descartar()
+    if (estourou) return new ApiError(0, 'tempo', 'O servidor demorou demais para responder. Confira o sinal e tente de novo (nada será registrado duas vezes).')
+    return new ApiError(0, 'rede', 'Sem conexão com o servidor. Confira a internet e tente de novo.')
+  }
   try {
-    res = await fetch(`/api/staff${path}`, {
-      method,
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: {
-        Accept: 'application/json',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-        ...(method === 'POST' ? { 'X-CSRF-TOKEN': csrf } : {})
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined
-    })
-  } catch {
-    throw new ApiError(0, 'rede', 'Sem conexão com o servidor. Confira a internet e tente de novo.')
-  }
-
-  if (res.status === 204) return undefined as T
-  if (res.ok) {
-    let dados: T & { csrf?: string }
+    let res: Response
     try {
-      dados = await res.json() as T & { csrf?: string }
+      res = await fetch(`/api/staff${path}`, {
+        method,
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal: controle.signal,
+        headers: {
+          Accept: 'application/json',
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(method === 'POST' ? { 'X-CSRF-TOKEN': csrf } : {})
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined
+      })
     } catch {
-      // 2xx com o corpo cortado (o sinal caiu no meio): a ação pode ter sido gravada. Quem chama repete com o mesmo id.
-      throw new ApiError(0, 'rede', 'A resposta do servidor não chegou. Tente de novo (nada será registrado duas vezes).')
+      throw semResposta()
     }
-    if (typeof dados === 'object' && dados !== null && typeof dados.csrf === 'string') csrf = dados.csrf
-    return dados
-  }
 
-  const erro = await lerErro(res)
-  // Token CSRF vencido (sessão expirou no servidor): pega um novo e repete uma vez.
-  if (erro.status === 403 && erro.codigo === 'csrf' && tentarDeNovo) {
-    await sessao()
-    return await chamar<T>(method, path, body, false)
+    if (res.status === 204) {
+      if (daSessao.aborted) throw descartar()
+      return undefined as T
+    }
+    if (res.ok) {
+      let dados: T & { csrf?: string }
+      try {
+        dados = await res.json() as T & { csrf?: string }
+      } catch {
+        // 2xx com o corpo cortado (o sinal caiu no meio): a ação pode ter sido gravada. Quem chama repete com o mesmo id.
+        throw semResposta()
+      }
+      if (daSessao.aborted) throw descartar()
+      if (typeof dados === 'object' && dados !== null && typeof dados.csrf === 'string') csrf = dados.csrf
+      return dados
+    }
+
+    const erro = await lerErro(res)
+    if (daSessao.aborted) throw descartar()
+    // Token CSRF vencido (sessão expirou no servidor): pega um novo e repete uma vez.
+    if (erro.status === 403 && erro.codigo === 'csrf' && tentarDeNovo) {
+      await sessao()
+      return await chamar<T>(method, path, body, false)
+    }
+    if (erro.status === 401 && erro.codigo === 'sessao') eventos.dispatchEvent(new Event('sessao-expirada'))
+    throw erro
+  } finally {
+    window.clearTimeout(prazo)
+    daSessao.removeEventListener('abort', aoEncerrar)
   }
-  if (erro.status === 401 && erro.codigo === 'sessao') eventos.dispatchEvent(new Event('sessao-expirada'))
-  throw erro
 }
 
 export async function sessao (): Promise<Sessao> {

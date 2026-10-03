@@ -1,7 +1,7 @@
 import './style.css'
 import './install'
-import { ApiError, eventos, sessao, type Sessao } from './api'
-import { h, mount } from './dom'
+import { ApiError, encerrarSessaoLocal, eventos, sessao, type Sessao } from './api'
+import { fecharSobreposicoes, h, mount } from './dom'
 import { abaCardapio } from './views/cardapio'
 import { abaClientes } from './views/clientes'
 import { iniciarFila, observar, pararFila, pendentes } from './fila-store'
@@ -53,6 +53,8 @@ function app (s: Sessao): void {
     conteudo.scrollTop = 0
     lembrarTela(aba)
     limparAviso()
+    // Diálogos da aba anterior (receber, cancelar, pausar) não ficam por cima da aba nova
+    fecharSobreposicoes()
     switch (aba) {
       case 'clientes': abaClientes(conteudo, s); break
       case 'fila': abaFila(conteudo); break
@@ -100,6 +102,9 @@ function app (s: Sessao): void {
 
 function voltarAoLogin (): void {
   atual = null
+  // Tudo o que estava em andamento é descartado: nenhuma resposta atrasada repopula a fila, os pagamentos ou uma tela
+  encerrarSessaoLocal()
+  fecharSobreposicoes()
   pararFila()
   pararPagamentos()
   pararDeObservar?.()

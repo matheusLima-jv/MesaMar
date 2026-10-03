@@ -6,6 +6,8 @@ import { instalado, plataforma } from './install'
 
 export type EstadoPush =
   | 'servidor-sem-chaves' // o servidor ainda não tem as chaves VAPID
+  | 'sem-conexao' // não deu para perguntar ao servidor (sinal): não é o mesmo que "sem chaves"
+  | 'app-nao-pronto' // o service worker não ficou pronto (registro falhou ou demorou demais)
   | 'nao-suportado' // o navegador não sabe fazer push
   | 'precisa-instalar' // iPhone: só funciona com o app na tela inicial
   | 'bloqueado' // o usuário negou a permissão de notificações
@@ -23,8 +25,30 @@ function bytesDaChave (base64url: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(texto, (c) => c.charCodeAt(0))
 }
 
+/** O service worker não ficou pronto a tempo (registro falhou, navegador travado): ninguém fica esperando para sempre. */
+export class AppNaoPronto extends Error {
+  constructor () {
+    super('O app ainda não terminou de se preparar neste celular. Feche e abra de novo, e tente outra vez.')
+  }
+}
+
+const PRAZO_SW_MS = 8_000
+
+/** `navigator.serviceWorker.ready` com prazo: sem ele, uma falha no registro deixava ativar, testar e até sair esperando. */
+async function registroPronto (): Promise<ServiceWorkerRegistration> {
+  let timer: number | undefined
+  try {
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_resolve, reject) => { timer = window.setTimeout(() => { reject(new AppNaoPronto()) }, PRAZO_SW_MS) })
+    ])
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
 async function inscricaoAtual (): Promise<PushSubscription | null> {
-  const registro = await navigator.serviceWorker.ready
+  const registro = await registroPronto()
   return await registro.pushManager.getSubscription()
 }
 
@@ -32,10 +56,24 @@ export async function estadoPush (): Promise<EstadoPush> {
   // No iPhone o PushManager só existe com o app instalado (iOS 16.4 ou mais novo)
   if (plataforma() === 'iphone' && !instalado()) return 'precisa-instalar'
   if (!suportado()) return 'nao-suportado'
-  const config = await pushConfig().catch(() => null)
-  if (config === null || !config.habilitado) return 'servidor-sem-chaves'
+  let config
+  try {
+    config = await pushConfig()
+  } catch (e) {
+    // Sem sinal (ou o servidor demorou): não dá para saber se há chaves, então não diz que não há
+    if (e instanceof ApiError && e.descartada) throw e
+    return 'sem-conexao'
+  }
+  if (!config.habilitado) return 'servidor-sem-chaves'
   if (Notification.permission === 'denied') return 'bloqueado'
-  return (await inscricaoAtual()) !== null && Notification.permission === 'granted' ? 'ativo' : 'desativado'
+  let inscricao: PushSubscription | null
+  try {
+    inscricao = await inscricaoAtual()
+  } catch (e) {
+    if (e instanceof AppNaoPronto) return 'app-nao-pronto'
+    throw e
+  }
+  return inscricao !== null && Notification.permission === 'granted' ? 'ativo' : 'desativado'
 }
 
 /** Pede a permissão, inscreve este aparelho e avisa o servidor. Lança um erro com a mensagem para mostrar. */
@@ -44,7 +82,7 @@ export async function ativarPush (): Promise<void> {
   if (!config.habilitado || config.chavePublica === null) throw new Error('Os avisos ainda não foram configurados no servidor.')
   const permissao = await Notification.requestPermission()
   if (permissao !== 'granted') throw new Error('Sem a permissão de notificações não dá para avisar. Libere nas configurações do navegador.')
-  const registro = await navigator.serviceWorker.ready
+  const registro = await registroPronto()
   const inscricao = await registro.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytesDaChave(config.chavePublica) })
   try {
     await inscreverPush(inscricao.toJSON())
@@ -59,7 +97,8 @@ export async function ativarPush (): Promise<void> {
 export async function desativarPush (): Promise<void> {
   lembrar.set('push', 'off')
   if (!suportado()) return
-  const inscricao = await inscricaoAtual()
+  // Sem service worker pronto, não há inscrição deste aparelho a cancelar: segue (sair nunca fica preso aqui)
+  const inscricao = await inscricaoAtual().catch(() => null)
   if (inscricao === null) return
   await cancelarPush(inscricao.endpoint).catch(() => undefined)
   await inscricao.unsubscribe().catch(() => undefined)
@@ -81,7 +120,7 @@ export async function religarPush (): Promise<void> {
     if (!suportado() || Notification.permission !== 'granted' || lembrar.get('push') === 'off') return
     const config = await pushConfig()
     if (!config.habilitado || config.chavePublica === null) return
-    const registro = await navigator.serviceWorker.ready
+    const registro = await registroPronto()
     const inscricao = await registro.pushManager.getSubscription() ??
       (lembrar.get('push') === 'on'
         ? await registro.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytesDaChave(config.chavePublica) })

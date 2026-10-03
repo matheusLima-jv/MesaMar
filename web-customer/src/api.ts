@@ -34,6 +34,11 @@ export interface Comanda {
   /** Barraca de treino: a página mostra um aviso de que nada ali é de verdade. */
   demo: boolean
   cardapio: Secao[]
+  /**
+   * Preenchido só quando a resposta veio do cache do aparelho (sem sinal): quando ela foi salva (ms desde 1970).
+   * A página avisa que o cardápio pode estar desatualizado, em vez de parecer confirmado agora pelo servidor.
+   */
+  salvoEm?: number
 }
 
 export interface ItemEnvio {
@@ -47,6 +52,11 @@ export interface ItemEnvio {
 export interface PedidoEnvio {
   id: string
   itens: ItemEnvio[]
+  /**
+   * Já houve uma tentativa sem resposta. No reenvio, se a equipe já lançou um pedido igual para esta comanda (o cliente
+   * chamou um atendente enquanto a página tentava), o servidor devolve o pedido da equipe em vez de criar outro.
+   */
+  reenvio?: boolean
 }
 
 export interface ItemPedido {
@@ -123,7 +133,9 @@ export class ApiError extends Error {
     readonly codigo: string,
     mensagem: string,
     /** Produtos que não dá para pedir (erro "indisponivel"). */
-    readonly produtos: string[] = []
+    readonly produtos: string[] = [],
+    /** 429: quanto o servidor pediu para esperar (cabeçalho Retry-After), em ms. */
+    readonly esperaMs?: number
   ) {
     super(mensagem)
   }
@@ -140,42 +152,67 @@ export function tokenDaUrl (): string | null {
   return m === null ? null : m[1]
 }
 
-async function chamar<T> (method: 'GET' | 'POST', token: string, caminho: string, body?: unknown): Promise<T> {
-  let res: Response
+/**
+ * Prazo de cada chamada: em sinal ruim, uma requisição pode ficar pendurada por minutos. Passou do prazo, vira "sem
+ * sinal" (status 0): leitura tenta de novo depois, e o pedido é reenviado com o MESMO id (o servidor não duplica).
+ */
+const PRAZO_LEITURA_MS = 15_000
+const PRAZO_ACAO_MS = 20_000
+
+async function chamar<T> (method: 'GET' | 'POST', token: string, caminho: string, body?: unknown, aoResponder?: (res: Response) => void): Promise<T> {
+  const controle = new AbortController()
+  const prazo = window.setTimeout(() => { controle.abort() }, method === 'GET' ? PRAZO_LEITURA_MS : PRAZO_ACAO_MS)
+  const semSinal = (): ApiError => new ApiError(0, 'rede', 'Sem sinal. Confira a internet e tente de novo.')
   try {
-    res = await fetch(`/api/c/${encodeURIComponent(token)}${caminho}`, {
-      method,
-      credentials: 'omit',
-      cache: 'no-store',
-      headers: {
-        Accept: 'application/json',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {})
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined
-    })
-  } catch {
-    throw new ApiError(0, 'rede', 'Sem sinal. Confira a internet e tente de novo.')
-  }
-  if (res.ok) {
+    let res: Response
     try {
-      return await res.json() as T
+      res = await fetch(`/api/c/${encodeURIComponent(token)}${caminho}`, {
+        method,
+        credentials: 'omit',
+        cache: 'no-store',
+        signal: controle.signal,
+        headers: {
+          Accept: 'application/json',
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {})
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined
+      })
     } catch {
-      // O servidor respondeu 2xx, mas o corpo não chegou inteiro (sinal caiu no meio). O pedido pode ter sido gravado:
-      // trata como falha de rede, para quem chama tentar de novo com o MESMO id (o servidor devolve o que já existe).
-      throw new ApiError(0, 'rede', 'Sem sinal. Confira a internet e tente de novo.')
+      throw semSinal()
     }
-  }
-  try {
-    const erro = await res.json() as { erro?: string, mensagem?: string, produtos?: string[] }
-    throw new ApiError(res.status, erro.erro ?? 'erro', erro.mensagem ?? 'Algo deu errado. Tente de novo.', erro.produtos)
-  } catch (e) {
-    if (e instanceof ApiError) throw e
-    throw new ApiError(res.status, 'erro', 'Algo deu errado. Tente de novo.')
+    if (res.ok) {
+      try {
+        const dados = await res.json() as T
+        aoResponder?.(res)
+        return dados
+      } catch {
+        // O servidor respondeu 2xx, mas o corpo não chegou inteiro (sinal caiu no meio). O pedido pode ter sido gravado:
+        // trata como falha de rede, para quem chama tentar de novo com o MESMO id (o servidor devolve o que já existe).
+        throw semSinal()
+      }
+    }
+    const retry = Number(res.headers.get('Retry-After'))
+    const esperaMs = res.status === 429 && Number.isFinite(retry) && retry > 0 ? retry * 1000 : undefined
+    try {
+      const erro = await res.json() as { erro?: string, mensagem?: string, produtos?: string[] }
+      throw new ApiError(res.status, erro.erro ?? 'erro', erro.mensagem ?? 'Algo deu errado. Tente de novo.', erro.produtos, esperaMs)
+    } catch (e) {
+      if (e instanceof ApiError) throw e
+      throw new ApiError(res.status, 'erro', 'Algo deu errado. Tente de novo.', [], esperaMs)
+    }
+  } finally {
+    window.clearTimeout(prazo)
   }
 }
 
 export async function comanda (token: string): Promise<Comanda> {
-  return await chamar<Comanda>('GET', token, '')
+  let salvoEm: number | undefined
+  const dados = await chamar<Comanda>('GET', token, '', undefined, (res) => {
+    // O service worker marca as cópias que guarda: se veio esta marca, a resposta é do cache, não do servidor agora
+    const marca = Number(res.headers.get('X-MesaMar-Salvo-Em'))
+    salvoEm = Number.isFinite(marca) && marca > 0 ? marca : undefined
+  })
+  return { ...dados, salvoEm }
 }
 
 /** Os pedidos da comanda (do mais novo para o mais antigo) e o saldo. */
@@ -229,6 +266,8 @@ export function ouvirComanda (token: string, aoMudar: () => void, aoEstado: (con
     es.addEventListener('pedido', aoMudar)
     // A conta mudou (o quiosque recebeu um pagamento, bloqueou a comanda…)
     es.addEventListener('conta', aoMudar)
+    // O quiosque mudou o cardápio (preço, esgotado, produto novo)
+    es.addEventListener('cardapio', aoMudar)
     es.addEventListener('ressincronizar', aoMudar)
     es.onerror = () => {
       aoEstado(false)

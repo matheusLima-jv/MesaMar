@@ -37,6 +37,12 @@ data class PedidoRequest(
     /** Gerado no celular: reenviar o mesmo pedido devolve o que já foi criado. */
     val id: UUID? = null,
     val itens: List<ItemRequest> = emptyList(),
+    /**
+     * A página do cliente já tentou este pedido e não teve resposta. Enquanto ela tentava, o cliente pode ter chamado
+     * um atendente, que lançou o mesmo pedido pelo app: nesse caso o servidor devolve o pedido da equipe em vez de
+     * criar um segundo (ver [PedidoService.lancadoPelaEquipe]).
+     */
+    val reenvio: Boolean = false,
 )
 
 /** O pedido com as suas linhas. */
@@ -129,6 +135,13 @@ class PedidoService(
         // Reenvio do mesmo pedido: devolve o que já existe, mesmo que a comanda tenha mudado desde então.
         pedidos.findById(id).orElse(null)?.let { existente ->
             return if (existente.comandaId == comanda.id) ResultadoPedido.Ok(detalhe(existente), nova = false) else ResultadoPedido.Conflito
+        }
+
+        // O cliente chamou um atendente enquanto a página reenviava: o pedido da equipe vale pelos dois
+        if (equipe == null &&
+            req.reenvio
+        ) {
+            lancadoPelaEquipe(comanda.id, req.itens)?.let { return ResultadoPedido.Ok(detalhe(it), nova = false) }
         }
 
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
@@ -268,6 +281,27 @@ class PedidoService(
         }
     }
 
+    /**
+     * Um pedido lançado pela equipe nesta comanda, na última [JANELA_CONCILIACAO], com exatamente os mesmos produtos
+     * e quantidades (a observação não conta), e que não foi cancelado. Só vale para reenvios: um pedido igual feito de
+     * propósito pelo cliente, que chega na primeira tentativa, nunca é confundido com o da equipe.
+     */
+    private fun lancadoPelaEquipe(
+        comandaId: UUID,
+        recebidos: List<ItemRequest>,
+    ): Pedido? {
+        if (recebidos.any { it.produtoId == null }) return null
+        val quer = recebidos.groupBy { it.produtoId!! }.mapValues { (_, l) -> l.sumOf { it.quantidade } }
+        if (quer.isEmpty()) return null
+        val desde = Instant.now(clock).minus(JANELA_CONCILIACAO)
+        return pedidos
+            .findAllByComandaIdOrderByCriadoEmAscNumeroPedidoAsc(comandaId)
+            .filter { it.origem == OrigemPedido.ATENDENTE && it.status != StatusPedido.CANCELADO && !it.criadoEm.isBefore(desde) }
+            .lastOrNull { p ->
+                itens.findAllByPedidoIdOrderByLinha(p.id).groupBy { it.produtoId }.mapValues { (_, l) -> l.sumOf { it.quantidade } } == quer
+            }
+    }
+
     private fun detalhe(p: Pedido) = PedidoDetalhe(p, itens.findAllByPedidoIdOrderByLinha(p.id))
 
     private data class Linha(
@@ -324,6 +358,8 @@ class PedidoService(
     }
 
     companion object {
+        /** Até quanto tempo depois um reenvio do cliente ainda é reconhecido como o pedido que a equipe lançou. */
+        val JANELA_CONCILIACAO: java.time.Duration = java.time.Duration.ofMinutes(60)
         const val MAX_LINHAS = 30
         const val MAX_QUANTIDADE = 20
         const val MAX_UNIDADES = 60

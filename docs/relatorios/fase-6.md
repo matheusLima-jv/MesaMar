@@ -83,3 +83,54 @@ Aprovação do 6.1 para começar o 6.2.
 
 - Os itens 1, 4, 19 e 20 são do front e não têm teste automático (os apps só têm E2E, e simular resposta cortada ou armazenamento bloqueado no Playwright é frágil). Roteiro 157 a 160.
 - Item 8 só vale quando o `nginx-mesamar-proxy.conf` for copiado na VPS (no deploy, que ainda não aconteceu).
+
+---
+
+## Correções da revisão de código (lote 2: itens 21 a 40)
+
+- **Data:** 2026-10-02.
+- **Testes:** 432 testes de backend localmente (eram 428). Novo: `CorrecoesRevisao2Test` (4). Quase todo o lote é dos apps, que não têm teste automático além do E2E: o roteiro manual ganhou os itens 165 a 177.
+
+### A base que resolve vários itens de uma vez (app do quiosque)
+
+- **`api.ts`:** toda chamada tem **prazo** (15 s leitura, 20 s ação) e pertence à **sessão local**. Sair (ou a sessão expirar) aborta tudo o que está em andamento, e a resposta que chegar depois é descartada (`descartada`), sem tocar em tela nem store. Ação que estoura o prazo vira o mesmo erro de "sem resposta" (status 0): quem chama reenvia com o mesmo id.
+- **`dom.ts`:** `abrirTela(root)` diz se a tela que pediu os dados ainda está aberta (resposta atrasada de outra aba é descartada). `registrarSobreposicao` / `fecharSobreposicoes`: diálogos e o QR em tela cheia somem ao trocar de aba, sair ou a sessão acabar, sem rodar o "ao fechar" de quem abriu.
+- **`busca.ts`:** `umaPorVez` (uma busca por vez; o que chega no meio vira uma busca a mais, depois) e `comVariacao` (±20% nas esperas).
+- **`pendencias.ts`:** check-in e lançamento sem resposta ficam guardados (memória + armazenamento do aparelho) com o id, até o servidor responder. É a semente da fila offline do 6.2.
+
+| # | O que mudou |
+|---|---|
+| 21 | Cada service worker apaga só os caches com o **próprio** prefixo (`mesamar-cliente-` / `mesamar-staff-`) |
+| 22 | Clientes, Cardápio, Lançar pedido e Mais descartam respostas de telas fechadas (`abrirTela`) |
+| 23 | `encerrarSessaoLocal()` ao sair: chamadas em andamento são abortadas e descartadas; os stores só aceitam resposta enquanto estão ligados |
+| 24 | Fila e Pagamentos buscam com `umaPorVez`: uma resposta velha nunca sobrescreve uma nova, e rajadas de avisos viram uma busca |
+| 25 | "Esgotou/Voltou": um envio por produto de cada vez; toques no meio só mudam o desejado, e o envio seguinte leva o último. Recusa volta ao último estado **confirmado** pelo servidor |
+| 26 | Lançar pedido: + e − ficam travados enquanto o pedido viaja. Recusa definitiva gera um id novo para o próximo envio |
+| 27 | Sair só volta ao login quando o servidor confirma (ou responde 401). Sem resposta, mostra o erro e deixa tentar de novo |
+| 28 | O timer de reconexão do tempo real é guardado e cancelado ao sair; nada religa a conexão depois |
+| 29 | Diálogos (receber, cancelar, pausar, QR) somem ao trocar de aba, sair e quando a sessão expira |
+| 30 | Prazo nas chamadas dos dois apps (o cliente também: 15 s / 20 s, e o pedido segue reenviando com o mesmo id) |
+| 31 | `serviceWorker.ready` com prazo de 8 s: ativar, testar e sair nunca ficam presos. Estado novo "app não pronto" |
+| 32 | Check-in e lançamento sem resposta sobrevivem a trocar de aba e recarregar: a tela volta com os mesmos dados, travados, para reenviar |
+| 33 | O cliente reenviando depois de chamar um atendente: o reenvio (`reenvio: true`) que bate com um pedido **lançado pela equipe** na última hora, mesmos produtos e quantidades, não cancelado, recebe o pedido da equipe em vez de criar outro. A primeira tentativa nunca é conciliada (o cliente pode querer repetir de propósito) |
+| 34 | O build grava no `sw.js` a lista de arquivos da publicação (JS, CSS, fontes, ícones); a instalação guarda todos, então a primeira reabertura sem rede funciona |
+| 35 | As gravações no cache usam `event.waitUntil` e engolem erro de quota |
+| 36 | Versão do cache = hash da publicação (gravado no build); a página do cliente guarda no máximo 3 comandas |
+| 37 | A cópia do cardápio guardada pelo service worker leva a hora (`X-MesaMar-Salvo-Em`); sem sinal, a página diz "Mostrando o cardápio salvo às HH:MM: preços e itens podem ter mudado" |
+| 38 | Evento de tempo real `cardapio` (preço, esgotado, produto, categoria): a página do cliente, a aba Cardápio e a tela Lançar pedido recarregam (a de lançar mantém o que já foi escolhido) |
+| 39 | O cliente respeita o `Retry-After` do 429 e varia a espera; o app não faz a consulta de reserva com a aba escondida e busca na hora ao voltar; reconexão com variação |
+| 40 | Avisos de pedido: "sem conexão" (com Tentar de novo) é diferente de "servidor sem chaves" |
+
+### Decisões que tomei (fáceis de desfazer)
+
+- **Item 33, janela de 60 minutos** e "mesmos produtos e quantidades, observação não conta". Se o atendente lançou com uma quantidade diferente, os dois pedidos ficam (o quiosque cancela um na fila).
+- **Item 32:** o check-in e o lançamento pendentes **não têm botão de descartar**. Descartar sem saber se chegou é o que gera duplicata; a saída é reenviar (o servidor devolve o que já existe) ou receber a recusa.
+- **Item 36:** o `vite.config.ts` saiu do `tsc` dos dois apps (ele roda no Node e agora usa `node:fs`); o Vite continua lendo normalmente.
+
+### Testes de backend (`CorrecoesRevisao2Test`)
+
+- Reenvio igual ao pedido da equipe devolve o pedido da equipe (200, mesmo id, um pedido só), mesmo com os itens em outra ordem e quebrados em linhas.
+- Pedido igual na primeira tentativa, ou reenvio com outra quantidade, viram pedidos novos.
+- Pedido da equipe cancelado ou de outra comanda não é reconhecido.
+- Marcar esgotado avisa o app e as páginas abertas da barraca, e não as de outra barraca.
+- Os 2 primeiros testam comportamento que não existia; os 2 do meio também passariam no código anterior (são guardas).

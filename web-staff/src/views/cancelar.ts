@@ -1,5 +1,5 @@
 import { ApiError, cancelarItem, cancelarPedido, type Motivo, type PedidoFila } from '../api'
-import { h } from '../dom'
+import { h, registrarSobreposicao } from '../dom'
 import { avisar } from '../toast'
 
 const MOTIVOS: Array<{ valor: Motivo, rotulo: string }> = [
@@ -32,6 +32,7 @@ export function dialogoCancelar (p: PedidoFila, aoConcluir: () => void): void {
   const confirmar = h('button', { type: 'submit', class: 'btn btn-danger btn-block btn-big' }, 'Confirmar cancelamento')
 
   const fechar = (): void => {
+    desregistrar()
     document.removeEventListener('keydown', teclas)
     tela.remove()
     anterior?.focus()
@@ -93,6 +94,8 @@ export function dialogoCancelar (p: PedidoFila, aoConcluir: () => void): void {
   )
   const tela = h('div', { class: 'dialogo', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'cancelar-titulo' }, painel)
   document.body.append(tela)
+  // Trocou de aba, saiu ou a sessão acabou: o diálogo some junto (sem rodar o "ao concluir")
+  const desregistrar = registrarSobreposicao(() => { document.removeEventListener('keydown', teclas); tela.remove() })
   document.addEventListener('keydown', teclas)
   painel.querySelector<HTMLInputElement>('input[name="motivo"]')?.focus()
 }

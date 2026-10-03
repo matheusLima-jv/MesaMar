@@ -3,10 +3,12 @@
 //
 // O servidor só avisa "um pedido mudou"; o app busca a fila de novo (/api/staff/fila). Assim a tela sempre mostra
 // o que o servidor tem, e se um aviso se perder a próxima busca corrige. Sem conexão, busca a cada 15 s.
-import { ApiError, fila, type Fila, type PedidoFila } from './api'
+import { ApiError, descartada, fila, type Fila, type PedidoFila } from './api'
+import { umaPorVez } from './busca'
 import { avisarAtraso, avisarPedidoNovo } from './som'
 import { agendarBusca as agendarPagamentos } from './pagamentos-store'
 import { avisar } from './toast'
+import { comVariacao } from './busca'
 
 type Ouvinte = () => void
 
@@ -21,6 +23,9 @@ let falhou = false
 let origem: EventSource | null = null
 let timerBusca: number | undefined
 let timerReserva: number | undefined
+let timerReconexao: number | undefined
+/** O app está logado e ouvindo. Depois de sair, nada (timer, reconexão, resposta atrasada) volta a ligar a fila. */
+let ativa = false
 let primeiraBusca = true
 const vistos = new Set<string>()
 const chegadas = new Map<string, number>()
@@ -50,9 +55,20 @@ function avisarOuvintes (): void {
   ouvintes.forEach((o) => { o() })
 }
 
-export async function recarregar (): Promise<void> {
+/** O cardápio mudou em outro aparelho (preço, esgotado): as telas que mostram o cardápio buscam de novo. */
+export const cardapioMudou = new EventTarget()
+
+/**
+ * Busca a fila. Uma busca por vez (`umaPorVez`): avisos, consulta de reserva e ações que chegam juntos viram uma
+ * busca a mais, e uma resposta velha nunca sobrescreve uma nova.
+ */
+export const recarregar = umaPorVez(buscarFila)
+
+async function buscarFila (): Promise<void> {
+  if (!ativa) return
   try {
     const nova = await fila()
+    if (!ativa) return
     diferencaMs = Date.parse(nova.agora) - Date.now()
     const recebidos = nova.pedidos.filter((p: PedidoFila) => p.status === 'RECEBIDO' && !vistos.has(p.id))
     nova.pedidos.forEach((p) => vistos.add(p.id))
@@ -65,6 +81,8 @@ export async function recarregar (): Promise<void> {
     dados = nova
     falhou = false
   } catch (e) {
+    // Resposta da sessão anterior (saiu no meio): descarta sem mexer em nada
+    if (descartada(e) || !ativa) return
     // 401: o app já volta para o login (evento da api). Sem sinal: segue com a última fila e tenta de novo.
     falhou = !(e instanceof ApiError && e.status === 401)
   }
@@ -78,7 +96,7 @@ function agendarBusca (): void {
 }
 
 function conectar (): void {
-  if (origem !== null) return
+  if (origem !== null || !ativa) return
   const es = new EventSource('/api/staff/eventos')
   origem = es
   es.onopen = () => {
@@ -89,6 +107,7 @@ function conectar (): void {
   }
   // Pedido criado, liberado ou cancelado muda também o saldo das contas: a aba Pagamentos busca de novo
   es.addEventListener('fila', () => { agendarBusca(); agendarPagamentos() })
+  es.addEventListener('cardapio', () => { cardapioMudou.dispatchEvent(new Event('mudou')) })
   es.addEventListener('ressincronizar', () => { agendarBusca(); agendarPagamentos() })
   // Uma conta mudou (o cliente fechou ou avisou que vai pagar, alguém recebeu): a aba Pagamentos busca de novo
   es.addEventListener('conta', agendarPagamentos)
@@ -108,28 +127,42 @@ function conectar (): void {
     // seguinte devolve 401 e o app volta ao login.
     if (es.readyState === EventSource.CLOSED) {
       origem = null
-      window.setTimeout(conectar, RESERVA_MS)
+      window.clearTimeout(timerReconexao)
+      if (ativa) timerReconexao = window.setTimeout(conectar, comVariacao(RESERVA_MS))
     }
   }
 }
 
+/** App voltou para a frente: busca na hora o que mudou enquanto ele estava escondido. */
+function aoVoltarParaFrente (): void {
+  if (!ativa || document.visibilityState !== 'visible') return
+  void recarregar()
+  agendarPagamentos()
+}
+
 export function iniciarFila (): void {
+  ativa = true
   conectar()
   void recarregar()
   window.clearInterval(timerReserva)
-  // Rede de segurança: sem a conexão em tempo real, a fila continua se atualizando
+  // Rede de segurança: sem a conexão em tempo real, a fila continua se atualizando. Com o app escondido (tela
+  // bloqueada, outro app na frente), não gasta dados: o push avisa, e ao voltar busca na hora.
   timerReserva = window.setInterval(() => {
-    if (conectado) return
+    if (conectado || document.visibilityState !== 'visible') return
     void recarregar()
     agendarPagamentos()
   }, RESERVA_MS)
+  document.addEventListener('visibilitychange', aoVoltarParaFrente)
 }
 
 export function pararFila (): void {
+  ativa = false
+  document.removeEventListener('visibilitychange', aoVoltarParaFrente)
   origem?.close()
   origem = null
   conectado = false
   window.clearTimeout(timerBusca)
+  window.clearTimeout(timerReconexao)
   window.clearInterval(timerReserva)
   dados = null
   primeiraBusca = true

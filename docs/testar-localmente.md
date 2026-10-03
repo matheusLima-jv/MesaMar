@@ -346,6 +346,24 @@ O token de QR gerado no aparelho (check-in sem sinal) só tem teste automático 
 | 163 | Conta fechada **sem receber** (dono, aba Pagamentos) | Abrir a página do cliente, aba Conta | "Conta encerrada pelo quiosque" e "Ficou sem pagar R$ …", **não** "Conta paga" |
 | 164 | Cadastro de conta do painel | Tentar uma senha com 40 letras acentuadas (ex.: "é" repetido) | Mensagem "A senha está longa demais…", sem erro interno |
 
+### Correções da revisão (lote 2)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 165 | App do quiosque com o DevTools (Network → "Slow 3G") | Abrir Clientes e, antes de carregar, tocar em Cardápio | A aba Cardápio fica. A lista de clientes não aparece por cima quando chega |
+| 166 | App do quiosque, aba Cardápio | Tocar "Esgotou" 5 vezes bem rápido no mesmo produto | O botão termina no estado do último toque, e o painel mostra o mesmo |
+| 167 | Lançar pedido, com "Slow 3G" | Tocar Lançar e tentar mexer no + e − | Os botões ficam travados até a resposta |
+| 168 | Lançar pedido em modo avião | Tocar Lançar, esperar o erro, ir para outra aba, voltar e tocar Pedir na mesma pessoa | A tela mostra "Este pedido foi enviado e a resposta não chegou" com os itens travados. Com a rede de volta, Reenviar cria **um** pedido |
+| 169 | Novo cliente em modo avião | Preencher e tocar Gerar QR. Recarregar o app e abrir Novo cliente | O formulário volta preenchido e travado. Com a rede, Gerar QR cria **uma** comanda |
+| 170 | Aba Mais em modo avião | Tocar "Sair deste celular" | Mensagem "Não deu para sair agora". Recarregar a página continua logado (não finge que saiu) |
+| 171 | Aba Pagamentos, diálogo Receber aberto | Tocar em outra aba | O diálogo some |
+| 172 | Aba Mais em modo avião | Olhar o cartão "Avisos de pedido" | "Não deu para falar com o servidor agora", com Tentar de novo (não "servidor sem chaves") |
+| 173 | Página do cliente aberta, e o dono no app | Marcar um produto como esgotado | A página do cliente mostra o esgotado sozinha, sem recarregar. A aba Cardápio de outro celular do quiosque também |
+| 174 | Página do cliente: abrir uma vez com sinal, fechar, ligar o modo avião e abrir de novo | Olhar o topo | "Sem sinal. Mostrando o cardápio salvo às HH:MM…". A página abre com estilo (CSS) mesmo na primeira reabertura |
+| 175 | DevTools → Application → Cache Storage, com a página do cliente e o app abertos no mesmo navegador | Publicar uma versão nova e recarregar os dois | Cada app fica só com o cache da versão nova dele; o cache do outro continua lá |
+| 176 | Cliente com o pedido "Sem sinal. Tentaremos de novo" e o atendente lança os mesmos itens pelo app | Voltar o sinal no celular do cliente | O cliente vê o pedido como enviado, e a Fila tem **um** pedido |
+| 177 | App do quiosque em segundo plano (outro app na frente) por alguns minutos, sem tempo real | Voltar ao app | A fila e os pagamentos se atualizam na hora |
+
 ## 5. Testes E2E (os mesmos do CI)
 
 Com o `docker compose up` rodando, em outro terminal:
