@@ -2,7 +2,7 @@
 
 Comanda digital para quiosques e carrinhos de praia. O cliente faz um cadastro rápido no quiosque, recebe um QR pessoal, pede pelo celular e fecha a conta sem chamar garçom. O dono recebe os pedidos numa fila por ordem de chegada.
 
-> **Status:** Fases 0, 1 e 2 concluídas (landing, lista de espera, painel do dono, equipe, guarda-sóis, cardápio e app do quiosque). Próxima: Fase 3 (check-in e pedido pelo cliente). Onde paramos e o que falta: [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md). Plano completo: [`docs/MESAMAR_PROMPT.md`](docs/MESAMAR_PROMPT.md).
+> **Status:** cliente, equipe, fila, pagamentos, relatórios e fila offline de check-ins/pedidos disponíveis. Alterações 61–110 neste checkout, com [checkpoint de retomada](docs/relatorios/revisao-81-110.md); validação final, publicação e configuração do provedor externo ainda pendentes. Estado atual: [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md).
 
 ## Stack
 
@@ -13,7 +13,7 @@ Comanda digital para quiosques e carrinhos de praia. O cliente faz um cadastro r
 | App do dono/atendente (`web-staff`) | TypeScript + Vite, servido em `/staff/` |
 | Página do cliente (`web-customer`) | TypeScript + Vite, servida em `/cliente/` |
 | Testes | JUnit 5 · Testcontainers (PostgreSQL real) |
-| Qualidade | ktlint |
+| Qualidade | ktlint · ESLint · validação de contratos · testes unitários JS/TS |
 | Entrega | Docker multi-stage · Docker Compose · GitHub Actions → GHCR |
 
 As decisões e os motivos estão em [`docs/adr/`](docs/adr/).
@@ -24,9 +24,9 @@ As decisões e os motivos estão em [`docs/adr/`](docs/adr/).
 mesamar/
 ├── backend/        # Spring Boot (Kotlin)
 ├── web-staff/      # App do quiosque (PWA) em /staff/: login do dono e da equipe, cardápio
-├── web-customer/   # Página do cliente (placeholder na Fase 0)
-├── e2e/            # Testes Playwright (a partir da Fase 1)
-├── deploy/         # Arquivos de produção (a partir da Fase 1)
+├── web-customer/   # PWA do cliente, carrinho e reenvio idempotente
+├── e2e/            # Testes Playwright em Chromium e WebKit
+├── deploy/         # Operação, migrações, backup e recuperação
 └── docs/           # Plano, ADRs e relatórios de cada fase
 ```
 
@@ -53,7 +53,7 @@ docker compose up --build
 - Health check: http://localhost:8080/actuator/health → `{"status":"UP", ...}`
 - Painel do dono (conta criada por convite do /admin): http://localhost:8080/painel
 - App do quiosque (dono ou equipe): http://localhost:8080/staff/
-- Página do cliente (placeholder): http://localhost:8080/cliente/
+- Página do cliente (o QR individual abre /c/{token}): http://localhost:8080/cliente/
 
 O primeiro build demora alguns minutos (baixa o Gradle e as dependências). Os seguintes usam cache.
 
@@ -94,7 +94,7 @@ Com a aplicação no ar (`docker compose up`):
 ```bash
 cd e2e
 npm ci
-npx playwright install chromium
+npx playwright install chromium webkit
 E2E_ADMIN_PASSWORD=<a senha do seu .env> npx playwright test
 npx playwright show-report   # relatório com prints e vídeos das falhas
 ```
@@ -117,11 +117,6 @@ Para ver o botão de WhatsApp da landing localmente, crie um `.env` com `MESAMAR
 
 ## CI
 
-A cada PR, o GitHub Actions roda: ktlint → build dos fronts → testes com PostgreSQL real → build da imagem Docker → `docker compose up` + E2E Playwright no tamanho de celular.
-No merge para `main`, a imagem também é publicada em `ghcr.io/matheuslima-jv/mesamar`.
+A cada PR, a CI executa análise estática, testes unitários e integração com PostgreSQL, constrói a imagem uma vez e executa smoke, E2E e recuperação contra essa imagem. A publicação em `main` reutiliza a imagem aprovada e registra commit, ID e digest em `versao-validada.json`. O deploy usa esse digest e confere a faixa de esquema permitida. Dependências e segredos têm checagem semanal; Actions, bases Docker e Wrapper possuem referências verificáveis.
 
-**O deploy é sempre manual:** passo a passo em [`docs/deploy.md`](docs/deploy.md) (arquivos em `deploy/`).
-
-## Fluxo de trabalho
-
-Uma branch por fase (`fase-N-nome`) com PR para `main`. Cada fase termina com um relatório em [`docs/relatorios/`](docs/relatorios/) e só avança depois da validação manual.
+O deploy permanece manual. Procedimentos, metas de recuperação, alertas e configuração S3 estão em [`docs/deploy.md`](docs/deploy.md). Resultados e verificações externas pendentes estão em [`docs/relatorios/revisao-81-110.md`](docs/relatorios/revisao-81-110.md).

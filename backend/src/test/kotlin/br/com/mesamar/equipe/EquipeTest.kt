@@ -148,7 +148,16 @@ class EquipeTest(
         val gabi = atendente(email, "Gabi")
         val barraca = barracaId(email)
         val relogio = Relogio()
-        val comRelogio = AtendenteService(atendentes, encoder, barracas, pushSubs, hub, relogio)
+        val comRelogio =
+            AtendenteService(
+                org.mockito.Mockito.mock(br.com.mesamar.common.AutorHistorico::class.java),
+                atendentes,
+                encoder,
+                barracas,
+                pushSubs,
+                hub,
+                relogio,
+            )
         val tx = TransactionTemplate(transacoes)
 
         fun tentar(

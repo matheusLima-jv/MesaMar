@@ -45,6 +45,11 @@ class StaffPedidosController(
             try {
                 pedidos.criar(comanda, body, equipe)
             } catch (e: DataIntegrityViolationException) {
+                if (!br.com.mesamar.common.Restricoes
+                        .unica(e, "pedido_pkey")
+                ) {
+                    throw e
+                }
                 // Dois envios do mesmo pedido ao mesmo tempo: o segundo encontra o primeiro.
                 if (body.id == null) throw e
                 pedidos.criar(comanda, body, equipe)

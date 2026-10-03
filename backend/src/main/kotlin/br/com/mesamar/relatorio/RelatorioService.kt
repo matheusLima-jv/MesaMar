@@ -64,10 +64,12 @@ data class RelatorioDia(
     val cancelamentos: List<CancelamentoPorMotivo>,
     val emAberto: List<ContaEmAberto>,
     val naoRecebidos: List<NaoRecebido>,
+    val saldoAbertoTotalCentavos: Long? = null,
+    val naoRecebidoTotalCentavos: Long? = null,
 ) {
     val pedidos: Int get() = pedidosDoCliente + pedidosDoAtendente
-    val emAbertoCentavos: Long get() = emAberto.sumOf { it.saldoCentavos }
-    val naoRecebidoCentavos: Long get() = naoRecebidos.sumOf { it.centavos }
+    val emAbertoCentavos: Long get() = saldoAbertoTotalCentavos ?: emAberto.sumOf { it.saldoCentavos }
+    val naoRecebidoCentavos: Long get() = naoRecebidoTotalCentavos ?: naoRecebidos.sumOf { it.centavos }
     val cancelamentosCentavos: Long get() = cancelamentos.sumOf { it.centavos }
 }
 
@@ -81,22 +83,25 @@ class RelatorioService(
     private val jdbc: JdbcTemplate,
     private val pagamentos: PagamentoService,
 ) {
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun dia(
         barracaId: UUID,
         dia: LocalDate,
     ): RelatorioDia {
+        val inicio = java.sql.Timestamp.from(dia.atStartOfDay(br.com.mesamar.common.Fuso.ZONA).toInstant())
+        val fim = java.sql.Timestamp.from(dia.plusDays(1).atStartOfDay(br.com.mesamar.common.Fuso.ZONA).toInstant())
         val formas =
             jdbc.query(
                 """
                 SELECT metodo, SUM(valor_centavos) AS centavos, COUNT(*) AS qtd
                 FROM pagamento
-                WHERE barraca_id = ? AND (confirmado_em AT TIME ZONE 'America/Sao_Paulo')::date = ?
+                WHERE barraca_id = ? AND confirmado_em >= ? AND confirmado_em < ?
                 GROUP BY metodo
                 """.trimIndent(),
                 { rs, _ -> FormaRecebida(MetodoPagamento.valueOf(rs.getString("metodo")), rs.getLong("centavos"), rs.getInt("qtd")) },
                 barracaId,
-                dia,
+                inicio,
+                fim,
             )
         val porForma = MetodoPagamento.entries.map { m -> formas.firstOrNull { it.metodo == m } ?: FormaRecebida(m, 0, 0) }
 
@@ -169,14 +174,15 @@ class RelatorioService(
                 JOIN cliente cl ON cl.id = c.cliente_id
                 LEFT JOIN guarda_sol g ON g.id = c.guarda_sol_id
                 WHERE c.barraca_id = ? AND c.saldo_perdoado_centavos IS NOT NULL
-                  AND (c.fechada_em AT TIME ZONE 'America/Sao_Paulo')::date = ?
-                ORDER BY c.fechada_em
+                  AND c.fechada_em >= ? AND c.fechada_em < ?
+                ORDER BY c.fechada_em, c.id LIMIT 100
                 """.trimIndent(),
                 { rs, _ ->
                     NaoRecebido(rs.getString("cliente"), rs.getObject("guarda_sol") as Int?, rs.getString("motivo"), rs.getLong("centavos"))
                 },
                 barracaId,
-                dia,
+                inicio,
+                fim,
             )
 
         // Quem deve agora (não importa o dia escolhido): a mesma lista da aba Pagamentos do app
@@ -188,6 +194,15 @@ class RelatorioService(
                 .map { ContaEmAberto(it.cliente, it.guardaSol, it.status, it.saldoCentavos) }
 
         return RelatorioDia(
+            saldoAbertoTotalCentavos = contas.totalSaldoAbertoCentavos,
+            naoRecebidoTotalCentavos =
+                jdbc.queryForObject(
+                    "SELECT COALESCE(SUM(saldo_perdoado_centavos), 0) FROM comanda WHERE barraca_id = ? AND fechada_em >= ? AND fechada_em < ?",
+                    Long::class.java,
+                    barracaId,
+                    inicio,
+                    fim,
+                ),
             dia = dia,
             recebidoCentavos = porForma.sumOf { it.centavos },
             porForma = porForma,

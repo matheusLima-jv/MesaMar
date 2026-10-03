@@ -38,6 +38,7 @@
           <summary th:attr="aria-label=|Renomear ou excluir ${s.categoria.nome}|">Editar</summary>
           <div class="menu-more-body">
             <form class="inline-form" method="post" th:action="@{/painel/cardapio/categorias/{id}/nome(id=${s.categoria.id})}">
+              <input type="hidden" name="versao" th:value="${s.categoria.versao}">
               <label class="sr-only" th:for="|nome-${s.categoria.id}|">Novo nome</label>
               <input th:id="|nome-${s.categoria.id}|" name="nome" type="text" maxlength="40" required th:value="${s.categoria.nome}">
               <button class="btn btn-ink btn-small" type="submit">Renomear</button>

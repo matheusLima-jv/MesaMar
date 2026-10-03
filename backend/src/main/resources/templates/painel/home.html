@@ -19,9 +19,9 @@
           <span th:text="${p.detalhe}">Sem ela, o cliente não consegue pagar.</span>
         </div>
         <a class="check-action" th:if="${p.link}" th:href="@{${p.link}}"
-           th:text="${p.feito} ? 'Editar' : 'Configurar'"
-           th:attr="aria-label=|${p.feito ? 'Editar' : 'Configurar'} ${p.titulo}|">Configurar</a>
-        <span class="check-action soon-tag" th:unless="${p.link}">Em breve</span>
+           th:text="${p.titulo == 'App do quiosque'} ? 'Abrir' : (${p.feito} ? 'Editar' : 'Configurar')"
+           th:attr="aria-label=${p.titulo == 'App do quiosque'} ? 'Abrir o app do quiosque' : |${p.feito ? 'Editar' : 'Configurar'} ${p.titulo}|">Configurar</a>
+        <span class="check-action soon-tag" th:unless="${p.link}">Confira o guia</span>
       </li>
     </ol>
   </section>

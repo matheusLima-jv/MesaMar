@@ -17,6 +17,7 @@
 
     <form class="lead-form app-form" method="post" novalidate th:object="${produtoForm}"
           th:action="${produtoId} ? @{/painel/cardapio/produtos/{id}(id=${produtoId})} : @{/painel/cardapio/produtos}">
+      <input type="hidden" th:field="*{versao}">
       <p class="form-alert" role="alert" th:if="${#fields.hasGlobalErrors()}" th:text="${#fields.globalErrors()[0]}">Limite</p>
 
       <div class="field" th:classappend="${#fields.hasErrors('categoriaId')} ? 'has-error'">

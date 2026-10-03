@@ -69,6 +69,7 @@ data class PixForm(
 
 @Service
 class BarracaService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
     private val barracas: BarracaRepository,
     private val usuarios: UsuarioRepository,
     private val guardaSois: GuardaSolRepository,
@@ -85,6 +86,7 @@ class BarracaService(
         form: BarracaForm,
         errors: Errors,
     ): Barraca? {
+        autorHistorico.marcar()
         val praia = validarDados(form, errors) ?: return null
         // Dois envios do formulário ao mesmo tempo: o segundo espera o primeiro e encontra a barraca já criada
         val usuario = usuarios.travar(usuarioLido.id) ?: return null
@@ -115,6 +117,7 @@ class BarracaService(
         form: BarracaForm,
         errors: Errors,
     ): Boolean {
+        autorHistorico.marcar()
         val praia = validarDados(form, errors) ?: return false
         val atual = barracas.travar(barraca.id) ?: return false
         atual.nome = form.nome.trim()
@@ -129,6 +132,7 @@ class BarracaService(
         form: RegrasForm,
         errors: Errors,
     ): Boolean {
+        autorHistorico.marcar()
         // Relida e travada: a contagem de guarda-sóis abaixo não muda no meio, e a pausa (gravada pelo app) não é apagada
         val atual = barracas.travar(barraca.id) ?: return false
         val limite = form.limiteGuardaSois.trim().toIntOrNull()
@@ -174,6 +178,7 @@ class BarracaService(
         form: PixForm,
         errors: Errors,
     ): Boolean {
+        autorHistorico.marcar()
         val tipo = TipoChavePix.fromCode(form.tipo)
         if (tipo == null) errors.rejectValue("tipo", "obrigatorio", "Escolha o tipo da chave.")
 

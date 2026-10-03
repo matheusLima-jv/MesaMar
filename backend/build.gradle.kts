@@ -10,6 +10,10 @@ plugins {
     alias(libs.plugins.ktlint)
 }
 
+// Patches de segurança auditados na imagem; remover overrides quando o BOM incorporar estas versões.
+extra["tomcat.version"] = "11.0.26"
+extra["jackson-bom.version"] = "3.1.7"
+
 group = "br.com.mesamar"
 version = "0.0.1-SNAPSHOT"
 
@@ -121,6 +125,13 @@ val copyFrontendTasks =
                 workingDir = frontDir.asFile
                 commandLine(npmCommand, "run", "build")
                 inputs.dir(frontDir.dir("src"))
+                inputs.dir(frontDir.dir("tests"))
+                inputs.dir(rootProject.layout.projectDirectory.dir("web-shared/tests"))
+                inputs.file(rootProject.layout.projectDirectory.file("web-shared/lint.mjs"))
+                inputs.file(rootProject.layout.projectDirectory.file("eslint.config.mjs"))
+                inputs.file(frontDir.file("eslint.config.mjs"))
+                inputs.dir(layout.projectDirectory.dir("src/main/resources/static/js"))
+                inputs.dir(rootProject.layout.projectDirectory.dir("web-shared/src"))
                 inputs.dir(frontDir.dir("public"))
                 inputs.files(
                     frontDir.file("index.html"),
@@ -148,4 +159,24 @@ sourceSets {
 
 tasks.named<ProcessResources>("processResources") {
     dependsOn(copyFrontendTasks)
+}
+
+// Inventário da aplicação entregue, usado pelo scanner de dependências no CI semanal.
+tasks.register("inventarioDependencias") {
+    inputs.files(configurations.runtimeClasspath)
+    val destino = layout.buildDirectory.file("runtime.cdx.json")
+    outputs.file(destino)
+    doLast {
+        val componentes =
+            configurations.runtimeClasspath
+                .get()
+                .resolvedConfiguration.resolvedArtifacts
+                .map { it.moduleVersion.id }
+                .distinct()
+                .sortedBy { it.toString() }
+                .joinToString(",") {
+                    """{"type":"library","group":"${it.group}","name":"${it.name}","version":"${it.version}","purl":"pkg:maven/${it.group}/${it.name}@${it.version}"}"""
+                }
+        destino.get().asFile.writeText("""{"bomFormat":"CycloneDX","specVersion":"1.6","version":1,"components":[$componentes]}""")
+    }
 }

@@ -97,7 +97,18 @@ class PainelContaController(
             form.senha = ""
             return "painel/cadastro"
         }
-        return when (val resultado = contas.cadastrar(form.convite, form.nome, form.email, form.senha)) {
+        val resultado =
+            try {
+                contas.cadastrar(form.convite, form.nome, form.email, form.senha)
+            } catch (erro: org.springframework.dao.DataIntegrityViolationException) {
+                if (!br.com.mesamar.common.Restricoes
+                        .unica(erro, "uk_usuario_email")
+                ) {
+                    throw erro
+                }
+                CadastroResultado.EmailEmUso
+            }
+        return when (resultado) {
             is CadastroResultado.Ok -> "redirect:/painel/entrar?conta-criada&email=${urlEncode(resultado.usuario.email)}"
             CadastroResultado.ConviteInvalido -> {
                 response.status = HttpStatus.NOT_FOUND.value()

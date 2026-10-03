@@ -1,3 +1,4 @@
+import { tokenLocal } from '../fila-offline'
 import { ApiError, clientes, descartada, guardaSois, novoCliente, novoId, novoQr, type Comanda, type GuardaSolOpcao, type NovoCliente, type Sessao } from '../api'
 import { ativarModal, ligarErro, tecladoDoGrupo } from '../a11y'
 import { CONSENTIMENTO_TEXTO, CONSENTIMENTO_VERSAO } from '../consentimento'
@@ -21,6 +22,7 @@ const ROTULO_SITUACAO: Record<string, string> = {
 }
 
 // A busca e o filtro ficam fora da tela: voltar do QR ou do "Pedir" não os perde
+let pagina = 0
 let busca = ''
 let situacao: Situacao = 'todas'
 
@@ -44,7 +46,7 @@ export function abaClientes (root: HTMLElement, sessao: Sessao): void {
   // Resposta que chega depois de a pessoa ter trocado de aba (ou aberto outra tela) é descartada
   const aberta = abrirTela(root)
   mount(root, h('p', { class: 'loading' }, 'Carregando os clientes…'))
-  clientes()
+  clientes(pagina)
     .then((lista) => { if (aberta()) desenharLista(root, sessao, lista) })
     .catch((e: unknown) => {
       if (!aberta() || descartada(e)) return
@@ -62,7 +64,7 @@ function desenharLista (root: HTMLElement, sessao: Sessao, lista: Comanda[]): vo
 
   const linha = (c: Comanda): HTMLLIElement =>
     h('li', {},
-      h('span', { class: 'arrival', 'aria-label': `Chegada número ${c.numeroChegada}` }, `${c.numeroChegada}`),
+      h('span', { class: 'arrival', 'aria-label': c.numeroChegada === 0 ? 'Aguardando sincronização' : `Chegada número ${c.numeroChegada}` }, c.numeroChegada === 0 ? '…' : `${c.numeroChegada}`),
       h('div', { class: 'person' },
         h('strong', {}, c.nome, ROTULO_SITUACAO[c.status] !== undefined ? h('span', { class: 'tag' }, ROTULO_SITUACAO[c.status]) : null),
         h('span', { class: 'hint' }, `${c.guardaSol === null ? 'Sem guarda-sol' : `Guarda-sol ${c.guardaSol}`} · ${c.hora}`)
@@ -89,7 +91,7 @@ function desenharLista (root: HTMLElement, sessao: Sessao, lista: Comanda[]): vo
       ? 'Ninguém com comanda aberta agora.'
       : filtrando
         ? `${mostrados.length} de ${lista.length} ${lista.length === 1 ? 'cliente' : 'clientes'}.`
-        : `${lista.length} com comanda aberta, por ordem de chegada.`
+        : `${lista.length} nesta página, por ordem de chegada.`
     if (lista.length === 0) {
       corpo.replaceChildren(h('p', { class: 'hint center' }, 'Quando alguém chegar: nome, guarda-sol e o cliente lê o QR com a câmera.'))
     } else if (mostrados.length === 0) {
@@ -107,7 +109,7 @@ function desenharLista (root: HTMLElement, sessao: Sessao, lista: Comanda[]): vo
   }
 
   const campoBusca = h('input', {
-    id: 'busca-clientes', type: 'search', autocomplete: 'off', enterkeyhint: 'search', placeholder: 'Nome ou guarda-sol', value: busca,
+    id: 'busca-clientes', type: 'search', autocomplete: 'off', enterkeyhint: 'search', placeholder: 'Nome ou guarda-sol nesta página', value: busca,
     'aria-describedby': 'resultado-clientes',
     oninput: () => { busca = campoBusca.value; filtrar() }
   })
@@ -127,13 +129,19 @@ function desenharLista (root: HTMLElement, sessao: Sessao, lista: Comanda[]): vo
           h('div', { class: 'field' }, h('label', { for: 'busca-clientes' }, 'Buscar cliente'), campoBusca),
           h('div', { class: 'field' }, h('label', { for: 'situacao-clientes' }, 'Situação da comanda'), seletor))]
       : []),
-    corpo
+    corpo,
+    h('nav', { 'aria-label': 'Páginas de clientes', class: 'acoes' },
+      h('button', { type: 'button', class: 'btn btn-line', disabled: pagina === 0,
+        onclick: () => { pagina--; abaClientes(root, sessao) } }, 'Anterior'),
+      h('span', {}, `Página ${pagina + 1}`),
+      h('button', { type: 'button', class: 'btn btn-line', disabled: lista.length < 100,
+        onclick: () => { pagina++; abaClientes(root, sessao) } }, 'Próxima'))
   )
   filtrar()
 }
 
 /** Check-ins sem resposta ficam guardados por barraca: o mesmo aparelho pode entrar em outra barraca depois. */
-const escopoCheckin = (sessao: Sessao): string => sessao.barraca?.codigo ?? 'sem-barraca'
+const escopoCheckin = (sessao: Sessao): string => `${sessao.barraca?.codigo ?? 'sem-barraca'}:${sessao.usuario?.id ?? 'sem-autor'}`
 
 function formNovo (root: HTMLElement, sessao: Sessao): void {
   const aberta = abrirTela(root)
@@ -227,7 +235,7 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
       botao.disabled = true
       botao.textContent = 'Gerando…'
       const envio: NovoCliente = pendente?.dados ?? {
-        id, nome: nome.value, guardaSolId: escolhido, whatsapp: whatsapp.value, consentimento: consentimento.checked,
+        id, token: tokenLocal(), nome: nome.value, guardaSolId: escolhido, whatsapp: whatsapp.value, consentimento: consentimento.checked,
         // A versão do texto que estava na tela: fica gravada no cadastro (docs/consentimento.md)
         consentimentoVersao: CONSENTIMENTO_VERSAO
       }
@@ -241,7 +249,7 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
         .catch((e: unknown) => {
           if (descartada(e)) return
           // Recusa do servidor (4xx): nada foi criado, dá para corrigir. Sem resposta: continua pendente
-          if (e instanceof ApiError && e.status >= 400 && e.status < 500) pendencias.apagar('checkin', escopoCheckin(sessao))
+          if (e instanceof ApiError && e.status >= 400 && e.status < 500 && !e.temporario) pendencias.apagar('checkin', escopoCheckin(sessao))
           if (!aberta()) return
           if (!travado && e instanceof ApiError && e.status === 0) { formNovo(root, sessao); return }
           botao.disabled = false
@@ -341,10 +349,10 @@ function telaQr (sessao: Sessao, c: Comanda, aoFechar: () => void): void {
   const tela = h('div', { class: 'qr-screen', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'qr-nome' },
     h('div', { class: 'qr-head' },
       h('h2', { id: 'qr-nome' }, c.nome),
-      h('p', {}, `${c.guardaSol === null ? 'Sem guarda-sol' : `Guarda-sol ${c.guardaSol}`} · chegada nº ${c.numeroChegada}`)
+      h('p', {}, `${c.guardaSol === null ? 'Sem guarda-sol' : `Guarda-sol ${c.guardaSol}`} · ${c.numeroChegada === 0 ? 'aguardando sincronização' : `chegada nº ${c.numeroChegada}`}`)
     ),
     h('div', { class: 'qr-box' }, qrSvg(c.link, `QR da comanda de ${c.nome}`)),
-    h('p', { class: 'qr-tip' }, 'Peça para o cliente abrir a câmera e apontar para o código.'),
+    h('p', { class: 'qr-tip', role: 'status' }, c.numeroChegada === 0 ? 'Cadastro preservado. O link só funciona depois da sincronização; aguarde antes de entregar o QR.' : 'Peça para o cliente abrir a câmera e apontar para o código.'),
     h('div', { class: 'qr-actions' },
       c.whatsapp !== null
         ? h('a', {

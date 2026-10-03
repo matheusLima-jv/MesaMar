@@ -228,6 +228,17 @@ class SecurityConfig {
         return http.build()
     }
 
+    @Bean
+    @Order(0)
+    fun metricasChain(http: HttpSecurity): SecurityFilterChain {
+        http
+            .securityMatcher("/actuator/metrics", "/actuator/metrics/**")
+            .securityContext { it.securityContextRepository(contextRepository("MESAMAR_ADMIN")) }
+            .authorizeHttpRequests { it.anyRequest().hasRole("ADMIN") }
+        applyHeaders(http)
+        return http.build()
+    }
+
     /** Admin, painel e APIs: nada de fora (o analytics e o anti-robô só existem na landing). */
     private fun applyHeaders(http: HttpSecurity) {
         http.headers { headers ->
@@ -251,7 +262,7 @@ class SecurityConfig {
     ) {
         response.status = status
         response.contentType = "application/json;charset=UTF-8"
-        response.writer.write("""{"erro":"$codigo","mensagem":"$mensagem"}""")
+        response.writer.write("""{"erro":"$codigo","mensagem":"$mensagem","campos":{},"temporario":false}""")
     }
 
     private fun authenticationManager(

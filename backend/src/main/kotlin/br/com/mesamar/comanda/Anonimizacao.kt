@@ -1,5 +1,6 @@
 package br.com.mesamar.comanda
 
+import br.com.mesamar.common.SaudeOperacional
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.JdbcTemplate
@@ -75,6 +76,7 @@ class AnonimizacaoService(
 /** Roda a anonimização todo dia, de madrugada (fuso das barracas). */
 @Component
 class AgendadorAnonimizacao(
+    private val saude: SaudeOperacional? = null,
     private val anonimizacao: AnonimizacaoService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -82,7 +84,12 @@ class AgendadorAnonimizacao(
     @Scheduled(cron = "\${mesamar.anonimizacao.cron:0 30 3 * * *}", zone = "America/Sao_Paulo")
     fun rodar() {
         runCatching { anonimizacao.anonimizar() }
-            .onSuccess { if (it > 0) log.info("LGPD: {} clientes anonimizados", it) }
-            .onFailure { log.warn("Falha ao anonimizar clientes antigos: {}", it.message) }
+            .onSuccess {
+                saude?.registrar("anonimizacao", true)
+                if (it > 0) log.info("LGPD: {} clientes anonimizados", it)
+            }.onFailure {
+                saude?.registrar("anonimizacao", false)
+                log.warn("Falha ao anonimizar clientes antigos: {}", it.message)
+            }
     }
 }

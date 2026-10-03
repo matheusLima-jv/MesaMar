@@ -6,7 +6,6 @@ import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.common.Money
 import br.com.mesamar.eventos.PublicadorEventos
-import br.com.mesamar.pedido.FilaService
 import br.com.mesamar.pedido.LiberacaoPedidos
 import br.com.mesamar.pedido.PedidoService
 import br.com.mesamar.pedido.StatusPedido
@@ -44,6 +43,10 @@ data class ContasAPagar(
     val aguardando: List<ContaAPagar>,
     /** Comandas abertas ou bloqueadas com saldo, as maiores primeiro (proteção contra calote). */
     val abertas: List<ContaAPagar>,
+    val pagina: Int = 0,
+    val temMais: Boolean = false,
+    val totalAguardando: Long = aguardando.size.toLong(),
+    val totalSaldoAbertoCentavos: Long = (aguardando + abertas).sumOf { it.saldoCentavos },
 )
 
 /** O que o quiosque confirma: quanto entrou, em que forma e (dinheiro) quanto o cliente entregou. */
@@ -89,20 +92,40 @@ sealed interface ResultadoQuiosque {
  */
 @Service
 class PagamentoService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
     private val jdbc: JdbcTemplate,
     private val comandas: ComandaRepository,
     private val pagamentos: PagamentoRepository,
     private val pedidos: PedidoService,
-    private val fila: FilaService,
+    private val cancelamentoFinanceiro: CancelamentoFinanceiro,
     private val liberacao: LiberacaoPedidos,
     private val tempoReal: PublicadorEventos,
     private val spring: ApplicationEventPublisher,
     private val clock: Clock,
 ) {
-    @Transactional(readOnly = true)
-    fun listar(barracaId: UUID): ContasAPagar {
-        val todas = consultar(barracaId, "c.status IN ('AGUARDANDO_PAGAMENTO', 'ABERTA', 'BLOQUEADA')", emptyArray())
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    fun listar(
+        barracaId: UUID,
+        pagina: Int = 0,
+        tamanho: Int = 100,
+    ): ContasAPagar {
+        require(pagina >= 0 && tamanho in 1..200)
+        val linhas =
+            consultar(
+                barracaId,
+                "c.status IN ('AGUARDANDO_PAGAMENTO', 'ABERTA', 'BLOQUEADA')",
+                emptyArray(),
+                tamanho + 1,
+                pagina * tamanho,
+                apenasPendentes = true,
+            )
+        val todas = linhas.take(tamanho)
+        val resumo = resumo(barracaId)
         return ContasAPagar(
+            pagina = pagina,
+            temMais = linhas.size > tamanho,
+            totalAguardando = (resumo["aguardando"] as Number).toLong(),
+            totalSaldoAbertoCentavos = (resumo["saldo"] as Number).toLong(),
             aguardando =
                 todas
                     .filter { it.status == StatusComanda.AGUARDANDO_PAGAMENTO }
@@ -125,7 +148,9 @@ class PagamentoService(
         req: ConfirmacaoPagamento,
         quem: AbertaPor,
     ): ResultadoQuiosque {
+        autorHistorico.marcar()
         val id = req.id ?: return ResultadoQuiosque.Invalido("id", "Não deu para identificar o pagamento. Atualize o app e tente de novo.")
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 1))", id.toString())
         val comanda = travar(barracaId, comandaId) ?: return ResultadoQuiosque.NaoEncontrada
 
         // Reenvio da mesma confirmação (resposta perdida, toque duplo): devolve o que já foi registrado, sem cobrar de novo
@@ -193,9 +218,15 @@ class PagamentoService(
      */
     @Transactional
     fun encerrarSemSaldoDeDiasAnteriores(hoje: java.time.LocalDate): Int {
+        autorHistorico.marcar()
         val ids =
             jdbc.queryForList(
-                "SELECT id FROM comanda WHERE status IN ('ABERTA', 'AGUARDANDO_PAGAMENTO', 'BLOQUEADA') AND dia < ?",
+                """SELECT c.id FROM comanda c WHERE c.status IN ('ABERTA', 'AGUARDANDO_PAGAMENTO', 'BLOQUEADA') AND c.dia < ?
+                    AND COALESCE((SELECT SUM(i.preco_snapshot_centavos * i.quantidade)
+                        FROM item_pedido i JOIN pedido p ON p.id = i.pedido_id
+                        WHERE p.comanda_id = c.id AND p.status <> 'CANCELADO' AND NOT i.cancelado), 0)
+                    <= COALESCE((SELECT SUM(valor_centavos) FROM pagamento WHERE comanda_id = c.id), 0)
+                    ORDER BY c.id LIMIT 100 FOR UPDATE OF c SKIP LOCKED""",
                 UUID::class.java,
                 hoje,
             )
@@ -218,6 +249,7 @@ class PagamentoService(
         barracaId: UUID,
         comandaId: UUID,
     ): ResultadoQuiosque {
+        autorHistorico.marcar()
         val comanda = travar(barracaId, comandaId) ?: return ResultadoQuiosque.NaoEncontrada
         when (comanda.status) {
             StatusComanda.BLOQUEADA -> Unit
@@ -237,6 +269,7 @@ class PagamentoService(
         barracaId: UUID,
         comandaId: UUID,
     ): ResultadoQuiosque {
+        autorHistorico.marcar()
         val comanda = travar(barracaId, comandaId) ?: return ResultadoQuiosque.NaoEncontrada
         when (comanda.status) {
             StatusComanda.ABERTA -> Unit
@@ -255,6 +288,7 @@ class PagamentoService(
         barracaId: UUID,
         comandaId: UUID,
     ): ResultadoQuiosque {
+        autorHistorico.marcar()
         val comanda = travar(barracaId, comandaId) ?: return ResultadoQuiosque.NaoEncontrada
         if (comanda.status == StatusComanda.FECHADA) return ResultadoQuiosque.Ok(conta(barracaId, comanda.id))
         recusaPorEstado(comanda)?.let { return it }
@@ -282,6 +316,7 @@ class PagamentoService(
         motivo: String?,
         usuarioId: UUID,
     ): ResultadoQuiosque {
+        autorHistorico.marcar()
         val texto = motivo?.trim()?.replace(Regex("\\s+"), " ").orEmpty()
         if (texto.length !in MOTIVO_MIN..MOTIVO_MAX) {
             return ResultadoQuiosque.Invalido("motivo", "Explique o motivo, de $MOTIVO_MIN a $MOTIVO_MAX letras.")
@@ -301,7 +336,7 @@ class PagamentoService(
                     "(os pedidos vão para a fila) e depois feche a conta.",
             )
         }
-        aguardando.forEach { fila.cancelarNoEncerramento(it.pedido, "Outro: Conta encerrada sem pagamento", quem) }
+        aguardando.forEach { cancelamentoFinanceiro.cancelar(it.pedido, "Outro: Conta encerrada sem pagamento", quem) }
         val saldo = pedidos.saldoCentavos(comanda.id)
         val agora = Instant.now(clock)
         // Nada ficou sem pagar (a conta só tinha pedidos que nunca foram à fila): encerra sem registrar calote
@@ -362,9 +397,13 @@ class PagamentoService(
         barracaId: UUID,
         filtro: String,
         argumentos: Array<Any>,
+        limite: Int? = null,
+        offset: Int = 0,
+        apenasPendentes: Boolean = false,
     ): List<ContaAPagar> =
         jdbc.query(
             """
+            SELECT * FROM (
             SELECT c.id, c.status, c.metodo_pagamento_pretendido, c.troco_para_centavos, c.aviso_pagamento_em, c.aberta_em,
                    c.saldo_perdoado_centavos, cl.nome AS cliente, g.numero AS guarda_sol,
                    COALESCE((SELECT SUM(i.preco_snapshot_centavos * i.quantidade)
@@ -376,6 +415,12 @@ class PagamentoService(
             JOIN cliente cl ON cl.id = c.cliente_id
             LEFT JOIN guarda_sol g ON g.id = c.guarda_sol_id
             WHERE c.barraca_id = ? AND $filtro
+            ) resultado
+            ${if (apenasPendentes) "WHERE status IN ('AGUARDANDO_PAGAMENTO', 'BLOQUEADA') OR pedido > pago" else ""}
+            ORDER BY CASE WHEN status = 'AGUARDANDO_PAGAMENTO' THEN 0 ELSE 1 END,
+                CASE WHEN status = 'AGUARDANDO_PAGAMENTO' THEN aviso_pagamento_em END NULLS LAST,
+                pedido - pago DESC, aberta_em, id
+            ${if (limite != null) "LIMIT $limite OFFSET $offset" else ""}
             """.trimIndent(),
             { rs, _ ->
                 ContaAPagar(
@@ -395,6 +440,19 @@ class PagamentoService(
             },
             barracaId,
             *argumentos,
+        )
+
+    /** Totais completos da operação; a paginação nunca altera o saldo do relatório ou o contador da aba. */
+    @Transactional(readOnly = true)
+    fun resumo(barracaId: UUID): Map<String, Any?> =
+        jdbc.queryForMap(
+            """SELECT COUNT(*) FILTER (WHERE c.status = 'AGUARDANDO_PAGAMENTO') AS aguardando,
+            COALESCE(SUM(GREATEST(0, COALESCE((SELECT SUM(i.preco_snapshot_centavos * i.quantidade)
+                FROM item_pedido i JOIN pedido p ON p.id = i.pedido_id
+                WHERE p.comanda_id = c.id AND p.status <> 'CANCELADO' AND NOT i.cancelado), 0)
+                - COALESCE((SELECT SUM(valor_centavos) FROM pagamento WHERE comanda_id = c.id), 0))), 0) AS saldo
+            FROM comanda c WHERE c.barraca_id = ? AND c.status IN ('ABERTA','BLOQUEADA','AGUARDANDO_PAGAMENTO')""",
+            barracaId,
         )
 
     companion object {

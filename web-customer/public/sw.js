@@ -16,7 +16,7 @@ const MAX_COMANDAS = 3
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(VERSAO)
-      .then((cache) => cache.addAll([PAGINA, ...ARQUIVOS]))
+      .then((cache) => cache.addAll([PAGINA, ...ARQUIVOS, '/js/medicoes.js']))
       .then(() => self.skipWaiting())
   )
 })
@@ -24,7 +24,20 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((nomes) => Promise.all(nomes.filter((n) => n.startsWith(PREFIXO) && n !== VERSAO).map((n) => caches.delete(n))))
+      .then(async nomes => {
+        const cache = await caches.open(VERSAO)
+        for (const nome of nomes.filter(n => n.startsWith(PREFIXO) && n !== VERSAO).sort()) {
+          const anterior = await caches.open(nome)
+          for (const req of await anterior.keys()) {
+            if (!/^\/api\/c\/[^/]+$/.test(new URL(req.url).pathname)) continue
+            const res = await anterior.match(req)
+            const em = Number(res?.headers.get('X-MesaMar-Salvo-Em'))
+            const atual = await cache.match(req)
+            if (res && em > 0 && em <= Date.now() + 300000 && Date.now() - em <= VALIDADE_MS && em > Number(atual?.headers.get('X-MesaMar-Salvo-Em') ?? 0)) await cache.put(req, res)
+          }
+          await caches.delete(nome)
+        }
+      })
       .then(() => caches.open(VERSAO).then(limitarComandas))
       .then(() => self.clients.claim())
   )
@@ -61,7 +74,7 @@ async function limitarComandas (cache) {
   for (const r of chaves) {
     const resposta = await cache.match(r)
     const salvoEm = Number(resposta?.headers.get('X-MesaMar-Salvo-Em'))
-    if (!Number.isFinite(salvoEm) || salvoEm <= 0 || Date.now() - salvoEm > VALIDADE_MS) await cache.delete(r)
+    if (!Number.isFinite(salvoEm) || salvoEm <= 0 || salvoEm > Date.now() + 300000 || Date.now() - salvoEm > VALIDADE_MS) await cache.delete(r)
     else vivas.push(r)
   }
   // keys() vem na ordem de inserção, e o put substitui: as primeiras são as mais antigas
@@ -73,8 +86,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url)
   if (req.method !== 'GET' || url.origin !== self.location.origin) return
 
-  if (url.pathname.startsWith('/cliente/assets/') || url.pathname.startsWith('/cliente/fonts/') || url.pathname.startsWith('/img/')) {
-    event.respondWith(caches.match(req).then((cached) => cached ?? fetch(req).then((res) => guardar(event, req, res, false))))
+  if (url.pathname === '/js/medicoes.js' || url.pathname.startsWith('/cliente/assets/') || url.pathname.startsWith('/cliente/fonts/') || url.pathname.startsWith('/img/')) {
+    event.respondWith(caches.open(VERSAO).then(c => c.match(req)).then((cached) => cached ?? fetch(req).then((res) => guardar(event, req, res, false))))
     return
   }
 
@@ -82,8 +95,11 @@ self.addEventListener('fetch', (event) => {
   if (/^\/api\/c\/[^/]+$/.test(url.pathname)) {
     event.respondWith(
       fetch(req)
-        .then((res) => guardar(event, req, res, true))
-        .catch(() => caches.match(req).then((cached) => cached ?? Response.error()))
+        .then(res => {
+          if (res.status === 404 || res.status === 410) event.waitUntil(caches.open(VERSAO).then(c => c.delete(req)))
+          return guardar(event, req, res, true)
+        })
+        .catch(() => caches.open(VERSAO).then(async c => { await limitarComandas(c); return await c.match(req) }).then((cached) => cached ?? Response.error()))
     )
     return
   }
@@ -92,7 +108,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => guardar(event, PAGINA, res, false))
-        .catch(() => caches.match(PAGINA).then((cached) => cached ?? Response.error()))
+        .catch(() => caches.open(VERSAO).then(c => c.match(PAGINA)).then((cached) => cached ?? Response.error()))
     )
   }
 })

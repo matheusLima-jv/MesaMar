@@ -1,9 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { randomWhatsapp } from './helpers'
 
 const password = process.env.E2E_ADMIN_PASSWORD ?? ''
 
-test.skip(!password, 'defina E2E_ADMIN_PASSWORD para testar o painel')
 
 test('dono do projeto vê o lead no painel e baixa o CSV', async ({ page }) => {
   // cria um lead com nome único

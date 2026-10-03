@@ -52,6 +52,7 @@ import kotlin.test.assertTrue
  */
 @IntegrationTest
 class CorrecoesRevisaoTest(
+    private val entregador: br.com.mesamar.common.Entregador,
     @Value("\${local.server.port}") private val port: Int,
     private val convites: ConviteService,
     private val usuarios: UsuarioRepository,
@@ -334,6 +335,7 @@ class CorrecoesRevisaoTest(
         val email = painel.novoEmail("reset")
         painel.donoLogado(email)
         recuperacao.solicitar(email)
+        entregador.rodar()
         val token = assertNotNull(Regex("token=([A-Za-z0-9_-]+)").find(assertNotNull(emails.ultimoLink(email)))).groupValues[1]
 
         val r = juntos({ recuperacao.redefinir(token, "senha nova 1 longa") }, { recuperacao.redefinir(token, "senha nova 2 longa") })

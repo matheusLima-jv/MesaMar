@@ -1,3 +1,28 @@
+# Verificação atual (revisões 61–110)
+
+Os roteiros históricos abaixo documentam entregas anteriores. Recursos de cliente, fila, pagamento e offline já estão disponíveis. Mudanças de regras afetam os próximos pedidos de contas existentes, preservando preços de pedidos gravados.
+
+```bash
+./gradlew ktlintCheck build
+(cd web-customer && npm ci && npm run build)
+(cd web-staff && npm ci && npm run build)
+python3 .github/scripts/testar-alertas.py
+cd e2e
+npm ci
+npx playwright install chromium webkit
+E2E_ADMIN_PASSWORD=<senha obrigatória do ambiente local> npx playwright test
+```
+
+O E2E falha na configuração quando falta senha; não pula cenários administrativos. Use banco descartável, fixtures isoladas e Chrome/WebKit. Console e HTTP inesperados são conferidos em todos os contextos até o fim. Testes de conflito declaram somente os status esperados.
+
+Valide check-in e pedido offline, reabertura sem rede, ordem, token preservado, indicador de pendências, conflito que interrompe a fila, saída sem rede e troca de autor/barraca. Pagamento e avanço da fila exigem confirmação online. Ensaios unitários injetam falhas de corpo após cabeçalhos, quota, cache antigo e respostas fora de ordem.
+
+Em aparelhos reais: Android e iPhone pequenos; primeira visita e primeira reabertura offline; instalação e atualização; equipe e cliente no mesmo navegador; zoom 200%, teclado, VoiceOver/TalkBack; permissão/entrega push; Pix, QR e retorno do banco. Emuladores e teclado automatizado não substituem essas verificações.
+
+Recuperação e alertas: [procedimentos atuais](deploy.md). Execute o ensaio de restauração contra cópia externa com credenciais reais e cronometre todo o processo (RPO 24 h/RTO 2 h). O harness `.github/scripts/testar-backup-no-banco.sh` destina-se exclusivamente a container PostgreSQL descartável, com `MESAMAR_OPERACAO_TESTE=1`; nunca o execute em produção.
+
+---
+
 # Testar tudo na sua máquina antes do deploy
 
 Roteiro de ~30 minutos para validar a Fase 1 inteira localmente, do jeito que ela vai rodar em produção.
@@ -389,7 +414,7 @@ Com o `docker compose up` rodando, em outro terminal:
 ```bash
 cd e2e
 npm ci
-npx playwright install chromium
+npx playwright install chromium webkit
 E2E_ADMIN_PASSWORD=uma-senha-sua npx playwright test    # no Windows (PowerShell): $env:E2E_ADMIN_PASSWORD="..."; npx playwright test
 npx playwright show-report
 ```
@@ -406,13 +431,18 @@ Esperado: todos os testes passando (a contagem está no relatório do último ch
 
 ## 7. Simular produção (opcional)
 
-Para ver o comportamento do perfil `prod` (logs em JSON, health sem detalhes), coloque no `.env`:
+O perfil `prod` exige credenciais de execução sem DDL, migração separada, SMTP completo e origem HTTPS pública. Use `deploy/docker-compose.prod.yml` e `deploy/prod.env.example`, seguindo `docs/deploy.md`; trocar somente `SPRING_PROFILES_ACTIVE` no compose local já não simula uma produção válida.
 
-```dotenv
-SPRING_PROFILES_ACTIVE=prod
-```
+## Revisão 61–80
 
-e rode `docker compose up -d` de novo. Não é necessário para validar a fase.
+1. Abra a edição de um produto e de uma categoria em duas abas. Salve na primeira e tente salvar o formulário antigo da segunda: deve aparecer uma recusa sem perder a primeira mudança.
+2. Reordene o cardápio em dois aparelhos ao mesmo tempo: a página atualizada deve manter posições únicas.
+3. Repita um check-in com o mesmo identificador: token, cliente e comanda permanecem iguais.
+4. Solicite recuperação com SMTP indisponível: a resposta continua genérica; reset e entrega ficam confirmados no banco. Ao recuperar o SMTP antes de uma hora, o envio é repetido.
+5. Confira `historico_acao` após mudança de estado, bloqueio e configuração: cada ação possui antes/depois operacional e autor, sem senhas, tokens ou texto livre.
+6. Com mais de 100 clientes/contas, use anterior/próxima. O contador de quem vai pagar e o saldo total devem incluir todas as páginas. Relatório/CSV identificam o limite dos detalhes e mantêm os totais completos.
+7. Saia e volte à página do cliente: SSE e timers reiniciam uma única vez. Confira que conta e pedidos voltam a atualizar.
+8. Valide recuperação de reservas da outbox, falhas de integridade e concorrência com `Correcoes61a80Test`. Para os ciclos de vida do frontend: `cd web-customer` e `npm test`.
 
 ## Limpar tudo
 

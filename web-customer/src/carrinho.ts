@@ -1,3 +1,4 @@
+import { conferir, desembrulhar, inteiro, lerJson, lista, objeto, pedidoEnvio, texto, uuid } from '../../web-shared/src/validacao'
 // Carrinho e pedido em envio. Os dois ficam guardados no navegador (por comanda), então fechar a aba
 // ou recarregar a página com sinal ruim não perde o que o cliente montou nem o pedido que ainda não
 // chegou ao quiosque.
@@ -20,14 +21,8 @@ export class Carrinho {
 
   constructor (private readonly token: string) {
     try {
-      const salvo = JSON.parse(lembrar.get(`carrinho.${token}`) ?? '[]') as unknown
-      if (Array.isArray(salvo)) {
-        this.linhas = salvo.filter((l): l is Linha =>
-          typeof l === 'object' && l !== null &&
-          typeof (l as Linha).produtoId === 'string' &&
-          Number.isInteger((l as Linha).quantidade) && (l as Linha).quantidade > 0 &&
-          typeof (l as Linha).observacao === 'string')
-      }
+      const salvo = desembrulhar(lerJson(lembrar.get(`carrinho.${token}`)))
+      if (salvo !== undefined) this.linhas = conferir<Linha[]>(salvo, lista(objeto({ produtoId: uuid, quantidade: inteiro(1, MAX_QUANTIDADE), observacao: texto(MAX_OBSERVACAO) }), 30, 0, 'produtoId'))
     } catch { this.linhas = [] }
   }
 
@@ -40,11 +35,12 @@ export class Carrinho {
   }
 
   definir (produtoId: string, quantidade: number): void {
+    if (!uuid(produtoId) || !Number.isSafeInteger(quantidade)) return
     const q = Math.min(Math.max(quantidade, 0), MAX_QUANTIDADE)
     const linha = this.linhas.find((l) => l.produtoId === produtoId)
     if (q === 0) this.linhas = this.linhas.filter((l) => l.produtoId !== produtoId)
     else if (linha !== undefined) linha.quantidade = q
-    else this.linhas.push({ produtoId, quantidade: q, observacao: '' })
+    else if (this.linhas.length < 30) this.linhas.push({ produtoId, quantidade: q, observacao: '' })
     this.salvar()
   }
 
@@ -85,7 +81,7 @@ export class Carrinho {
   }
 
   private salvar (): void {
-    lembrar.set(`carrinho.${this.token}`, JSON.stringify(this.linhas))
+    lembrar.set(`carrinho.${this.token}`, JSON.stringify({ versao: 1, dados: this.linhas }))
   }
 }
 
@@ -98,15 +94,16 @@ const pendenteEmMemoria = new Map<string, PedidoEnvio | null>()
 
 export const pendente = {
   ler (token: string): PedidoEnvio | null {
-    if (pendenteEmMemoria.has(token)) return pendenteEmMemoria.get(token) ?? null
+    if (pendenteEmMemoria.has(token)) return structuredClone(pendenteEmMemoria.get(token) ?? null)
     try {
-      const p = JSON.parse(lembrar.get(`pendente.${token}`) ?? 'null') as PedidoEnvio | null
-      return p !== null && typeof p.id === 'string' && Array.isArray(p.itens) ? p : null
+      const p = desembrulhar(lerJson(lembrar.get(`pendente.${token}`)))
+      return p === undefined || p === null ? null : conferir<PedidoEnvio>(p, pedidoEnvio)
     } catch { return null }
   },
   guardar (token: string, pedido: PedidoEnvio): void {
-    pendenteEmMemoria.set(token, pedido)
-    lembrar.set(`pendente.${token}`, JSON.stringify(pedido))
+    const copia = conferir<PedidoEnvio>(structuredClone(pedido), pedidoEnvio)
+    pendenteEmMemoria.set(token, copia)
+    lembrar.set(`pendente.${token}`, JSON.stringify({ versao: 1, dados: copia }))
   },
   apagar (token: string): void {
     pendenteEmMemoria.set(token, null)

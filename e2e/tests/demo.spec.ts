@@ -1,9 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { expectNoHorizontalScroll, failOnConsoleErrors } from './helpers'
 
 const password = process.env.E2E_ADMIN_PASSWORD ?? ''
 
-test.skip(!password, 'defina E2E_ADMIN_PASSWORD para testar a barraca de demonstração')
 
 test('o projeto cria a barraca de demonstração e a equipe treina nela, com aviso de treino em todo lugar', async ({ page, browser }) => {
   const novoAparelho = async () => await (await browser.newContext(test.info().project.use)).newPage()

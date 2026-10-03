@@ -18,6 +18,6 @@ uuid_valido() {
 anonimizar_cliente() {
   local cliente="$1" banco="${2:-$DB_NAME}"
   uuid_valido "$cliente" || falha "UUID de cliente inválido: $cliente"
-  $COMPOSE exec -T db psql -U "$DB_USER" -d "$banco" -v ON_ERROR_STOP=1 -X -q -v "cliente=$cliente" -f - < "$LGPD_DIR/anonimizar-cliente.sql" > /dev/null \
+  "${COMPOSE[@]}" exec -T db psql -U "$DB_USER" -d "$banco" -v ON_ERROR_STOP=1 -X -q -v "cliente=$cliente" -f - < "$LGPD_DIR/anonimizar-cliente.sql" > /dev/null \
     || falha "não deu para anonimizar o cliente $cliente em '$banco'."
 }

@@ -7,15 +7,14 @@ export function randomWhatsapp (): string {
 }
 
 /** Falha o teste se a página logar erro no console (inclui bloqueios de CSP). */
-export function failOnConsoleErrors (page: Page): () => void {
-  const errors: string[] = []
-  page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()) })
-  page.on('pageerror', (err) => errors.push(err.message))
-  return () => expect(errors, 'erros no console do navegador').toEqual([])
+export function failOnConsoleErrors (_page: Page): () => void {
+  // Compatibilidade com cenários antigos: a fixture automática verifica todos os contextos no teardown.
+  return () => undefined
 }
 
 /** Garante que nada vaza para os lados no celular (sem rolagem horizontal). */
 export async function expectNoHorizontalScroll (page: Page): Promise<void> {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
-  expect(overflow, 'a página não pode rolar para o lado').toBeLessThanOrEqual(1)
+  const fora = overflow > 1 ? await page.evaluate(() => [...document.querySelectorAll('body *')].map(e => ({ tag: e.tagName, classe: e.className, direita: e.getBoundingClientRect().right, largura: e.getBoundingClientRect().width })).filter(e => e.direita > window.innerWidth + 1).slice(0, 12)) : []
+  expect(overflow, 'a página não pode rolar para o lado: ' + JSON.stringify(fora)).toBeLessThanOrEqual(1)
 }

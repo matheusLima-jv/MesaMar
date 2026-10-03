@@ -1,15 +1,11 @@
 package br.com.mesamar.cliente
 
-import br.com.mesamar.barraca.Barraca
 import br.com.mesamar.barraca.BarracaRepository
-import br.com.mesamar.comanda.ClienteRepository
 import br.com.mesamar.comanda.Comanda
 import br.com.mesamar.comanda.ComandaRepository
-import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.RateLimiter
 import br.com.mesamar.eventos.HubEventos
-import br.com.mesamar.guardasol.GuardaSolRepository
 import br.com.mesamar.pagamento.Extrato
 import br.com.mesamar.pagamento.FechamentoService
 import br.com.mesamar.pagamento.MetodoPagamento
@@ -24,7 +20,6 @@ import br.com.mesamar.problema.ProblemaService
 import br.com.mesamar.problema.ResultadoProblema
 import br.com.mesamar.staff.ErroValidacaoView
 import br.com.mesamar.staff.ErroView
-import br.com.mesamar.staff.ProdutoView
 import br.com.mesamar.staff.SecaoView
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -41,9 +36,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
-import java.time.Clock
 import java.time.Duration
-import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
@@ -226,16 +219,14 @@ data class ErroIndisponivelView(
 @RestController
 @RequestMapping("/api/c/{token}")
 class ClienteController(
+    private val consultas: ConsultaCliente,
     private val comandas: ComandaRepository,
-    private val clientes: ClienteRepository,
-    private val guardaSois: GuardaSolRepository,
     private val barracas: BarracaRepository,
     private val pedidos: PedidoService,
     private val conta: FechamentoService,
     private val problemas: ProblemaService,
     private val hub: HubEventos,
     private val rateLimiter: RateLimiter,
-    private val clock: Clock,
 ) {
     @GetMapping
     fun comanda(
@@ -244,22 +235,7 @@ class ClienteController(
     ): ResponseEntity<Any> {
         val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-geral:${comanda.id}", LIMITE_GERAL, JANELA_COMANDA)) return muitas()
-        val barraca = barracas.findById(comanda.barracaId).orElseThrow()
-        val cliente = clientes.findById(comanda.clienteId).orElseThrow()
-        val guardaSol = comanda.guardaSolId?.let { guardaSois.findById(it).orElse(null) }
-        val saldo = pedidos.saldoCentavos(comanda.id)
-        return ResponseEntity.ok(
-            ComandaClienteView(
-                barraca = barraca.nome,
-                nome = cliente.nome,
-                guardaSol = guardaSol?.numero,
-                bloqueio = pedidos.bloqueio(barraca, comanda, saldo)?.let(BloqueioView::of),
-                saldoCentavos = saldo,
-                modoPagamento = barraca.modoPagamento.name,
-                demo = barraca.demo,
-                cardapio = secoes(barraca),
-            ),
-        )
+        return consultas.comanda(token)?.let { ResponseEntity.ok(it) } ?: recusado(request)
     }
 
     /** Os pedidos da comanda do token e o saldo. A página consulta isto a cada 15 s na tela "Meus pedidos". */
@@ -270,12 +246,7 @@ class ClienteController(
     ): ResponseEntity<Any> {
         val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-geral:${comanda.id}", LIMITE_GERAL, JANELA_COMANDA)) return muitas()
-        return ResponseEntity.ok(
-            MeusPedidosView(
-                saldoCentavos = pedidos.saldoCentavos(comanda.id),
-                pedidos = pedidos.meusPedidos(comanda).reversed().map(PedidoView::of),
-            ),
-        )
+        return consultas.pedidos(token)?.let { ResponseEntity.ok(it) } ?: recusado(request)
     }
 
     /**
@@ -308,7 +279,7 @@ class ClienteController(
     ): ResponseEntity<Any> {
         val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-geral:${comanda.id}", LIMITE_GERAL, JANELA_COMANDA)) return muitas()
-        return respostaConta(ResultadoConta.Ok(conta.extrato(comanda)))
+        return consultas.conta(token)?.let { ResponseEntity.ok(it) } ?: recusado(request)
     }
 
     /** "Fechar conta": a comanda passa a aguardar o pagamento e novos pedidos ficam bloqueados. Pode repetir para trocar a forma. */
@@ -391,6 +362,11 @@ class ClienteController(
             try {
                 pedidos.criar(comanda, body)
             } catch (e: DataIntegrityViolationException) {
+                if (!br.com.mesamar.common.Restricoes
+                        .unica(e, "pedido_pkey")
+                ) {
+                    throw e
+                }
                 // Dois envios do mesmo pedido ao mesmo tempo: o segundo encontra o primeiro.
                 if (body.id == null) throw e
                 pedidos.criar(comanda, body)
@@ -440,17 +416,7 @@ class ClienteController(
      * A comanda do token, ou `null` se o token não existe **ou o extrato venceu**: depois de [EXTRATO_DIAS] dias da
      * conta paga, o link deixa de valer e dá o mesmo 404 de um token que nunca existiu.
      */
-    private fun comandaVigente(token: String): Comanda? {
-        val comanda = comandas.findByTokenAcesso(token) ?: return null
-        val fechadaEm = comanda.fechadaEm
-        if (comanda.status == StatusComanda.FECHADA &&
-            fechadaEm != null &&
-            fechadaEm.plus(Duration.ofDays(EXTRATO_DIAS)) < Instant.now(clock)
-        ) {
-            return null
-        }
-        return comanda
-    }
+    private fun comandaVigente(token: String): Comanda? = consultas.vigente(token)
 
     /** Token que não existe: 404 igual para qualquer valor, e quem insiste de um mesmo IP é freado. */
     private fun recusado(request: HttpServletRequest): ResponseEntity<Any> {
@@ -465,11 +431,6 @@ class ClienteController(
             .status(HttpStatus.TOO_MANY_REQUESTS)
             .header("Retry-After", "30")
             .body(ErroView("limite", "Muitas tentativas seguidas. Espere um pouco e tente de novo."))
-
-    private fun secoes(barraca: Barraca): List<SecaoView> =
-        pedidos.cardapioDoCliente(barraca).map { s ->
-            SecaoView(s.categoria.id, s.categoria.nome, s.noCardapio.map(ProdutoView::of))
-        }
 
     companion object {
         const val LIMITE_GERAL = 90

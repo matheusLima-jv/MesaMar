@@ -1,5 +1,7 @@
 package br.com.mesamar.eventos
 
+import br.com.mesamar.common.ExecutorLimitado
+import br.com.mesamar.common.SaudeOperacional
 import com.zaxxer.hikari.HikariDataSource
 import org.postgresql.PGConnection
 import org.slf4j.LoggerFactory
@@ -15,7 +17,7 @@ import java.sql.DriverManager
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.sql.DataSource
 
 /** O canal do PostgreSQL por onde passam os avisos de tempo real. */
@@ -146,6 +148,8 @@ class Assinante(
     /** O app do quiosque informa como conferir se quem abriu a conexão ainda pode estar nela; a página do cliente, não. */
     val aindaTemAcesso: (() -> Boolean)? = null,
 ) {
+    val envioPendente = AtomicBoolean(false)
+
     @Synchronized
     fun enviar(evento: SseEmitter.SseEventBuilder): Boolean =
         try {
@@ -173,7 +177,8 @@ class HubEventos {
     private val clientesDaBarraca = Registro()
 
     // Cada envio vai numa thread virtual: um celular lento não segura a entrega para os outros.
-    private val executor = Executors.newVirtualThreadPerTaskExecutor()
+    private val executor = ExecutorLimitado("sse")
+    private val destinosPorAssinante = ConcurrentHashMap<Assinante, List<Pair<Registro, UUID>>>()
 
     fun assinarBarraca(
         barracaId: UUID,
@@ -213,7 +218,7 @@ class HubEventos {
 
     /** Depois de uma queda da conexão com o banco, eventos podem ter se perdido: manda todo mundo buscar o estado de novo. */
     fun ressincronizar() {
-        todos().forEach { (registro, chave) -> enviarA(registro, chave) { SseEmitter.event().name("ressincronizar").data("{}") } }
+        destinosPorAssinante.keys.forEach { enviar(it) { SseEmitter.event().name("ressincronizar").data("{}") } }
     }
 
     /**
@@ -225,7 +230,7 @@ class HubEventos {
         // A autorização é conferida só ao abrir a conexão; aqui ela é conferida de novo, para quem perdeu o acesso
         // (atendente desativado, sessões revogadas, senha trocada, barraca desativada) não continuar recebendo eventos
         revisarAcessos()
-        todos().forEach { (registro, chave) -> enviarA(registro, chave) { SseEmitter.event().comment("ping") } }
+        destinosPorAssinante.keys.forEach { enviar(it) { SseEmitter.event().comment("ping") } }
     }
 
     /**
@@ -265,10 +270,7 @@ class HubEventos {
     }
 
     /** Assinantes agora (cada conexão conta uma vez), só para os testes e o diagnóstico. */
-    fun total(): Int = quiosques.values.sumOf { it.size } + comandas.values.sumOf { it.size }
-
-    private fun todos(): List<Pair<Registro, UUID>> =
-        listOf(quiosques, comandas, clientesDaBarraca).flatMap { registro -> registro.keys.map { registro to it } }
+    fun total(): Int = destinosPorAssinante.size
 
     private fun assinar(
         destinos: List<Pair<Registro, UUID>>,
@@ -277,6 +279,7 @@ class HubEventos {
     ): SseEmitter {
         val emitter = SseEmitter(TEMPO_MAXIMO_MS)
         val assinante = Assinante(emitter, aindaTemAcesso)
+        destinosPorAssinante[assinante] = destinos
         destinos.forEach { (registro, chave) ->
             registro.compute(chave) { _, atual -> (atual ?: CopyOnWriteArrayList()).also { it += assinante } }
         }
@@ -299,12 +302,10 @@ class HubEventos {
     }
 
     private fun retirarDeTodos(assinante: Assinante) {
-        listOf(quiosques, comandas, clientesDaBarraca).forEach { registro ->
-            registro.keys.forEach { chave ->
-                registro.computeIfPresent(chave) { _, lista ->
-                    lista.remove(assinante)
-                    if (lista.isEmpty()) null else lista
-                }
+        destinosPorAssinante.remove(assinante)?.forEach { (registro, chave) ->
+            registro.computeIfPresent(chave) { _, lista ->
+                lista.remove(assinante)
+                if (lista.isEmpty()) null else lista
             }
         }
     }
@@ -314,15 +315,43 @@ class HubEventos {
         chave: UUID,
         evento: () -> SseEmitter.SseEventBuilder,
     ) {
-        registro[chave]?.forEach { assinante ->
-            executor.execute {
-                if (!assinante.enviar(evento())) {
-                    log.debug("Assinante de tempo real caiu; removendo")
-                    retirarDeTodos(assinante)
-                    assinante.encerrar()
+        registro[chave]?.forEach { enviar(it, evento) }
+    }
+
+    private fun enviar(
+        assinante: Assinante,
+        evento: () -> SseEmitter.SseEventBuilder,
+    ) {
+        // Se já há envio preso ou a fila lotou, reconectar força a leitura do estado atual.
+        if (!assinante.envioPendente.compareAndSet(false, true)) {
+            retirarDeTodos(assinante)
+            assinante.encerrar()
+            return
+        }
+        val aceita =
+            executor.executar {
+                try {
+                    if (!assinante.enviar(evento())) {
+                        retirarDeTodos(assinante)
+                        assinante.encerrar()
+                    }
+                } finally {
+                    assinante.envioPendente.set(false)
                 }
             }
+        if (!aceita) {
+            retirarDeTodos(assinante)
+            assinante.encerrar()
         }
+    }
+
+    @jakarta.annotation.PreDestroy
+    fun desligar() {
+        destinosPorAssinante.keys.toList().forEach {
+            retirarDeTodos(it)
+            it.encerrar()
+        }
+        executor.close()
     }
 
     companion object {
@@ -342,6 +371,7 @@ class HubEventos {
 class ReceptorEventos(
     private val hub: HubEventos,
     private val dataSource: DataSource,
+    private val saude: SaudeOperacional? = null,
 ) : SmartLifecycle {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -378,11 +408,13 @@ class ReceptorEventos(
                     espera = ESPERA_INICIAL_MS
                     val pg = conn.unwrap(PGConnection::class.java)
                     while (rodando) {
+                        saude?.registrar("eventos-conexao", true)
                         pg.getNotifications(ESPERA_AVISO_MS)?.forEach { n -> n.parameter?.let(::repassar) }
                     }
                 }
             } catch (e: Exception) {
                 if (!rodando) return
+                saude?.registrar("eventos-conexao", false)
                 log.warn("Ouvinte de eventos caiu ({}). Tentando de novo em {} ms", e.message, espera)
                 runCatching { Thread.sleep(espera) }
                 espera = minOf(espera * 2, ESPERA_MAXIMA_MS)
@@ -398,10 +430,11 @@ class ReceptorEventos(
     private fun repassar(payload: String) {
         val evento = EventoTempoReal.ler(payload)
         if (evento == null) {
-            log.warn("Aviso de tempo real ilegível: {}", payload)
+            log.warn("Aviso de tempo real ilegível")
             return
         }
         hub.distribuir(evento)
+        saude?.registrar("eventos-recepcao", true)
     }
 
     companion object {

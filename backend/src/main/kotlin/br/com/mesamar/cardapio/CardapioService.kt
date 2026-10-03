@@ -18,9 +18,10 @@ data class ProdutoForm(
     var descricao: String = "",
     /** Em reais: "12", "12,50", "1.200,00". */
     var preco: String = "",
+    var versao: Long? = null,
 ) {
     companion object {
-        fun of(p: Produto) = ProdutoForm(p.categoriaId.toString(), p.nome, p.descricao.orEmpty(), Money.toInput(p.precoCentavos))
+        fun of(p: Produto) = ProdutoForm(p.categoriaId.toString(), p.nome, p.descricao.orEmpty(), Money.toInput(p.precoCentavos), p.versao)
     }
 }
 
@@ -40,6 +41,7 @@ enum class Direcao { CIMA, BAIXO }
  */
 @Service
 class CardapioService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
     private val categorias: CategoriaRepository,
     private val produtos: ProdutoRepository,
     private val barracas: BarracaRepository,
@@ -48,6 +50,7 @@ class CardapioService(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun secoes(barraca: Barraca): List<SecaoCardapio> {
         val porCategoria = produtos.findAllByBarracaIdOrderByOrdem(barraca.id).groupBy { it.categoriaId }
         return categorias.findAllByBarracaIdOrderByOrdem(barraca.id).map { SecaoCardapio(it, porCategoria[it.id].orEmpty()) }
@@ -69,11 +72,12 @@ class CardapioService(
         barraca: Barraca,
         nomeBruto: String,
     ): String? {
+        autorHistorico.marcar()
         // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        barracas.travar(barraca.id)
         tempoReal.cardapioMudou(barraca.id)
         val nome = limpar(nomeBruto)
         // Uma criação por vez na barraca: o limite e o nome repetido são conferidos sem corrida
-        barracas.travar(barraca.id)
         problemaNomeCategoria(barraca, nome, exceto = null)?.let { return it }
         val existentes = categorias.findAllByBarracaIdOrderByOrdem(barraca.id)
         if (existentes.size >= MAX_CATEGORIAS) return "Limite de $MAX_CATEGORIAS categorias."
@@ -88,10 +92,16 @@ class CardapioService(
         barraca: Barraca,
         id: UUID,
         nomeBruto: String,
+        versao: Long? = null,
     ): String? {
+        autorHistorico.marcar()
         // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        barracas.travar(barraca.id)
         tempoReal.cardapioMudou(barraca.id)
         val categoria = categorias.findByIdAndBarracaId(id, barraca.id) ?: return NAO_ENCONTRADA
+        if (versao != null && versao != categoria.versao) {
+            return "Esta categoria mudou em outro aparelho. Atualize a tela e confira o nome."
+        }
         val nome = limpar(nomeBruto)
         problemaNomeCategoria(barraca, nome, exceto = id)?.let { return it }
         categoria.nome = nome
@@ -105,7 +115,9 @@ class CardapioService(
         barraca: Barraca,
         id: UUID,
     ): String? {
+        autorHistorico.marcar()
         // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        barracas.travar(barraca.id)
         tempoReal.cardapioMudou(barraca.id)
         val categoria = categorias.findByIdAndBarracaId(id, barraca.id) ?: return NAO_ENCONTRADA
         val qtd = produtos.countByBarracaIdAndCategoriaId(barraca.id, id)
@@ -123,7 +135,9 @@ class CardapioService(
         id: UUID,
         direcao: Direcao,
     ): String? {
+        autorHistorico.marcar()
         // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        barracas.travar(barraca.id)
         tempoReal.cardapioMudou(barraca.id)
         val lista = categorias.findAllByBarracaIdOrderByOrdem(barraca.id)
         if (lista.none { it.id == id }) return NAO_ENCONTRADA
@@ -140,9 +154,10 @@ class CardapioService(
         form: ProdutoForm,
         errors: Errors,
     ): Produto? {
+        autorHistorico.marcar()
         // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
-        tempoReal.cardapioMudou(barraca.id)
         barracas.travar(barraca.id)
+        tempoReal.cardapioMudou(barraca.id)
         val dados = validar(barraca, form, errors) ?: return null
         if (produtos.countByBarracaId(barraca.id) >= MAX_PRODUTOS) {
             errors.reject("limite", "Limite de $MAX_PRODUTOS produtos por barraca.")
@@ -175,9 +190,15 @@ class CardapioService(
         form: ProdutoForm,
         errors: Errors,
     ): Produto? {
+        autorHistorico.marcar()
         // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        barracas.travar(barraca.id)
         tempoReal.cardapioMudou(barraca.id)
         val produto = produtos.findByIdAndBarracaId(id, barraca.id) ?: return null
+        if (form.versao != null && form.versao != produto.versao) {
+            errors.reject("conflito", "Este produto mudou em outro aparelho. Reabra a edição e confira os dados.")
+            return null
+        }
         val dados = validar(barraca, form, errors) ?: return null
         if (produto.categoriaId != dados.categoria.id) {
             produto.categoriaId = dados.categoria.id
@@ -196,8 +217,7 @@ class CardapioService(
         barraca: Barraca,
         id: UUID,
     ): Produto? =
-        produtos
-            .findByIdAndBarracaId(id, barraca.id)
+        produtoTravado(barraca, id)
             ?.also { it.esgotado = !it.esgotado }
             ?.let(::salvar)
             ?.also { tempoReal.cardapioMudou(barraca.id) }
@@ -209,8 +229,7 @@ class CardapioService(
         id: UUID,
         esgotado: Boolean,
     ): Produto? =
-        produtos
-            .findByIdAndBarracaId(id, barraca.id)
+        produtoTravado(barraca, id)
             ?.also { it.esgotado = esgotado }
             ?.let(::salvar)
             ?.also { tempoReal.cardapioMudou(barraca.id) }
@@ -221,8 +240,7 @@ class CardapioService(
         id: UUID,
         ativo: Boolean,
     ): Produto? =
-        produtos
-            .findByIdAndBarracaId(id, barraca.id)
+        produtoTravado(barraca, id)
             ?.also { it.ativo = ativo }
             ?.let(::salvar)
             ?.also { tempoReal.cardapioMudou(barraca.id) }
@@ -233,7 +251,9 @@ class CardapioService(
         id: UUID,
         direcao: Direcao,
     ): String? {
+        autorHistorico.marcar()
         // Avisa os aparelhos abertos (só sai no commit; se nada mudou, eles só buscam o mesmo cardápio)
+        barracas.travar(barraca.id)
         tempoReal.cardapioMudou(barraca.id)
         val produto = produtos.findByIdAndBarracaId(id, barraca.id) ?: return NAO_ENCONTRADO
         val lista = produtos.findAllByBarracaIdAndCategoriaIdOrderByOrdem(barraca.id, produto.categoriaId)
@@ -312,6 +332,15 @@ class CardapioService(
             ordenada[j] = tmp
         }
         ordenada.forEachIndexed { idx, item -> setOrdem(item, idx + 1) }
+    }
+
+    private fun produtoTravado(
+        barraca: Barraca,
+        id: UUID,
+    ): Produto? {
+        autorHistorico.marcar()
+        barracas.travar(barraca.id)
+        return produtos.findByIdAndBarracaId(id, barraca.id)
     }
 
     private fun salvar(produto: Produto): Produto {

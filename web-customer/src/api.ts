@@ -1,3 +1,6 @@
+import { contrato } from './contratos'
+import { registro, texto, lista, uuid } from '../../web-shared/src/validacao'
+export { novoId, reais, lerReais } from '../../web-shared/src/valores'
 // Cliente da API da página do cliente (/api/c/{token}). Sem cookies e sem sessão: o token que está
 // no endereço da página (/c/{token}) é a credencial de tudo.
 
@@ -182,10 +185,13 @@ async function chamar<T> (method: 'GET' | 'POST', token: string, caminho: string
     }
     if (res.ok) {
       try {
-        const dados = await res.json() as T
+        const bruto: unknown = await res.json()
+        let dados: T
+        try { dados = contrato<T>(caminho, method, bruto) } catch { throw new ApiError(502, 'contrato', 'A resposta veio incompleta ou incompatível. Confira a operação antes de repetir.') }
         aoResponder?.(res)
         return dados
-      } catch {
+      } catch (e) {
+        if (e instanceof ApiError) throw e
         // O servidor respondeu 2xx, mas o corpo não chegou inteiro (sinal caiu no meio). O pedido pode ter sido gravado:
         // trata como falha de rede, para quem chama tentar de novo com o MESMO id (o servidor devolve o que já existe).
         throw semSinal()
@@ -194,8 +200,9 @@ async function chamar<T> (method: 'GET' | 'POST', token: string, caminho: string
     const retry = Number(res.headers.get('Retry-After'))
     const esperaMs = res.status === 429 && Number.isFinite(retry) && retry > 0 ? retry * 1000 : undefined
     try {
-      const erro = await res.json() as { erro?: string, mensagem?: string, produtos?: string[] }
-      throw new ApiError(res.status, erro.erro ?? 'erro', erro.mensagem ?? 'Algo deu errado. Tente de novo.', erro.produtos, esperaMs)
+      const bruto: unknown = await res.json()
+      const erro = registro(bruto) ? bruto : {}
+      throw new ApiError(res.status, texto(100, 1)(erro.erro) ? String(erro.erro) : 'erro', texto(2000, 1)(erro.mensagem) ? String(erro.mensagem) : 'Algo deu errado. Tente de novo.', lista(uuid, 30)(erro.produtos) ? erro.produtos as string[] : [], esperaMs)
     } catch (e) {
       if (e instanceof ApiError) throw e
       throw new ApiError(res.status, 'erro', 'Algo deu errado. Tente de novo.', [], esperaMs)
@@ -284,27 +291,4 @@ export function ouvirComanda (token: string, aoMudar: () => void, aoEstado: (con
     window.clearTimeout(timer)
     es?.close()
   }
-}
-
-/** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */
-export function novoId (): string {
-  const b = crypto.getRandomValues(new Uint8Array(16))
-  b[6] = (b[6] & 0x0f) | 0x40
-  b[8] = (b[8] & 0x3f) | 0x80
-  const hex = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-}
-
-/** 12300 → "R$ 123,00" (o mesmo formato do servidor: Money.format). */
-export function reais (centavos: number): string {
-  const inteiro = String(Math.floor(centavos / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  return `R$ ${inteiro},${String(centavos % 100).padStart(2, '0')}`
-}
-
-/** "100", "100,50" ou "R$ 1.250,00" → centavos. `null` se não for um valor em reais. */
-export function lerReais (texto: string): number | null {
-  const limpo = texto.replace(/R\$/g, '').replace(/\s/g, '')
-  const m = /^(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,2}))?$/.exec(limpo)
-  if (m === null) return null
-  return Number(m[1].replace(/\./g, '')) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
 }

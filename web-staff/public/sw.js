@@ -12,7 +12,7 @@ const ARQUIVOS = /* ARQUIVOS */ []
 const SHELL = ['/staff/', '/staff/manifest.json']
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(VERSAO).then((cache) => cache.addAll([...SHELL, ...ARQUIVOS])).then(() => self.skipWaiting()))
+  event.waitUntil(caches.open(VERSAO).then((cache) => cache.addAll([...SHELL, ...ARQUIVOS, '/js/medicoes.js'])).then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (event) => {
@@ -37,8 +37,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/api/')) return
 
-  if (url.pathname.startsWith('/staff/assets/') || url.pathname.startsWith('/staff/fonts/') || url.pathname.startsWith('/staff/icons/')) {
-    event.respondWith(caches.match(req).then((cached) => cached ?? fetch(req).then((res) => guardar(event, req, res))))
+  if (url.pathname === '/js/medicoes.js' || url.pathname.startsWith('/staff/assets/') || url.pathname.startsWith('/staff/fonts/') || url.pathname.startsWith('/staff/icons/')) {
+    event.respondWith(caches.open(VERSAO).then(c => c.match(req)).then((cached) => cached ?? fetch(req).then((res) => guardar(event, req, res))))
     return
   }
 
@@ -46,7 +46,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => guardar(event, '/staff/', res))
-        .catch(() => caches.match('/staff/').then((cached) => cached ?? Response.error()))
+        .catch(() => caches.open(VERSAO).then(c => c.match('/staff/')).then((cached) => cached ?? Response.error()))
     )
   }
 })
@@ -54,16 +54,18 @@ self.addEventListener('fetch', (event) => {
 // Aviso de pedido novo ou atrasado. O navegador exige mostrar uma notificação para cada aviso recebido; com o app
 // aberto, o som e o destaque de dentro dele já chamam a atenção, e a notificação só reforça.
 self.addEventListener('push', (event) => {
-  let dados = {}
+  let dados
   try {
     dados = event.data ? event.data.json() : {}
   } catch {
     dados = { titulo: 'MesaMar', corpo: event.data ? event.data.text() : '' }
   }
+  if (!dados || typeof dados !== 'object' || Array.isArray(dados)) dados = {}
+  const texto = (v, max) => typeof v === 'string' ? v.slice(0, max) : ''
   event.waitUntil(
-    self.registration.showNotification(dados.titulo || 'MesaMar', {
-      body: dados.corpo || '',
-      tag: dados.tag || 'mesamar',
+    self.registration.showNotification(texto(dados.titulo, 120) || 'MesaMar', {
+      body: texto(dados.corpo, 1000),
+      tag: texto(dados.tag, 100) || 'mesamar',
       icon: '/staff/icons/icon-192.png',
       badge: '/staff/icons/icon-192.png',
       vibrate: dados.tipo === 'PEDIDO_ATRASADO' ? [400, 150, 400] : [200, 100, 200],
@@ -76,7 +78,10 @@ self.addEventListener('push', (event) => {
 // Tocar na notificação abre o destino dela (a fila, a aba Pagamentos ou o painel do dono): reaproveita a janela se já estiver aberta.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const alvo = new URL((event.notification.data && event.notification.data.url) || '/staff/#/fila', self.location.origin).href
+  let destino
+  try { destino = new URL((event.notification.data && event.notification.data.url) || '/staff/#/fila', self.location.origin) } catch { destino = new URL('/staff/#/fila', self.location.origin) }
+  if (destino.origin !== self.location.origin || !/^\/(staff|painel)(\/|$)/.test(destino.pathname)) destino = new URL('/staff/#/fila', self.location.origin)
+  const alvo = destino.href
   event.waitUntil((async () => {
     const janelas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     // Só reaproveita o app aberto quando o destino é do próprio app (/staff/); o resto (ex.: o painel do dono) abre numa janela nova

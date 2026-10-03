@@ -11,12 +11,14 @@ type Ouvinte = () => void
 
 const REDESENHO_MS = 250
 
+let pagina = 0
 let dados: Pagamentos | null = null
 let diferencaMs = 0
 let falhou = false
 let timerBusca: number | undefined
 let primeiraBusca = true
 let ativa = false
+let geracao = 0
 /** Avisos que o app já mostrou: comanda + hora do aviso. Avisar de novo muda a hora, e então toca de novo. */
 const vistos = new Set<string>()
 const ouvintes = new Set<Ouvinte>()
@@ -41,7 +43,7 @@ function avisarOuvintes (): void {
 
 /** Quantas contas esperam o quiosque receber (o número que aparece na aba). */
 export function aguardando (): number {
-  return dados?.aguardando.length ?? 0
+  return dados?.totalAguardando ?? 0
 }
 
 /** "Guarda-sol 12 · Ana está indo pagar · R$ 87,50 · Dinheiro (troco para R$ 100,00)". */
@@ -58,9 +60,10 @@ export const recarregar = umaPorVez(buscarPagamentos)
 
 async function buscarPagamentos (): Promise<void> {
   if (!ativa) return
+  const destaBusca = geracao
   try {
-    const nova = await pagamentos()
-    if (!ativa) return
+    const nova = await pagamentos(pagina)
+    if (!ativa || destaBusca !== geracao) return
     diferencaMs = Date.parse(nova.agora) - Date.now()
     const novos = nova.aguardando.filter((c) => c.avisoEm !== null && !vistos.has(`${c.comandaId}@${c.avisoEm}`))
     nova.aguardando.forEach((c) => { if (c.avisoEm !== null) vistos.add(`${c.comandaId}@${c.avisoEm}`) })
@@ -77,11 +80,17 @@ async function buscarPagamentos (): Promise<void> {
       .filter((c) => c.avisoEm !== null)
       .map((c) => ({ chave: `pagamento:${c.comandaId}@${c.avisoEm}`, tipo: 'pagamento' as const, texto: textoDoAviso(c), aba: 'pagamentos' as const })))
   } catch (e) {
-    if (descartada(e) || !ativa) return
+    if (descartada(e) || !ativa || destaBusca !== geracao) return
     // 401: o app já volta para o login (evento da api). Sem sinal: segue com a última lista e tenta de novo.
     falhou = !(e instanceof ApiError && e.status === 401)
   }
   avisarOuvintes()
+}
+
+export function mudarPagina (nova: number): void {
+  geracao++
+  pagina = Math.max(0, nova)
+  void recarregar()
 }
 
 /** Várias mudanças seguidas viram uma busca só. */
@@ -97,7 +106,9 @@ export function iniciarPagamentos (): void {
 }
 
 export function pararPagamentos (): void {
+  pagina = 0
   ativa = false
+  geracao++
   window.clearTimeout(timerBusca)
   dados = null
   falhou = false

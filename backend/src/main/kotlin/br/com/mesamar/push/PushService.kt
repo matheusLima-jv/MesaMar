@@ -22,7 +22,6 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.Executors
 
 /** Um aparelho que ativou os avisos. O `endpoint` é a URL secreta do serviço de push; `p256dh` e `auth` cifram a mensagem. */
 @Entity
@@ -140,6 +139,7 @@ sealed interface ResultadoInscricao {
  */
 @Service
 class PushService(
+    private val entregas: br.com.mesamar.common.Entregas,
     private val props: PushProperties,
     site: SiteProperties,
     private val subs: PushSubscriptionRepository,
@@ -148,7 +148,9 @@ class PushService(
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-    private val executor = Executors.newVirtualThreadPerTaskExecutor()
+    private val executor =
+        br.com.mesamar.common
+            .ExecutorLimitado("push-teste", 2, 40)
     private val http: HttpClient =
         HttpClient
             .newBuilder()
@@ -237,22 +239,21 @@ class PushService(
         barracaId: UUID,
         endpoint: String?,
     ): Boolean {
-        val v = vapid ?: return false
+        if (vapid == null) return false
         val inscricao = endpoint?.let { subs.findByEndpoint(it) }?.takeIf { it.barracaId == barracaId } ?: return false
-        executor.execute {
-            entregar(
-                v,
-                inscricao,
-                MensagemPush(
-                    titulo = "MesaMar: avisos funcionando",
-                    corpo = "É assim que você vai receber os pedidos novos.",
-                    url = "/staff/#/fila",
-                    tag = "teste",
-                    tipo = "TESTE",
-                    validadeSegundos = 60,
-                ),
-            )
-        }
+        entregas.registrar(
+            "PUSH",
+            inscricao.id,
+            MensagemPush(
+                titulo = "MesaMar: avisos funcionando",
+                corpo = "É assim que você vai receber os pedidos novos.",
+                url = "/staff/#/fila",
+                tag = "teste",
+                tipo = "TESTE",
+                validadeSegundos = 60,
+            ),
+            Instant.now(clock).plusSeconds(60),
+        )
         return true
     }
 
@@ -261,7 +262,7 @@ class PushService(
         barracaId: UUID,
         mensagem: MensagemPush,
     ) {
-        val v = vapid ?: return
+        if (vapid == null) return
         val lista = subs.findAllByBarracaId(barracaId)
         if (lista.isEmpty()) return
         val atendentesAtivos =
@@ -275,7 +276,7 @@ class PushService(
             if (s.atendenteId != null && s.atendenteId !in atendentesAtivos) {
                 subs.removerPorId(s.id)
             } else {
-                executor.execute { entregar(v, s, mensagem) }
+                entregas.registrar("PUSH", s.id, mensagem, Instant.now(clock).plusSeconds(mensagem.validadeSegundos.toLong()))
             }
         }
     }
@@ -288,10 +289,31 @@ class PushService(
         barracaId: UUID,
         mensagem: MensagemPush,
     ) {
-        val v = vapid ?: return
+        if (vapid == null) return
         subs.findAllByBarracaId(barracaId).filter { it.usuarioId != null }.forEach { s ->
-            executor.execute { entregar(v, s, mensagem) }
+            entregas.registrar("PUSH", s.id, mensagem, Instant.now(clock).plusSeconds(mensagem.validadeSegundos.toLong()))
         }
+    }
+
+    /** Consulta novamente a autorização: uma entrega antiga não restaura uma assinatura revogada. */
+    fun entregarPendente(
+        id: UUID,
+        mensagem: MensagemPush,
+    ) {
+        val v = vapid ?: return
+        val s = subs.findById(id).orElse(null) ?: return
+        if (barracas.findById(s.barracaId).orElse(null)?.ativa != true ||
+            (s.atendenteId != null && atendentes.findById(s.atendenteId!!).orElse(null)?.ativo != true)
+        ) {
+            subs.removerPorId(s.id)
+            return
+        }
+        entregar(v, s, mensagem)
+    }
+
+    @jakarta.annotation.PreDestroy
+    fun desligar() {
+        http.close()
     }
 
     private fun entregar(
@@ -326,10 +348,10 @@ class PushService(
                     subs.removerPorId(s.id)
                     log.info("Inscrição de push removida (o serviço respondeu {}): {}", codigo, s.id)
                 }
-                else -> log.warn("Serviço de push respondeu {} para a inscrição {}", codigo, s.id)
+                else -> error("Serviço de push respondeu $codigo")
             }
         } catch (e: Exception) {
-            log.warn("Não deu para entregar o aviso à inscrição {}: {}", s.id, e.message)
+            throw e
         }
     }
 

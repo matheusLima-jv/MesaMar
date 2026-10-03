@@ -140,7 +140,13 @@ class AdminController(
     fun medicoesCsv(): ResponseEntity<ByteArray> {
         val rows =
             queries.medicoes().map {
-                listOf(it.criadaEmLocal, it.praia, it.carregamentoMs.toString(), it.pingMs.toString(), it.tipoConexao.orEmpty())
+                listOf(
+                    it.criadaEmLocal,
+                    it.praia,
+                    it.carregamentoMs?.toString().orEmpty(),
+                    it.pingMs?.toString().orEmpty(),
+                    it.tipoConexao.orEmpty(),
+                )
             }
         val csv = Csv.write(listOf("Data", "Praia", "Carregamento (ms)", "Resposta do servidor (ms)", "Conexão"), rows)
         return csvResponse(csv, "mesamar-medicoes-sinal")

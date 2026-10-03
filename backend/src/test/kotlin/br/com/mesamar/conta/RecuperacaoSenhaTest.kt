@@ -16,6 +16,7 @@ import kotlin.test.assertTrue
 
 @IntegrationTest
 class RecuperacaoSenhaTest(
+    private val entregador: br.com.mesamar.common.Entregador,
     @Value("\${local.server.port}") port: Int,
     convites: ConviteService,
     private val emails: RecordingEmailGateway,
@@ -24,7 +25,7 @@ class RecuperacaoSenhaTest(
     private val painel = PainelTestSupport(port, convites)
 
     private fun pedirTroca(email: String) =
-        painel.post(painel.session(), "/painel/esqueci-senha", "/painel/esqueci-senha", mapOf("email" to email))
+        painel.post(painel.session(), "/painel/esqueci-senha", "/painel/esqueci-senha", mapOf("email" to email)).also { entregador.rodar() }
 
     private fun contaCriada(): String = painel.novoEmail("reset").also { painel.cadastrar(painel.session(), it) }
 

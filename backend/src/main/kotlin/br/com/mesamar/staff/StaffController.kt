@@ -38,6 +38,7 @@ data class EsgotadoRequest(
 )
 
 data class UsuarioView(
+    val id: UUID,
     val nome: String,
     val papel: PapelStaff,
 )
@@ -229,7 +230,7 @@ class StaffController(
         return SessaoView(
             logado = true,
             csrf = csrf.token,
-            usuario = UsuarioView(principal.nome, principal.papel),
+            usuario = UsuarioView(requireNotNull(principal.usuarioId ?: principal.atendenteId), principal.nome, principal.papel),
             barraca = BarracaView(b.nome, b.slug, b.praia.label, b.demo),
         )
     }

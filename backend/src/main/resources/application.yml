@@ -9,6 +9,19 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/mesamar}
     username: ${DB_USER:mesamar}
     password: ${DB_PASSWORD:mesamar}
+    hikari:
+      connection-timeout: 5000
+      maximum-pool-size: 10
+      data-source-properties:
+        options: "-c statement_timeout=15000 -c lock_timeout=3000"
+  task:
+    scheduling:
+      pool:
+        size: 4
+  transaction:
+    default-timeout: 30s
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
   jpa:
     open-in-view: false
     hibernate:
@@ -22,6 +35,7 @@ spring:
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
       mail.smtp.connectiontimeout: 5000
       mail.smtp.timeout: 5000
       mail.smtp.writetimeout: 5000
@@ -82,9 +96,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
   endpoint:
     health:
       probes:
         enabled: true
       show-details: never
+
+info:
+  versao:
+    commit: ${MESAMAR_REVISION:desenvolvimento}
+management.info.env.enabled: true

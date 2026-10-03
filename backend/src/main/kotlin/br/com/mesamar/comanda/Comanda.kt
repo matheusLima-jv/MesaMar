@@ -134,11 +134,12 @@ interface ComandaRepository : JpaRepository<Comanda, UUID> {
 
     /** Ordem de chegada: horário do servidor; no empate, o número de chegada. */
     @Query(
-        "select c from Comanda c where c.barracaId = :barracaId and c.status in :status order by c.abertaEm, c.numeroChegada",
+        "select c from Comanda c where c.barracaId = :barracaId and c.status in :status order by c.abertaEm, c.numeroChegada, c.id",
     )
     fun findAtivas(
         @Param("barracaId") barracaId: UUID,
         @Param("status") status: Collection<StatusComanda>,
+        pageable: org.springframework.data.domain.Pageable,
     ): List<Comanda>
 
     fun countByBarracaId(barracaId: UUID): Long

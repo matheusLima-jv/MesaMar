@@ -105,6 +105,12 @@ class ResetSenha(
 }
 
 interface ResetSenhaRepository : JpaRepository<ResetSenha, UUID> {
+    // Projeção escalar: não coloca um reset anterior à trava no cache de primeiro nível do JPA.
+    @Query("select r.usuarioId from ResetSenha r where r.tokenHash = :hash")
+    fun usuarioDoHash(
+        @Param("hash") hash: String,
+    ): UUID?
+
     fun findByTokenHash(tokenHash: String): ResetSenha?
 
     /** O pedido de troca com a linha travada: o mesmo link usado duas vezes ao mesmo tempo só vale uma. */

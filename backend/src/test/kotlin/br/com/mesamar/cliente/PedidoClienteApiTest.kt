@@ -170,7 +170,7 @@ class PedidoClienteApiTest(
 
         q.coco.precoCentavos = 1500
         q.coco.nome = "Coco gelado"
-        produtos.save(q.coco)
+        q.coco.versao = produtos.save(q.coco).versao
         val segundo = UUID.randomUUID()
         val r = pedir(celular, token, segundo, Item(q.coco.id, 1))
 
@@ -252,7 +252,7 @@ class PedidoClienteApiTest(
         val token = novaComanda(q)
         val celular = celular()
         q.coco.esgotado = true
-        produtos.save(q.coco)
+        q.coco.versao = produtos.save(q.coco).versao
 
         val esgotado = pedir(celular, token, UUID.randomUUID(), Item(q.pastel.id, 1), Item(q.coco.id, 1))
 
@@ -264,12 +264,12 @@ class PedidoClienteApiTest(
 
         q.coco.esgotado = false
         q.coco.ativo = false
-        produtos.save(q.coco)
+        q.coco.versao = produtos.save(q.coco).versao
         assertEquals(409, pedir(celular, token, UUID.randomUUID(), Item(q.coco.id, 1)).statusCode())
         assertEquals(0, pedidos.countByBarracaId(q.barracaId))
 
         q.coco.ativo = true
-        produtos.save(q.coco)
+        q.coco.versao = produtos.save(q.coco).versao
         assertEquals(1, numero(pedir(celular, token, UUID.randomUUID(), Item(q.coco.id, 1)).body()), "as recusas não gastaram número")
     }
 

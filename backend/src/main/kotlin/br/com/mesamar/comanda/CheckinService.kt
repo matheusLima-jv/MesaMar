@@ -56,6 +56,8 @@ sealed interface ResultadoCheckin {
 
 @Service
 class CheckinService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
+    private val jdbc: org.springframework.jdbc.core.JdbcTemplate,
     private val clientes: ClienteRepository,
     private val comandas: ComandaRepository,
     private val guardaSois: GuardaSolRepository,
@@ -69,8 +71,10 @@ class CheckinService(
         quem: AbertaPor,
         req: CheckinRequest,
     ): ResultadoCheckin {
+        autorHistorico.marcar()
         require((quem.usuarioId == null) != (quem.atendenteId == null)) { "check-in sem autor ou com dois autores" }
         req.id?.let { id ->
+            jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", id.toString())
             comandas.findById(id).orElse(null)?.let { existente ->
                 return if (existente.barracaId ==
                     barracaId
@@ -116,7 +120,7 @@ class CheckinService(
                 ),
             )
         val comanda =
-            comandas.save(
+            comandas.saveAndFlush(
                 Comanda(
                     id = req.id ?: UUID.randomUUID(),
                     barracaId = barracaId,
@@ -143,6 +147,7 @@ class CheckinService(
         barracaId: UUID,
         comandaId: UUID,
     ): ComandaDetalhe? {
+        autorHistorico.marcar()
         val comanda = comandas.travar(comandaId)?.takeIf { it.barracaId == barracaId && it.status in StatusComanda.ATIVAS } ?: return null
         comanda.tokenAnterior = comanda.tokenAcesso
         comanda.tokenAcesso = SecureTokens.generate(TOKEN_BYTES)
@@ -152,13 +157,32 @@ class CheckinService(
     }
 
     /** Clientes com comanda ativa, por ordem de chegada. */
-    @Transactional(readOnly = true)
-    fun ativos(barracaId: UUID): List<ComandaDetalhe> {
-        val lista = comandas.findAtivas(barracaId, StatusComanda.ATIVAS)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    fun ativos(
+        barracaId: UUID,
+        pagina: Int = 0,
+        tamanho: Int = 100,
+    ): List<ComandaDetalhe> {
+        require(pagina >= 0 && tamanho in 1..200)
+        val lista =
+            comandas.findAtivas(
+                barracaId,
+                StatusComanda.ATIVAS,
+                org.springframework.data.domain.PageRequest
+                    .of(pagina, tamanho),
+            )
         val porCliente = clientes.findAllById(lista.map { it.clienteId }).associateBy { it.id }
         val porGuardaSol = guardaSois.findAllById(lista.mapNotNull { it.guardaSolId }).associateBy { it.id }
         return lista.map { ComandaDetalhe(it, porCliente.getValue(it.clienteId), it.guardaSolId?.let(porGuardaSol::get)) }
     }
+
+    fun ocupacao(barracaId: UUID): Map<UUID, Int> =
+        jdbc
+            .query(
+                "SELECT guarda_sol_id, count(*) AS qtd FROM comanda WHERE barraca_id = ? AND status IN ('ABERTA','BLOQUEADA','AGUARDANDO_PAGAMENTO') AND guarda_sol_id IS NOT NULL GROUP BY guarda_sol_id",
+                { rs, _ -> rs.getObject("guarda_sol_id", UUID::class.java) to rs.getInt("qtd") },
+                barracaId,
+            ).toMap()
 
     private fun detalhe(c: Comanda) =
         ComandaDetalhe(
