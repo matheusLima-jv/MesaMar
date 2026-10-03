@@ -8,6 +8,7 @@ import { umaPorVez } from './busca'
 import { avisarAtraso, avisarPedidoNovo } from './som'
 import { agendarBusca as agendarPagamentos } from './pagamentos-store'
 import { avisar } from './toast'
+import { limparAvisos, sincronizarAvisos } from './avisos-store'
 import { comVariacao } from './busca'
 
 type Ouvinte = () => void
@@ -24,6 +25,7 @@ let origem: EventSource | null = null
 let timerBusca: number | undefined
 let timerReserva: number | undefined
 let timerReconexao: number | undefined
+let timerAtrasos: number | undefined
 /** O app está logado e ouvindo. Depois de sair, nada (timer, reconexão, resposta atrasada) volta a ligar a fila. */
 let ativa = false
 let primeiraBusca = true
@@ -55,6 +57,25 @@ function avisarOuvintes (): void {
   ouvintes.forEach((o) => { o() })
 }
 
+/**
+ * Pedidos parados além do tempo da barraca viram aviso FIXO (não some sozinho como o toast): fica na tela, em qualquer
+ * aba, até o pedido sair da fila. Derivado da fila de agora, então vale também para quem abriu o app no meio do atraso.
+ */
+function atualizarAvisosDeAtraso (): void {
+  if (dados === null) return
+  const limite = dados.tempoAlertaMin
+  const atrasados = dados.pedidos
+    .map((p) => ({ p, min: Math.max(0, Math.floor((agoraDoServidor() - Date.parse(p.criadoEm)) / 60_000)) }))
+    .filter(({ min }) => min >= limite)
+    .map(({ p, min }) => ({
+      chave: `atraso:${p.id}`,
+      tipo: 'atraso' as const,
+      texto: `Pedido nº ${p.numero} (${p.guardaSol === null ? 'balcão' : `guarda-sol ${p.guardaSol}`}) está esperando há ${min} min.`,
+      aba: 'fila' as const
+    }))
+  sincronizarAvisos('atraso', atrasados)
+}
+
 /** O cardápio mudou em outro aparelho (preço, esgotado): as telas que mostram o cardápio buscam de novo. */
 export const cardapioMudou = new EventTarget()
 
@@ -80,6 +101,7 @@ async function buscarFila (): Promise<void> {
     primeiraBusca = false
     dados = nova
     falhou = false
+    atualizarAvisosDeAtraso()
   } catch (e) {
     // Resposta da sessão anterior (saiu no meio): descarta sem mexer em nada
     if (descartada(e) || !ativa) return
@@ -153,6 +175,9 @@ export function iniciarFila (): void {
     agendarPagamentos()
   }, RESERVA_MS)
   document.addEventListener('visibilitychange', aoVoltarParaFrente)
+  // Os minutos de espera crescem mesmo sem novidade do servidor
+  window.clearInterval(timerAtrasos)
+  timerAtrasos = window.setInterval(atualizarAvisosDeAtraso, 30_000)
 }
 
 export function pararFila (): void {
@@ -164,6 +189,8 @@ export function pararFila (): void {
   window.clearTimeout(timerBusca)
   window.clearTimeout(timerReconexao)
   window.clearInterval(timerReserva)
+  window.clearInterval(timerAtrasos)
+  limparAvisos()
   dados = null
   primeiraBusca = true
   vistos.clear()

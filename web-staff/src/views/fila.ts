@@ -1,5 +1,6 @@
 import { ApiError, descartada, mudarStatus, pausar, type Fila, type PedidoFila } from '../api'
-import { h, mount } from '../dom'
+import { adiarSeEmUso, mountPreservando } from '../a11y'
+import { h } from '../dom'
 import { agoraDoServidor, ehNovo, estado, observar, recarregar } from '../fila-store'
 import { definirSom, somLigado } from '../som'
 import { avisar } from '../toast'
@@ -23,6 +24,8 @@ export function abaFila (root: HTMLElement): void {
   const desenhar = (): void => {
     // Trocou de aba: para de ouvir e de contar o tempo
     if (location.hash !== '#/fila') { sairDaTela?.(); return }
+    // Escolhendo num select ou digitando: não redesenha por baixo da pessoa (espera ela sair do campo)
+    if (adiarSeEmUso(root, desenhar)) return
     render(root)
   }
   const parar = observar(desenhar)
@@ -53,7 +56,7 @@ export function nivelDeEspera (min: number, alertaMin: number): 'ok' | 'atencao'
 function render (root: HTMLElement): void {
   const { dados, conectado, falhou } = estado()
   if (dados === null) {
-    mount(root,
+    mountPreservando(root,
       h('header', { class: 'tab-head' }, h('h1', {}, 'Fila')),
       falhou
         ? h('div', { class: 'empty' },
@@ -88,7 +91,7 @@ function render (root: HTMLElement): void {
   )
 
   const total = dados.pedidos.length
-  mount(root,
+  mountPreservando(root,
     h('header', { class: 'tab-head' },
       h('h1', {}, 'Fila'),
       h('p', { class: 'hint' }, total === 0

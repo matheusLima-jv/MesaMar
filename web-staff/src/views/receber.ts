@@ -1,4 +1,5 @@
 import { ApiError, fecharSemReceber, lerReais, novoId, receberPagamento, reais, type ContaAPagar, type Metodo } from '../api'
+import { ativarModal, ligarErro } from '../a11y'
 import { h, lembrar, registrarSobreposicao } from '../dom'
 import { avisar } from '../toast'
 
@@ -10,24 +11,20 @@ const FORMAS: Array<{ valor: Metodo, rotulo: string }> = [
 
 const local = (c: ContaAPagar): string => (c.guardaSol === null ? 'Balcão' : `Guarda-sol ${c.guardaSol}`)
 
-/** Um diálogo em tela cheia, com Esc para sair e o foco devolvido a quem abriu. */
+/**
+ * Um diálogo em tela cheia: o resto do app fica inerte, o Tab não sai dele, o Esc fecha e o foco volta a quem abriu.
+ * Some junto se a pessoa trocar de aba, sair ou a sessão acabar.
+ */
 function abrirDialogo (titulo: string, idTitulo: string, conteudo: Array<Node | null>, foco: () => HTMLElement | null): () => void {
-  const anterior = document.activeElement as HTMLElement | null
   const fechar = (): void => {
     desregistrar()
-    document.removeEventListener('keydown', teclas)
-    tela.remove()
-    anterior?.focus()
+    desativar()
   }
-  const teclas = (ev: KeyboardEvent): void => { if (ev.key === 'Escape') fechar() }
   const tela = h('div', { class: 'dialogo', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': idTitulo },
     h('div', { class: 'dialogo-painel' }, h('h2', { id: idTitulo }, titulo), ...conteudo)
   )
-  document.body.append(tela)
-  // Trocou de aba, saiu ou a sessão acabou: o diálogo some junto
-  const desregistrar = registrarSobreposicao(() => { document.removeEventListener('keydown', teclas); tela.remove() })
-  document.addEventListener('keydown', teclas)
-  foco()?.focus()
+  const desativar = ativarModal(tela, { aoEscape: fechar, foco })
+  const desregistrar = registrarSobreposicao(desativar)
   return fechar
 }
 
@@ -51,7 +48,8 @@ export const pagamentoIncerto = {
   },
   guardar (comandaId: string, p: PagamentoIncerto): void {
     incertos.set(comandaId, p)
-    lembrar.set(chaveIncerto(comandaId), JSON.stringify(p))
+    // `em` só serve para expirar (limparDadosAntigos): o id de um pagamento esquecido não fica no aparelho para sempre
+    lembrar.set(chaveIncerto(comandaId), JSON.stringify({ ...p, em: Date.now() }))
   },
   apagar (comandaId: string): void {
     incertos.set(comandaId, null)
@@ -90,7 +88,7 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
     entregue,
     troco
   )
-  const erro = h('p', { class: 'field-err', role: 'alert', hidden: true })
+  const erro = h('p', { class: 'field-err', id: 'rec-erro', role: 'alert', hidden: true })
   const confirmar = h('button', { type: 'submit', class: 'btn btn-sun btn-block btn-big' }, 'Confirmar')
 
   const valorDigitado = (): number | null => lerReais(valor.value)
@@ -114,7 +112,7 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
   const opcao = (m: { valor: Metodo, rotulo: string }): HTMLLabelElement => {
     const radio = h('input', {
       type: 'radio', name: 'forma', value: m.valor, checked: m.valor === forma, disabled: incerto !== null && m.valor !== forma,
-      onchange: () => { forma = m.valor; erro.hidden = true; atualizar() }
+      onchange: () => { forma = m.valor; ligarErro(valor, erro, null); atualizar() }
     })
     return h('label', { class: 'opcao' }, radio, h('span', {}, m.rotulo))
   }
@@ -145,7 +143,7 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
           envio = { id: idDoPagamento, metodo: forma, valorCentavos: digitado, valorRecebidoCentavos: recebido }
         }
         const v = envio.valorCentavos
-        erro.hidden = true
+        ligarErro(valor, erro, null)
         confirmar.disabled = true
         confirmar.textContent = 'Registrando…'
         // Guardado antes de sair: se a resposta se perder (ou o app fechar no meio), o próximo envio usa o mesmo id
@@ -179,8 +177,9 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
   ], () => valor)
 
   const mostrarErro = (texto: string): void => {
-    erro.textContent = texto
-    erro.hidden = false
+    // O erro fica ligado ao campo que o motivou (valor ou, no dinheiro, quanto o cliente entregou)
+    const campo = texto.includes('entregou') && forma === 'DINHEIRO' ? entregue : valor
+    ligarErro(campo, erro, texto)
   }
   valor.addEventListener('input', atualizar)
   entregue.addEventListener('input', atualizar)
@@ -193,7 +192,8 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
  */
 export function dialogoFecharSemReceber (c: ContaAPagar, aoConcluir: () => void): void {
   const motivo = h('input', { id: 'forcar-motivo', type: 'text', maxlength: 120, autocomplete: 'off', placeholder: 'ex.: foi embora sem pagar' })
-  const erro = h('p', { class: 'field-err', role: 'alert', hidden: true })
+  // Texto livre: some junto com os dados do cliente aos 90 dias, mas não vale a pena escrever dado pessoal
+  const erro = h('p', { class: 'field-err', id: 'forcar-erro', role: 'alert', hidden: true })
   const confirmar = h('button', { type: 'submit', class: 'btn btn-danger btn-block btn-big' }, 'Fechar sem receber')
   const fechar = abrirDialogo('Fechar sem receber', 'forcar-titulo', [
     h('p', { class: 'hint' }, `${local(c)} · ${c.cliente} · falta ${reais(c.saldoCentavos)}`),
@@ -203,8 +203,8 @@ export function dialogoFecharSemReceber (c: ContaAPagar, aoConcluir: () => void)
       onsubmit: (ev: Event) => {
         ev.preventDefault()
         const texto = motivo.value.trim()
-        if (texto.length < 3) { erro.textContent = 'Explique o motivo, com pelo menos 3 letras.'; erro.hidden = false; return }
-        erro.hidden = true
+        if (texto.length < 3) { ligarErro(motivo, erro, 'Explique o motivo, com pelo menos 3 letras.'); motivo.focus(); return }
+        ligarErro(motivo, erro, null)
         confirmar.disabled = true
         confirmar.textContent = 'Fechando…'
         fecharSemReceber(c.comandaId, texto)
@@ -216,12 +216,12 @@ export function dialogoFecharSemReceber (c: ContaAPagar, aoConcluir: () => void)
           .catch((e: unknown) => {
             confirmar.disabled = false
             confirmar.textContent = 'Fechar sem receber'
-            erro.textContent = e instanceof ApiError ? e.message : 'Não deu para fechar. Tente de novo.'
-            erro.hidden = false
+            ligarErro(motivo, erro, e instanceof ApiError ? e.message : 'Não deu para fechar. Tente de novo.')
           })
       }
     },
-    h('div', { class: 'field' }, h('label', { for: 'forcar-motivo' }, 'Motivo'), motivo),
+    h('div', { class: 'field' }, h('label', { for: 'forcar-motivo' }, 'Motivo'), motivo,
+      h('p', { class: 'hint' }, 'Não escreva dados pessoais (como nome completo ou telefone).')),
     erro,
     confirmar,
     h('button', { type: 'button', class: 'link center-block', onclick: () => { fechar() } }, 'Voltar')

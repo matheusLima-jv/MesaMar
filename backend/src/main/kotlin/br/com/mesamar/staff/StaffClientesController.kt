@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -104,6 +105,21 @@ class StaffClientesController(
                     .status(HttpStatus.CONFLICT)
                     .body(ErroView("conflito", "Não deu para fazer esse check-in. Tente de novo."))
         }
+    }
+
+    /**
+     * "QR novo": troca o link da comanda (o cliente compartilhou ou perdeu o QR). Os pedidos e o saldo ficam; o link
+     * antigo deixa de abrir. O id da URL é o da comanda; comanda de outra barraca (ou já encerrada) responde 404.
+     */
+    @PostMapping("/comandas/{id}/novo-qr")
+    fun novoQr(
+        @AuthenticationPrincipal principal: StaffPrincipal,
+        @PathVariable id: UUID,
+    ): ResponseEntity<Any> {
+        val detalhe =
+            checkin.novoQr(principal.barracaId, id)
+                ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErroView("comanda", "Não achamos essa comanda aberta."))
+        return ResponseEntity.ok(view(detalhe))
     }
 
     private fun view(d: ComandaDetalhe) =

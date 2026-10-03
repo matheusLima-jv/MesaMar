@@ -127,6 +127,18 @@ docker exec <nome-do-container-nginx> nginx -s reload
 
 Se o `nginx -t` reclamar de `http2 on;`, o seu Nginx é anterior à 1.25.1: troque por `listen 443 ssl http2;` (há um comentário no arquivo).
 
+### Log de acesso sem credenciais
+
+O `nginx-mesamar.conf` define um `log_format` que troca por `***` o que é credencial na URL: o endereço da comanda (`/c/<token>`, `/api/c/<token>`), o convite (`?convite=`) e a troca de senha (`?token=`). Sem isso, quem lê o log do Nginx (ou uma cópia dele) veria os links. O arquivo grava o log em `/var/log/nginx/mesamar.access.log`: confira que essa pasta existe no seu container (ou troque o caminho) e que **não há outro `access_log` mais permissivo** para o mesmo site.
+
+Para conferir depois do `nginx -s reload`, abra um link de comanda e olhe a última linha do log: tem que aparecer `GET /c/*** HTTP/2.0`, nunca o código. O log de **erro** do Nginx pode citar o caminho quando uma conexão falha (`request: "GET /c/..."`): mantenha ele só com você e com rotação.
+
+O cabeçalho `Referrer-Policy: no-referrer` já sai da aplicação, então o link da comanda também não vaza para outros sites.
+
+### Pedidos de exclusão de dados (LGPD)
+
+O registro das exclusões atendidas fica em **`/opt/mesamar/lgpd/exclusoes.txt`** (só UUIDs). Crie a pasta uma vez (`mkdir -p /opt/mesamar/lgpd && chmod 700 /opt/mesamar/lgpd`) e **inclua o arquivo na cópia dos backups que você leva para fora da VPS**: é ele que refaz as exclusões se um backup antigo for restaurado. O procedimento está em `docs/lgpd-procedimento.md`.
+
 ## 7. Conferir
 
 | # | Teste | Esperado |
@@ -137,7 +149,7 @@ Se o `nginx -t` reclamar de `http2 on;`, o seu Nginx é anterior à 1.25.1: troq
 | 4 | Abrir `https://mesamar.0mega.fun/admin` | Pede login; com o usuário e a senha do `.env`, mostra o seu lead |
 | 5 | Mandar o link da landing para você mesmo no WhatsApp | Aparece a prévia com a imagem e o título do MesaMar |
 | 6 | Abrir `/teste-sinal` no celular e medir | A medição aparece no painel, em "Sinal por praia" |
-| 7 | **IP real:** enviar o formulário vazio 9 vezes seguidas no celular | Na 9ª aparece "Recebemos muitos envios deste aparelho". No computador, na mesma hora, o formulário continua funcionando (prova de que o limite é por aparelho, não global) |
+| 7 | **IP real:** enviar o formulário vazio 9 vezes seguidas no celular | Na 9ª aparece "Recebemos muitos envios desta conexão". No computador, em outra rede, na mesma hora, o formulário continua funcionando (prova de que o limite é por IP, não global) |
 | 8 | `/admin` → "Gerar convite avulso" → abrir o link numa janela anônima e criar uma conta | Entra no `/painel` e cadastra a barraca |
 | 9 | Painel → Sair → "Esqueci a senha" com o e-mail da conta | O e-mail chega (olhe o spam na primeira vez) e o link troca a senha |
 

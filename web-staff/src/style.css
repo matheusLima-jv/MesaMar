@@ -298,3 +298,62 @@ button { font: inherit; }
 .lancar-rodape { position: sticky; bottom: calc(var(--tabs-h) + env(safe-area-inset-bottom)); padding: 0.75rem 0; background: var(--paper); }
 .lancar-total { margin: 0 0 0.5rem; font-weight: 700; text-align: center; }
 .people li .sold { min-width: 4.5rem; padding: 0 0.6rem; }
+
+/* ---------- Lote 3: acessibilidade, texto longo, zoom e teclado aberto ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+#conteudo:focus { outline: none; }
+
+/* Nomes e textos digitados (cliente, observação, motivo) quebram em vez de estourar a tela ou sumir com reticências */
+.person strong, .gs, .quem strong, .obs, .menu-main strong, .qr-head h2, .name, .linhas strong, .linhas li, .aviso-fixo p,
+.topbar .where, .resumo-pag strong, .tag { overflow-wrap: anywhere; }
+.person strong { white-space: normal; overflow: visible; text-overflow: clip; }
+.topbar .where { white-space: normal; overflow: visible; text-overflow: clip; min-width: 0; }
+.topbar { flex-wrap: wrap; }
+.name { min-height: 60px; height: auto; padding: 0.6rem 1rem; line-height: 1.2; }
+.people li { flex-wrap: wrap; }
+.people li .person { flex: 1 1 6rem; }
+.people li .sold { min-width: 4rem; padding: 0 0.5rem; }
+.acoes { grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); }
+.dialogo-painel { max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
+
+.hint, .tab-head p, .alert, .field-err { overflow-wrap: anywhere; }
+/* Lista de produtos (cardápio e lançar pedido): com pouca largura, o botão desce em vez de espremer o nome */
+.menu-list li { flex-wrap: wrap; }
+.menu-main { flex: 1 1 8rem; }
+
+/* Avisos que não somem (pedido parado, cliente indo pagar) */
+.avisos-fixos { position: sticky; top: 0; z-index: 3; display: grid; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--paper); border-bottom: 2px solid var(--ink); }
+.aviso-fixo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; padding: 0.6rem 0.8rem; border: 2px solid var(--late); border-radius: 12px; background: #fff; }
+.aviso-fixo.pagamento { border-color: var(--sun-2); background: #fff8e1; }
+.aviso-fixo p { flex: 1 1 12rem; margin: 0; font-weight: 700; }
+
+/* Busca de clientes */
+.clientes-filtro { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0 0.75rem; margin-bottom: 0.5rem; }
+.field input[type='search'] { -webkit-appearance: none; appearance: none; }
+.qr-novo { padding: 0.75rem; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper); }
+.qr-novo p { margin: 0 0 0.75rem; }
+
+/* Teclado aberto: a barra de abas sai do caminho (o campo ganha espaço) */
+body.teclado .tabs { display: none; }
+body.teclado .tab { padding-bottom: 1.5rem; }
+body.teclado .lancar-rodape { bottom: 0; }
+
+/* Telas bem estreitas ou com zoom grande (200% num celular de 360px = ~180px): as 5 abas não cabem numa linha fixa.
+   Viram uma grade comum no fim da página (sem cobrir o conteúdo) */
+@media (max-width: 340px) {
+  .tabs { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr)); height: auto; padding-bottom: env(safe-area-inset-bottom); border-top: 2px solid var(--ink); }
+  .tabs a { min-height: 48px; padding: 0 0.4rem; text-align: center; overflow-wrap: anywhere; }
+  .tab { padding-bottom: 1.5rem; }
+  .toast { bottom: 1rem; }
+  .lancar-rodape { bottom: 0; }
+}
+@media (max-width: 420px) {
+  .tab-head h1 { font-size: 1.6rem; }
+}
+
+/* Paisagem ou pouca altura: sem barra fixa em cima, abas mais baixas */
+@media (max-height: 520px) {
+  :root { --tabs-h: 48px; }
+  .topbar, .avisos-fixos { position: static; }
+  .tabs a { font-size: 0.75rem; }
+}

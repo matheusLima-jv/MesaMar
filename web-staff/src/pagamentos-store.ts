@@ -5,6 +5,7 @@ import { ApiError, descartada, pagamentos, reais, type ContaAPagar, type Pagamen
 import { umaPorVez } from './busca'
 import { avisarPagamento } from './som'
 import { avisar } from './toast'
+import { sincronizarAvisos } from './avisos-store'
 
 type Ouvinte = () => void
 
@@ -71,6 +72,10 @@ async function buscarPagamentos (): Promise<void> {
     primeiraBusca = false
     dados = nova
     falhou = false
+    // O toast some em segundos: o "indo pagar" também fica na tela até a conta ser recebida (ou o aviso mudar)
+    sincronizarAvisos('pagamento', nova.aguardando
+      .filter((c) => c.avisoEm !== null)
+      .map((c) => ({ chave: `pagamento:${c.comandaId}@${c.avisoEm}`, tipo: 'pagamento' as const, texto: textoDoAviso(c), aba: 'pagamentos' as const })))
   } catch (e) {
     if (descartada(e) || !ativa) return
     // 401: o app já volta para o login (evento da api). Sem sinal: segue com a última lista e tenta de novo.

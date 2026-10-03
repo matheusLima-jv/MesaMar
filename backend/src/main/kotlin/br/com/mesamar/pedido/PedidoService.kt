@@ -221,6 +221,18 @@ class PedidoService(
         return ResultadoPedido.Ok(PedidoDetalhe(pedido, gravados), nova = true)
     }
 
+    /** O pedido de uma comanda pelo id, se existir (usado para conferir um reenvio feito pelo link antigo, depois de um "QR novo"). */
+    @Transactional(readOnly = true)
+    fun pedidoDaComanda(
+        comandaId: UUID,
+        pedidoId: UUID,
+    ): PedidoDetalhe? =
+        pedidos
+            .findById(pedidoId)
+            .orElse(null)
+            ?.takeIf { it.comandaId == comandaId }
+            ?.let { detalhe(it) }
+
     /** Cardápio que o cliente vê: só o que está no cardápio (ativo); o esgotado aparece, mas não dá para pedir. */
     @Transactional(readOnly = true)
     fun cardapioDoCliente(barraca: Barraca): List<SecaoCardapio> = cardapio.secoes(barraca).filter { it.noCardapio.isNotEmpty() }

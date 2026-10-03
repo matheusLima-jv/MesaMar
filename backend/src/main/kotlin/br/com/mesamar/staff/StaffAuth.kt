@@ -56,9 +56,7 @@ class StaffSessao {
  * do servlet, e aí o OncePerRequestFilter seria pulado dentro da cadeia de segurança.
  */
 class StaffPrincipalCheckFilter(
-    private val atendentes: AtendenteRepository,
-    private val usuarios: UsuarioRepository,
-    private val barracas: BarracaRepository,
+    private val acesso: StaffAcesso,
 ) : OncePerRequestFilter() {
     override fun doFilterInternal(
         request: HttpServletRequest,
@@ -66,14 +64,25 @@ class StaffPrincipalCheckFilter(
         filterChain: FilterChain,
     ) {
         val principal = SecurityContextHolder.getContext().authentication?.principal as? StaffPrincipal
-        if (principal != null && !valido(principal)) {
+        if (principal != null && !acesso.valido(principal)) {
             SecurityContextHolder.clearContext()
             request.getSession(false)?.removeAttribute(StaffSessao.CHAVE)
         }
         filterChain.doFilter(request, response)
     }
+}
 
-    private fun valido(p: StaffPrincipal): Boolean {
+/**
+ * Quem está logado no app ainda pode estar? Usado a cada requisição ([StaffPrincipalCheckFilter]) e também pelas
+ * conexões de tempo real já abertas (o `HubEventos` confere de tempos em tempos e derruba quem perdeu o acesso).
+ */
+@Component
+class StaffAcesso(
+    private val atendentes: AtendenteRepository,
+    private val usuarios: UsuarioRepository,
+    private val barracas: BarracaRepository,
+) {
+    fun valido(p: StaffPrincipal): Boolean {
         val barracaAtiva = barracas.findById(p.barracaId).map { it.ativa }.orElse(false)
         if (!barracaAtiva) return false
         return when (p.papel) {
@@ -82,7 +91,12 @@ class StaffPrincipalCheckFilter(
                 val credenciais = usuario?.credenciaisEm
                 usuario?.barracaId == p.barracaId && (credenciais == null || !credenciais.isAfter(p.logadoEm))
             }
-            PapelStaff.ATENDENTE -> p.atendenteId?.let { atendentes.findByIdAndBarracaId(it, p.barracaId) }?.ativo == true
+            PapelStaff.ATENDENTE -> {
+                val atendente = p.atendenteId?.let { atendentes.findByIdAndBarracaId(it, p.barracaId) }
+                val revogadas = atendente?.sessoesRevogadasEm
+                // Desativar ou "sair de todos os aparelhos" mata as sessões de antes, mesmo que o atendente volte depois
+                atendente?.ativo == true && (revogadas == null || !revogadas.isAfter(p.logadoEm))
+            }
         }
     }
 }

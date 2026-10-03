@@ -134,3 +134,53 @@ Aprovação do 6.1 para começar o 6.2.
 - Pedido da equipe cancelado ou de outra comanda não é reconhecido.
 - Marcar esgotado avisa o app e as páginas abertas da barraca, e não as de outra barraca.
 - Os 2 primeiros testam comportamento que não existia; os 2 do meio também passariam no código anterior (são guardas).
+
+---
+
+## Correções da revisão de código (lote 3: itens 22 a 29 e 49 a 60)
+
+- **Data:** 2026-10-03. Decisões em [ADR 0018](../adr/0018-revisao-lote-3-acesso-dados-e-acessibilidade.md).
+- **Testes:** 446 de backend (eram 432) e os 11 E2E, rodados **localmente** com o app no Docker antes do push. Novos: `CorrecoesRevisao3Test` (14), `LgpdSqlTest` (2), um caso em `AnonimizacaoTest`, e o passo 14c do E2E.
+- **O E2E achou bugs reais de layout** que eu não tinha visto: com 190px de largura (zoom de 200%) o nome do produto ficava com uma letra por linha, o nome longo do cliente vazava do cabeçalho, e as abas fixas cobriam o conteúdo. Todos corrigidos.
+
+### Acessibilidade e uso (22 a 29)
+
+| # | O que mudou | Teste |
+|---|---|---|
+| 22 | Modais (4 diálogos e o QR): `ativarModal` deixa o app `inert`, prende o Tab, trata o Esc e devolve o foco a quem abriu | E2E 14c (Tab preso, `inert`, Esc) |
+| 23 | Atualização automática (fila, pagamentos, página do cliente) preserva foco, cursor e rolagem (`mountPreservando`). Quem está num campo (digitando, ou com o select aberto) **não é redesenhado**: espera sair | manual (180) |
+| 24 | O app deixou de ser uma região `aria-live`. Guarda-sóis, abas do login e forma de pagamento são radios/abas com teclado (setas, Home, End). Erros ligados ao campo (`aria-invalid`, `aria-describedby`) | E2E 14c (setas, `aria-invalid`) |
+| 25 | Clientes: busca por nome (sem acento) ou guarda-sol e filtro pela situação da comanda | E2E 14c |
+| 26 | Faixa fixa de avisos (pedido parado, cliente indo pagar): não some como o toast, vale em qualquer aba, derivada do servidor | manual (181) |
+| 27 | A rolagem ao trocar de aba é da página (antes se mexia num elemento que não rola) | E2E 14c |
+| 28 | Nomes longos quebram; abas viram grade comum até 340px; listas de produto quebram a linha; barras fixas saem da frente com o teclado aberto e em paisagem; `interactive-widget=resizes-content` | E2E 14c (320px e 190px, sem rolagem lateral) |
+| 29 | Login do dono tem "Esqueci a minha senha" (fluxo do painel). O do atendente diz que o PIN é trocado pelo dono | manual (182) |
+
+### Segurança e dados (49 a 60)
+
+| # | O que mudou | Teste |
+|---|---|---|
+| 49 | O `HubEventos` confere o acesso a cada batimento e derruba a conexão de quem perdeu: atendente desativado, sessões revogadas, senha trocada, barraca desativada | `CorrecoesRevisao3Test` |
+| 50 | V17 `atendente.sessoes_revogadas_em`: desativar mata as sessões de antes mesmo que reative. Botão novo **"Sair de todos os aparelhos"** no painel (também cancela os avisos do atendente) | idem (3 testes, com isolamento) |
+| 51 | Limite por conta além do por IP, no login do dono do app e do painel. "Aparelho" virou "conexão" onde era IP | idem (2 testes, 16 IPs diferentes) |
+| 52 | `Referrer-Policy: no-referrer`. `nginx-mesamar.conf` com log de acesso mascarado (`***` no lugar do token) | `SecurityHeadersTest`; máscara testada num Nginx de verdade |
+| 53 | E-mail sem SMTP não escreve destinatário nem link no log em produção (só no compose de desenvolvimento) | idem (captura do log) |
+| 54 | "Trocar o QR deste cliente" no QR (`POST /comandas/{id}/novo-qr`). Comanda e pedidos ficam; o link antigo morre, **exceto** para confirmar um pedido que já existia | idem (3 testes) e E2E 14c |
+| 55 | Dados locais expiram: 7 dias na página do cliente (e na hora, se o link der 404), 7 dias no cache do service worker, 3 dias no app da equipe | manual (183) |
+| 56 | Política de privacidade alinhada ao que é guardado de verdade (cópia da comanda no cache, validade, textos livres, pedidos de exclusão) | manual (184) |
+| 57 | A anonimização dos 90 dias **limpa o texto livre** (observação, detalhe do motivo, motivo do fechamento); fica a categoria. Os campos avisam "sem dados pessoais" | `AnonimizacaoTest` |
+| 58 | O push de "aviso de problema" **não leva mais o texto digitado** | `PushEnvioTest` |
+| 59 | `cliente.consentimento_versao`; texto e versões em `docs/consentimento.md` | `CorrecoesRevisao3Test`, `LgpdSqlTest` |
+| 60 | Scripts `deploy/lgpd/` (corrigir, excluir, reaplicar) e `docs/lgpd-procedimento.md`. O registro das exclusões fica **fora do banco** e o `restaurar.sh` reaplica depois de restaurar | `LgpdSqlTest`; scripts rodados de ponta a ponta num Postgres descartável |
+
+### Decisões para você confirmar
+
+1. **Mudei duas decisões anteriores** (item 57 e 58): o texto livre agora **é** anonimizado aos 90 dias (o ADR 0014 deixava), e o push de problema **não** leva mais o começo do texto (o ADR 0016 mandava). Os dois têm motivo de privacidade; se preferir o antigo, é pequeno de desfazer.
+2. **Item 50:** trocar o PIN continua **não** derrubando sessões (decisão do ADR 0016). Para celular perdido há o botão novo; o painel orienta trocar o PIN também.
+3. **Item 54:** o QR novo invalida o link antigo na hora. Um pedido que o celular antigo ainda estava reenviando só é reconhecido se **já existia**; se não existia, o atendente lança de novo. O app avisa isso antes de trocar.
+
+### O que o teste automático não cobre
+
+- **Leitor de tela de verdade** (TalkBack, VoiceOver), **zoom de 200% em celular real** e **teclado virtual aberto**: o E2E cobre largura estreita, foco, Tab e setas. Roteiro 178 a 190.
+- A faixa de avisos fixos (26), o redesenho que preserva o cursor (23) e a expiração dos dados locais (55) são do front e não têm teste automático.
+- O `nginx-mesamar.conf` só vale depois que você o copia para a VPS (`docs/deploy.md`, seção 6).

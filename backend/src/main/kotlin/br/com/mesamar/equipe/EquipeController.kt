@@ -107,6 +107,22 @@ class EquipeController(
         return "redirect:/painel/equipe"
     }
 
+    @PostMapping("/painel/equipe/{id}/revogar-sessoes")
+    fun revogarSessoes(
+        @PathVariable id: UUID,
+        model: Model,
+        redirect: RedirectAttributes,
+    ): String {
+        val barraca = model.barraca() ?: return "redirect:/painel/barraca"
+        val atendente = service.revogarSessoes(barraca, id)
+        redirect.addFlashAttribute(
+            if (atendente == null) "erro" else "ok",
+            atendente?.let { "${it.nome} saiu de todos os aparelhos. Para entrar de novo, precisa digitar o PIN." }
+                ?: "Atendente não encontrado.",
+        )
+        return "redirect:/painel/equipe"
+    }
+
     @PostMapping("/painel/equipe/{id}/desbloquear")
     fun desbloquear(
         @PathVariable id: UUID,

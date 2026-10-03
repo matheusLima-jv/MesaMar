@@ -385,7 +385,7 @@ class ClienteController(
         @RequestBody body: PedidoRequest,
         request: HttpServletRequest,
     ): ResponseEntity<Any> {
-        val comanda = comandaVigente(token) ?: return recusado(request)
+        val comanda = comandaVigente(token) ?: return pedidoDoLinkAntigo(token, body, request)
         if (!rateLimiter.tryAcquire("c-pedido:${comanda.id}", LIMITE_PEDIDOS, JANELA_COMANDA)) return muitas()
         val resultado =
             try {
@@ -413,6 +413,22 @@ class ClienteController(
             ResultadoPedido.Conflito ->
                 ResponseEntity.status(HttpStatus.CONFLICT).body(ErroView("conflito", "Não deu para enviar esse pedido. Tente de novo."))
         }
+    }
+
+    /**
+     * O atendente trocou o QR desta comanda (ver `CheckinService.novoQr`) enquanto a página antiga ainda reenviava um
+     * pedido. O link antigo não abre mais nada, **menos** isto: se o pedido que ela reenvia já existe nesta comanda, devolve
+     * o pedido (200), e a página para de reenviar. Qualquer outra coisa é 404, como um link que nunca existiu.
+     */
+    private fun pedidoDoLinkAntigo(
+        token: String,
+        body: PedidoRequest,
+        request: HttpServletRequest,
+    ): ResponseEntity<Any> {
+        val comanda = comandas.findByTokenAnterior(token)
+        val id = body.id
+        val existente = if (comanda != null && id != null) pedidos.pedidoDaComanda(comanda.id, id) else null
+        return if (existente != null) ResponseEntity.ok(PedidoView.of(existente)) else recusado(request)
     }
 
     /** JSON malformado ou de tipo errado (ex.: quantidade "abc"): 400 no mesmo formato dos outros erros. */

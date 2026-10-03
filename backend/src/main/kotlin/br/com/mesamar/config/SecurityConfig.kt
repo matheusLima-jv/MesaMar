@@ -1,12 +1,11 @@
 package br.com.mesamar.config
 
-import br.com.mesamar.barraca.BarracaRepository
 import br.com.mesamar.common.RateLimiter
 import br.com.mesamar.conta.OwnerLoginSuccessHandler
 import br.com.mesamar.conta.OwnerPrincipalCheckFilter
 import br.com.mesamar.conta.OwnerUserDetailsService
 import br.com.mesamar.conta.UsuarioRepository
-import br.com.mesamar.equipe.AtendenteRepository
+import br.com.mesamar.staff.StaffAcesso
 import br.com.mesamar.staff.StaffPrincipalCheckFilter
 import br.com.mesamar.staff.StaffSessao
 import jakarta.servlet.FilterChain
@@ -133,8 +132,10 @@ class SecurityConfig {
                 it
                     .logoutUrl("/painel/sair")
                     .logoutSuccessUrl("/painel/entrar?saiu")
-            }.addFilterBefore(LoginRateLimitFilter(rateLimiter, "/painel/entrar"), UsernamePasswordAuthenticationFilter::class.java)
-            .addFilterBefore(OwnerPrincipalCheckFilter(usuarios), AnonymousAuthenticationFilter::class.java)
+            }.addFilterBefore(
+                LoginRateLimitFilter(rateLimiter, "/painel/entrar", contaParametro = "email"),
+                UsernamePasswordAuthenticationFilter::class.java,
+            ).addFilterBefore(OwnerPrincipalCheckFilter(usuarios), AnonymousAuthenticationFilter::class.java)
         applyHeaders(http)
         return http.build()
     }
@@ -149,9 +150,7 @@ class SecurityConfig {
     fun staffChain(
         http: HttpSecurity,
         staffSessao: StaffSessao,
-        atendentes: AtendenteRepository,
-        usuarios: UsuarioRepository,
-        barracas: BarracaRepository,
+        acesso: StaffAcesso,
     ): SecurityFilterChain {
         http
             .securityMatcher("/api/staff/**")
@@ -171,7 +170,7 @@ class SecurityConfig {
                 it
                     .authenticationEntryPoint { _, response, _ -> jsonErro(response, 401, "sessao", "Entre de novo no app.") }
                     .accessDeniedHandler { _, response, _ -> jsonErro(response, 403, "csrf", "Sessão expirada. Tente de novo.") }
-            }.addFilterBefore(StaffPrincipalCheckFilter(atendentes, usuarios, barracas), AnonymousAuthenticationFilter::class.java)
+            }.addFilterBefore(StaffPrincipalCheckFilter(acesso), AnonymousAuthenticationFilter::class.java)
             .requestCache { it.disable() }
             .formLogin { it.disable() }
             .httpBasic { it.disable() }
@@ -224,7 +223,7 @@ class SecurityConfig {
                         NegatedRequestMatcher(paginasDosApps),
                         StaticHeadersWriter("Content-Security-Policy", CONTENT_SECURITY_POLICY),
                     ),
-                ).referrerPolicy { it.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
+                ).referrerPolicy { it.policy(ReferrerPolicy.NO_REFERRER) }
         }
         return http.build()
     }
@@ -234,7 +233,7 @@ class SecurityConfig {
         http.headers { headers ->
             headers
                 .contentSecurityPolicy { it.policyDirectives(CSP_SEM_TERCEIROS) }
-                .referrerPolicy { it.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN) }
+                .referrerPolicy { it.policy(ReferrerPolicy.NO_REFERRER) }
         }
     }
 
@@ -310,10 +309,15 @@ class SecurityConfig {
     }
 }
 
-/** Freia tentativas de adivinhar senha: 10 tentativas de login por IP a cada 10 minutos. */
+/**
+ * Freia tentativas de adivinhar senha: 10 tentativas de login por IP a cada 10 minutos e, quando o formulário tem um
+ * campo de conta (e-mail), 15 por conta a cada 15 minutos em qualquer IP (tentativas espalhadas por muitos IPs, ou
+ * várias barracas atrás do mesmo IP de 4G, não furam nem trancam umas às outras só pelo IP).
+ */
 class LoginRateLimitFilter(
     private val rateLimiter: RateLimiter,
     private val loginPath: String,
+    private val contaParametro: String? = null,
 ) : OncePerRequestFilter() {
     override fun shouldNotFilter(request: HttpServletRequest): Boolean = !(request.method == "POST" && request.servletPath == loginPath)
 
@@ -322,7 +326,14 @@ class LoginRateLimitFilter(
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        if (!rateLimiter.tryAcquire("login:$loginPath:${request.remoteAddr}", LIMIT, WINDOW)) {
+        val conta =
+            contaParametro
+                ?.let { request.getParameter(it) }
+                ?.trim()
+                ?.lowercase()
+                ?.takeIf { it.isNotEmpty() }
+        val dentroDaConta = conta == null || rateLimiter.tryAcquire("login:$loginPath:conta:$conta", LIMIT_CONTA, WINDOW_CONTA)
+        if (!dentroDaConta || !rateLimiter.tryAcquire("login:$loginPath:${request.remoteAddr}", LIMIT, WINDOW)) {
             response.status = HttpStatus.TOO_MANY_REQUESTS.value()
             response.contentType = "text/plain;charset=UTF-8"
             response.writer.write("Muitas tentativas de login. Espere alguns minutos.")
@@ -334,5 +345,8 @@ class LoginRateLimitFilter(
     companion object {
         const val LIMIT = 10
         val WINDOW: Duration = Duration.ofMinutes(10)
+
+        const val LIMIT_CONTA = 15
+        val WINDOW_CONTA: Duration = Duration.ofMinutes(15)
     }
 }

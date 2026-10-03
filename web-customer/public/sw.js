@@ -25,6 +25,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((nomes) => Promise.all(nomes.filter((n) => n.startsWith(PREFIXO) && n !== VERSAO).map((n) => caches.delete(n))))
+      .then(() => caches.open(VERSAO).then(limitarComandas))
       .then(() => self.clients.claim())
   )
 })
@@ -51,10 +52,20 @@ function guardar (event, chave, res, marcar) {
   return res
 }
 
+/** Uma cópia de comanda guardada há mais de 7 dias não serve mais (o extrato vence em 7 dias) e tem dados pessoais: sai. */
+const VALIDADE_MS = 7 * 24 * 60 * 60 * 1000
+
 async function limitarComandas (cache) {
   const chaves = (await cache.keys()).filter((r) => /\/api\/c\/[^/]+$/.test(new URL(r.url).pathname))
+  const vivas = []
+  for (const r of chaves) {
+    const resposta = await cache.match(r)
+    const salvoEm = Number(resposta?.headers.get('X-MesaMar-Salvo-Em'))
+    if (!Number.isFinite(salvoEm) || salvoEm <= 0 || Date.now() - salvoEm > VALIDADE_MS) await cache.delete(r)
+    else vivas.push(r)
+  }
   // keys() vem na ordem de inserção, e o put substitui: as primeiras são as mais antigas
-  await Promise.all(chaves.slice(0, Math.max(0, chaves.length - MAX_COMANDAS)).map((r) => cache.delete(r)))
+  await Promise.all(vivas.slice(0, Math.max(0, vivas.length - MAX_COMANDAS)).map((r) => cache.delete(r)))
 }
 
 self.addEventListener('fetch', (event) => {

@@ -2,7 +2,7 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#101b1e" />
     <meta name="robots" content="noindex" />
     <title>MesaMar · Quiosque</title>
@@ -16,9 +16,11 @@
     <meta name="apple-mobile-web-app-title" content="MesaMar" />
   </head>
   <body data-app="web-staff">
-    <div id="app" aria-live="polite">
+    <div id="app">
       <p class="boot">Abrindo o MesaMar…</p>
     </div>
+    <!-- Anúncios para o leitor de tela (troca de aba, aviso novo). O app inteiro NÃO é uma região viva. -->
+    <div id="anuncios" class="sr-only" role="status" aria-live="polite"></div>
     <noscript>O app do quiosque precisa do JavaScript ligado.</noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>

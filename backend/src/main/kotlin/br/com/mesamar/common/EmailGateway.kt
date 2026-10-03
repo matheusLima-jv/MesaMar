@@ -12,6 +12,11 @@ import org.springframework.stereotype.Component
 data class MailProperties(
     /** Remetente dos e-mails, ex.: "MesaMar <nao-responda@0mega.fun>". */
     val from: String = "MesaMar <nao-responda@localhost>",
+    /**
+     * Sem SMTP, escreve no log o destinatário e o corpo inteiro do e-mail (com o link de troca de senha, que é uma
+     * credencial). Só para desenvolvimento e testes: em produção fica desligado (padrão) e o log só diz que não enviou.
+     */
+    val logarCorpoSemSmtp: Boolean = false,
 )
 
 /** Envio de e-mail transacional (hoje: só a troca de senha). */
@@ -42,7 +47,11 @@ class SmtpOrLogEmailGateway(
         // Docker Compose repassa SPRING_MAIL_HOST vazio quando não há SMTP: tratamos igual a "sem SMTP".
         val sender = mailSender.ifAvailable?.takeUnless { (it as? JavaMailSenderImpl)?.host.isNullOrBlank() }
         if (sender == null) {
-            log.warn("SMTP não configurado; e-mail NÃO enviado. Para: {} | Assunto: {}\n{}", to, subject, body)
+            if (properties.logarCorpoSemSmtp) {
+                log.warn("SMTP não configurado; e-mail NÃO enviado. Para: {} | Assunto: {}\n{}", to, subject, body)
+            } else {
+                log.warn("SMTP não configurado; e-mail NÃO enviado (assunto: {}). Configure o SMTP para o e-mail sair.", subject)
+            }
             return
         }
         val message =
@@ -53,6 +62,6 @@ class SmtpOrLogEmailGateway(
                 text = body
             }
         sender.send(message)
-        log.info("E-mail enviado para {} ({})", to, subject)
+        log.info("E-mail enviado ({})", subject)
     }
 }

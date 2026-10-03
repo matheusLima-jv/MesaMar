@@ -44,6 +44,8 @@ services:
       MESAMAR_ADMIN_USER: ${MESAMAR_ADMIN_USER:-admin}
       MESAMAR_ADMIN_PASSWORD: ${MESAMAR_ADMIN_PASSWORD:-}
       MESAMAR_MAIL_FROM: ${MESAMAR_MAIL_FROM:-MesaMar <nao-responda@localhost>}
+      # Só no compose de desenvolvimento: o link de troca de senha aparece no log (docker compose logs app)
+      MESAMAR_MAIL_LOGAR_CORPO: "true"
       SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-}
       SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
       SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}

@@ -24,7 +24,8 @@ class SecurityHeadersTest(
         assertContains(response.header("Content-Security-Policy"), "frame-ancestors 'none'")
         assertEquals("nosniff", response.header("X-Content-Type-Options"))
         assertEquals("DENY", response.header("X-Frame-Options"))
-        assertEquals("strict-origin-when-cross-origin", response.header("Referrer-Policy"))
+        // O endereço da comanda, do convite e da troca de senha é uma credencial: nunca vai no cabeçalho Referer
+        assertEquals("no-referrer", response.header("Referrer-Policy"))
     }
 
     @Test

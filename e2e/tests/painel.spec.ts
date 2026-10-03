@@ -6,6 +6,8 @@ const password = process.env.E2E_ADMIN_PASSWORD ?? ''
 test.skip(!password, 'defina E2E_ADMIN_PASSWORD para testar o convite')
 
 test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page, browser }) => {
+  // O fluxo é longo (convite, equipe, cardápio, fila, pagamentos, relatório, acessibilidade): 30 s não bastam
+  test.setTimeout(120_000)
   // Outro "aparelho" com as mesmas opções do projeto (baseURL, tamanho de celular)
   const novoAparelho = async () => await (await browser.newContext(test.info().project.use)).newPage()
   const caminho = (url: string): string => new URL(url).pathname + new URL(url).search
@@ -113,10 +115,14 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   // 8b) Check-in da Ana no guarda-sol 12: QR em tela cheia, WhatsApp e lista por ordem de chegada
   await app.getByRole('button', { name: '+ Novo cliente' }).click()
   await app.getByLabel('Nome do cliente').fill('Ana')
-  await app.getByRole('button', { name: 'Guarda-sol 12', exact: true }).click()
+  await app.getByRole('radio', { name: 'Guarda-sol 12', exact: true }).click()
   await app.getByLabel(/^WhatsApp/).fill('(13) 99999-8888')
   await app.getByRole('button', { name: 'Gerar QR' }).click()
   await expect(app.getByText('Confirme que o cliente concordou.')).toBeVisible()
+  // O erro fica ligado ao campo (o leitor de tela lê junto) e o foco vai para ele
+  await expect(app.locator('#consentimento')).toHaveAttribute('aria-invalid', 'true')
+  await expect(app.locator('#consentimento')).toHaveAttribute('aria-describedby', /erro-consentimento/)
+  await expect(app.locator('#consentimento')).toBeFocused()
   await app.getByLabel(/O cliente concorda/).check()
   await expectNoHorizontalScroll(app)
   await app.getByRole('button', { name: 'Gerar QR' }).click()
@@ -208,7 +214,7 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await app.getByRole('link', { name: 'Clientes' }).click()
   await app.getByRole('button', { name: '+ Novo cliente' }).click()
   await app.getByLabel('Nome do cliente').fill('Bruno')
-  await app.getByRole('button', { name: 'Guarda-sol 5', exact: true }).click()
+  await app.getByRole('radio', { name: 'Guarda-sol 5', exact: true }).click()
   await app.getByLabel(/^WhatsApp/).fill(randomWhatsapp())
   await app.getByLabel(/O cliente concorda/).check()
   await app.getByRole('button', { name: 'Gerar QR' }).click()
@@ -414,6 +420,101 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   // O Bruno vê o pedido na página dele, sem recarregar
   await bruno.getByRole('link', { name: 'Meus pedidos', exact: true }).click()
   await expect(bruno.locator('.order')).toHaveCount(2)
+
+  // 14c) Acessibilidade, busca de clientes e texto longo (revisão, lote 3)
+  const tamanhoOriginal = app.viewportSize() ?? { width: 412, height: 915 }
+  const checkIn = async (nome: string): Promise<void> => {
+    await app.getByRole('button', { name: '+ Novo cliente' }).click()
+    await app.getByLabel('Nome do cliente').fill(nome)
+    await app.getByLabel(/O cliente concorda/).check()
+    await app.getByRole('button', { name: 'Gerar QR' }).click()
+  }
+  await app.getByRole('link', { name: 'Clientes' }).click()
+
+  // Os guarda-sóis são radios de verdade: as setas movem e escolhem
+  await app.getByRole('button', { name: '+ Novo cliente' }).click()
+  const balcao = app.getByRole('radio', { name: 'Sem guarda-sol (balcão)' })
+  await balcao.focus()
+  await app.keyboard.press('ArrowRight')
+  await expect(app.getByRole('radio', { name: 'Guarda-sol 1', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await expect(app.getByRole('radio', { name: 'Guarda-sol 1', exact: true })).toBeFocused()
+  await app.keyboard.press('ArrowLeft')
+  await expect(balcao).toHaveAttribute('aria-checked', 'true')
+  await app.getByRole('button', { name: 'Cancelar' }).click()
+
+  // Nomes longos: com espaços e sem espaço nenhum
+  const nomeLongo = 'Maria Aparecida dos Santos Albuquerque'
+  const nomeSemEspaco = 'M'.repeat(40)
+  await checkIn(nomeLongo)
+  const qrLongo = app.getByRole('dialog', { name: nomeLongo })
+
+  // Modal: o resto do app fica inerte, o Tab não sai dele e o Esc devolve o foco a quem abriu
+  await expect(qrLongo).toBeVisible()
+  await expect(app.locator('#app')).toHaveAttribute('inert', '')
+  for (let i = 0; i < 6; i++) await app.keyboard.press('Tab')
+  expect(await app.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null), 'o foco ficou preso no QR').toBe(true)
+  await app.keyboard.press('Shift+Tab')
+  expect(await app.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null)).toBe(true)
+
+  // QR novo: troca o link e a comanda continua. O link antigo vale só até aqui
+  await qrLongo.getByRole('button', { name: 'Trocar o QR deste cliente' }).click()
+  await expect(qrLongo.getByText('O QR e o link atuais deixam de abrir.')).toBeVisible()
+  const svgAntes = await qrLongo.locator('svg.qr').innerHTML()
+  await qrLongo.getByRole('button', { name: 'Gerar QR novo agora' }).click()
+  await expect.poll(async () => await app.getByRole('dialog', { name: nomeLongo }).locator('svg.qr').innerHTML(), 'o QR mudou').not.toBe(svgAntes)
+  await expectNoHorizontalScroll(app)
+  await app.keyboard.press('Escape')
+  await expect(app.getByRole('dialog')).toHaveCount(0)
+  await expect(app.locator('#app')).not.toHaveAttribute('inert', '')
+  await expect(app.getByRole('heading', { name: 'Clientes' })).toBeVisible()
+
+  await checkIn(nomeSemEspaco)
+  await app.getByRole('button', { name: 'Pronto' }).click()
+
+  // Busca por nome (sem acento e sem maiúscula), por guarda-sol e filtro de situação
+  await app.getByLabel('Buscar cliente').fill('aparecida')
+  await expect(app.locator('.people li')).toHaveCount(1)
+  await expect(app.locator('.people li')).toContainText(nomeLongo)
+  await expect(app.locator('#resultado-clientes')).toContainText('1 de')
+  await app.getByLabel('Buscar cliente').fill('zzzz')
+  await expect(app.getByText('Ninguém combina com essa busca.')).toBeVisible()
+  await app.getByRole('button', { name: 'Limpar a busca' }).click()
+  await expect(app.locator('.people li').first()).toBeVisible()
+  await app.getByLabel('Buscar cliente').fill('5')
+  await expect(app.locator('.people li').filter({ hasText: 'Bruno' })).toHaveCount(1)
+  await app.getByLabel('Buscar cliente').fill('')
+  await app.getByLabel('Situação da comanda').selectOption({ label: 'Bloqueadas' })
+  await expect(app.getByText('Ninguém combina com essa busca.')).toBeVisible()
+  await app.getByRole('button', { name: 'Limpar a busca' }).click()
+
+  // Telas estreitas e com zoom de 200% (um celular de 360px com zoom vira ~180px): nada estoura para os lados
+  // Com o cursor num campo, o teclado está aberto e a barra de abas se esconde de propósito: tira o foco antes
+  await app.evaluate(() => { (document.activeElement as HTMLElement | null)?.blur() })
+  await expect(app.locator('body')).not.toHaveClass(/teclado/)
+  for (const largura of [320, 190]) {
+    await app.setViewportSize({ width: largura, height: 640 })
+    await expectNoHorizontalScroll(app)
+    await app.getByRole('link', { name: /^Fila/ }).click()
+    await expectNoHorizontalScroll(app)
+    await app.getByRole('link', { name: 'Clientes' }).click()
+    await app.getByRole('button', { name: `Mostrar o QR de ${nomeSemEspaco}` }).click()
+    await expectNoHorizontalScroll(app)
+    await app.keyboard.press('Escape')
+    await app.getByRole('button', { name: `Lançar pedido para ${nomeSemEspaco}` }).click()
+    await expect(app.getByRole('heading', { name: 'Lançar pedido' })).toBeVisible()
+    await expectNoHorizontalScroll(app)
+    await app.getByRole('button', { name: 'Cancelar' }).click()
+  }
+  await app.setViewportSize(tamanhoOriginal)
+
+  // Ao trocar de aba, a página volta ao topo (a rolagem é da página, não de um contêiner)
+  await app.getByRole('link', { name: /^Fila/ }).click()
+  await app.evaluate(() => window.scrollTo(0, 400))
+  await app.getByRole('link', { name: 'Clientes' }).click()
+  expect(await app.evaluate(() => window.scrollY)).toBe(0)
+
+  // Os avisos importantes não somem sozinhos como o toast: um pedido parado fica na tela, em qualquer aba
+  await expect(app.getByRole('region', { name: 'Avisos importantes' })).toBeHidden()
 
   // 15) Reportar problema na página do cliente (7.3): uma frase, e o aviso sai
   await cliente.getByRole('link', { name: 'Reportar um problema' }).click()

@@ -1,4 +1,5 @@
 import { ApiError, atendentes, entrarAtendente, entrarDono, type AtendenteOpcao, type Sessao } from '../api'
+import { ligarErro, tecladoDoGrupo } from '../a11y'
 import { h, lembrar, mount } from '../dom'
 
 type Modo = 'equipe' | 'dono'
@@ -10,7 +11,8 @@ type Modo = 'equipe' | 'dono'
 export function telaLogin (root: HTMLElement, aoEntrar: (s: Sessao) => void): void {
   let modo: Modo = lembrar.get('modo') === 'dono' ? 'dono' : 'equipe'
 
-  const area = h('div', { class: 'login-body' })
+  // Abas de verdade: o painel abaixo é o `tabpanel` da aba escolhida, e as setas trocam de aba
+  const area = h('div', { class: 'login-body', role: 'tabpanel', id: 'login-painel' })
   const abas = h('div', { class: 'segmented', role: 'tablist', 'aria-label': 'Quem vai entrar' })
 
   function desenhar (): void {
@@ -18,6 +20,8 @@ export function telaLogin (root: HTMLElement, aoEntrar: (s: Sessao) => void): vo
       aba('equipe', 'Sou da equipe'),
       aba('dono', 'Sou o dono')
     )
+    area.setAttribute('aria-labelledby', `aba-${modo}`)
+    tecladoDoGrupo(abas, (el) => el.getAttribute('aria-selected') === 'true')
     if (modo === 'dono') formDono(area, aoEntrar)
     else passoCodigo(area, aoEntrar)
   }
@@ -26,7 +30,9 @@ export function telaLogin (root: HTMLElement, aoEntrar: (s: Sessao) => void): vo
     return h('button', {
       type: 'button',
       role: 'tab',
+      id: `aba-${valor}`,
       'aria-selected': String(modo === valor),
+      'aria-controls': 'login-painel',
       class: modo === valor ? 'on' : '',
       onclick: () => { modo = valor; lembrar.set('modo', valor); desenhar() }
     }, texto)
@@ -45,13 +51,16 @@ export function telaLogin (root: HTMLElement, aoEntrar: (s: Sessao) => void): vo
   desenhar()
 }
 
+let contadorDeErros = 0
+
 function erroBox (): HTMLParagraphElement {
-  return h('p', { class: 'alert', role: 'alert', hidden: true })
+  contadorDeErros += 1
+  return h('p', { class: 'alert', role: 'alert', id: `login-erro-${contadorDeErros}`, hidden: true })
 }
 
-function mostrarErro (box: HTMLElement, e: unknown): void {
-  box.textContent = e instanceof ApiError ? e.message : 'Algo deu errado. Tente de novo.'
-  box.hidden = false
+/** Mostra o erro e o liga ao campo (aria-invalid e aria-describedby), para o leitor de tela ler os dois juntos. */
+function mostrarErro (box: HTMLElement, e: unknown, campo: HTMLElement | null = null): void {
+  ligarErro(campo, box, e instanceof ApiError ? e.message : 'Algo deu errado. Tente de novo.')
 }
 
 async function enviando<T> (botao: HTMLButtonElement, texto: string, acao: () => Promise<T>): Promise<T> {
@@ -77,17 +86,19 @@ function formDono (area: HTMLElement, aoEntrar: (s: Sessao) => void): void {
     novalidate: true,
     onsubmit: (ev: Event) => {
       ev.preventDefault()
-      erro.hidden = true
+      ligarErro(senha, erro, null)
       void enviando(botao, 'Entrando…', async () => await entrarDono(email.value, senha.value))
         .then(aoEntrar)
-        .catch((e: unknown) => { mostrarErro(erro, e); senha.value = ''; senha.focus() })
+        .catch((e: unknown) => { mostrarErro(erro, e, senha); senha.value = ''; senha.focus() })
     }
   },
   erro,
   h('div', { class: 'field' }, h('label', { for: 'email' }, 'E-mail'), email),
   h('div', { class: 'field' }, h('label', { for: 'senha' }, 'Senha'), senha),
   botao,
-  h('p', { class: 'hint' }, 'O mesmo e-mail e senha do painel da barraca.')
+  h('p', { class: 'hint' }, 'O mesmo e-mail e senha do painel da barraca.'),
+  // Esqueceu a senha? O fluxo é o mesmo do painel (o link chega por e-mail); a recuperação não acontece dentro do app
+  h('p', { class: 'hint' }, h('a', { class: 'link', href: '/painel/esqueci-senha' }, 'Esqueci a minha senha'))
   )
   mount(area, form)
   email.focus()
@@ -111,14 +122,14 @@ function passoCodigo (area: HTMLElement, aoEntrar: (s: Sessao) => void): void {
     novalidate: true,
     onsubmit: (ev: Event) => {
       ev.preventDefault()
-      erro.hidden = true
-      if (codigo.value.trim() === '') { mostrarErro(erro, new ApiError(0, 'vazio', 'Digite o código da barraca.')); return }
+      ligarErro(codigo, erro, null)
+      if (codigo.value.trim() === '') { mostrarErro(erro, new ApiError(0, 'vazio', 'Digite o código da barraca.'), codigo); codigo.focus(); return }
       void enviando(botao, 'Buscando…', async () => await atendentes(codigo.value))
         .then((lista) => {
           lembrar.set('codigo', codigo.value.trim().toLowerCase())
           passoNome(area, codigo.value.trim().toLowerCase(), lista, aoEntrar)
         })
-        .catch((e: unknown) => mostrarErro(erro, e))
+        .catch((e: unknown) => mostrarErro(erro, e, codigo))
     }
   },
   erro,
@@ -177,17 +188,19 @@ function passoPin (area: HTMLElement, codigo: string, atendente: AtendenteOpcao,
     novalidate: true,
     onsubmit: (ev: Event) => {
       ev.preventDefault()
-      erro.hidden = true
+      ligarErro(pin, erro, null)
       void enviando(botao, 'Conferindo…', async () => await entrarAtendente(codigo, atendente.id, pin.value))
         .then((s) => { lembrar.set('atendente', atendente.id); aoEntrar(s) })
-        .catch((e: unknown) => { mostrarErro(erro, e); pin.value = ''; pin.focus() })
+        .catch((e: unknown) => { mostrarErro(erro, e, pin); pin.value = ''; pin.focus() })
     }
   },
   h('button', { type: 'button', class: 'link', onclick: () => passoNome(area, codigo, lista, aoEntrar) }, 'Não sou eu'),
   h('h2', { class: 'card-title' }, `Olá, ${atendente.nome}`),
   erro,
   h('div', { class: 'field' }, h('label', { for: 'pin' }, 'Seu PIN'), pin),
-  botao
+  botao,
+  // Esqueceu o PIN? Quem troca é o dono, no painel (o app não tem como recuperar sozinho)
+  h('p', { class: 'hint' }, 'Esqueceu o PIN? Peça ao dono para trocar, no painel, em Equipe → Trocar o PIN.')
   )
   mount(area, form)
   pin.focus()

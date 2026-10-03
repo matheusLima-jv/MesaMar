@@ -64,6 +64,15 @@ interface PushSubscriptionRepository : JpaRepository<PushSubscription, UUID> {
         @Param("barracaId") barracaId: UUID,
     ): Int
 
+    /** Os avisos de um atendente que perdeu o acesso: só da barraca dele. */
+    @Modifying
+    @Transactional
+    @Query("delete from PushSubscription s where s.atendenteId = :atendenteId and s.barracaId = :barracaId")
+    fun removerDoAtendente(
+        @Param("atendenteId") atendenteId: UUID,
+        @Param("barracaId") barracaId: UUID,
+    ): Int
+
     @Modifying
     @Transactional
     @Query("delete from PushSubscription s where s.id = :id")

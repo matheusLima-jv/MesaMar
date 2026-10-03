@@ -51,7 +51,7 @@ A primeira vez leva de 5 a 10 minutos (baixa o Gradle, as dependências e os pac
 | 3 | Landing → "Entrar na lista do piloto" | Enviar vazio | Uma mensagem em português por campo |
 | 4 | Mesmo formulário | Enviar com WhatsApp `(13) 1234` | Só o WhatsApp com erro; o resto continua preenchido |
 | 5 | Mesmo formulário | Enviar certo | "Pronto, você está na lista." |
-| 6 | Mesmo formulário | Enviar vazio 9 vezes seguidas | Na 9ª: "Recebemos muitos envios deste aparelho" (espere 10 min ou reinicie o app para zerar) |
+| 6 | Mesmo formulário | Enviar vazio 9 vezes seguidas | Na 9ª: "Recebemos muitos envios desta conexão" (espere 10 min ou reinicie o app para zerar) |
 | 7 | Botão "Falar no WhatsApp" | Tocar | Abre o WhatsApp com a mensagem pronta |
 | 8 | http://localhost:8080/teste-sinal (no celular) | Escolher praia e medir | 3 números + veredito "✅ … Medição salva" |
 | 9 | http://localhost:8080/admin | Entrar com `admin` + a sua senha | Lead do passo 5 e medição do passo 8 aparecem |
@@ -363,6 +363,24 @@ O token de QR gerado no aparelho (check-in sem sinal) só tem teste automático 
 | 175 | DevTools → Application → Cache Storage, com a página do cliente e o app abertos no mesmo navegador | Publicar uma versão nova e recarregar os dois | Cada app fica só com o cache da versão nova dele; o cache do outro continua lá |
 | 176 | Cliente com o pedido "Sem sinal. Tentaremos de novo" e o atendente lança os mesmos itens pelo app | Voltar o sinal no celular do cliente | O cliente vê o pedido como enviado, e a Fila tem **um** pedido |
 | 177 | App do quiosque em segundo plano (outro app na frente) por alguns minutos, sem tempo real | Voltar ao app | A fila e os pagamentos se atualizam na hora |
+
+### Correções da revisão (lote 3)
+
+| # | Onde | O que fazer | Esperado |
+|---|---|---|---|
+| 178 | App do quiosque, com leitor de tela (TalkBack ou VoiceOver) | Abrir o QR de um cliente e navegar pelos controles | O leitor só enxerga o QR (o resto do app fica de fora), o Tab não sai dele, e ao fechar o foco volta ao botão que abriu |
+| 179 | Check-in, com teclado externo ou leitor de tela | Escolher o guarda-sol com as setas | Um grupo "Guarda-sol" de radios: setas movem e escolhem, o Tab entra e sai do grupo |
+| 180 | Aba Fila aberta e um pedido novo chegando | Deixar o foco num botão da fila e esperar um pedido chegar. Repetir com o filtro de guarda-sol aberto | O foco continua no mesmo botão; a lista do filtro não fecha sozinha (a fila se atualiza quando você sai do campo) |
+| 181 | Pedido parado além do tempo da barraca, e um cliente tocando em "fechar a conta" | Ir para a aba Cardápio | No topo fica uma faixa "Pedido nº … está esperando há N min" e "… está indo pagar", com Ver e Entendi. Não some sozinha; some quando o pedido sai da fila ou a conta é recebida |
+| 182 | Tela de entrada do app | Tocar em "Sou o dono" | Aparece "Esqueci a minha senha", que abre o fluxo do painel. Na do atendente: "Esqueceu o PIN? Peça ao dono…" |
+| 183 | Celular que usou a página do cliente em comandas de dias diferentes | Abrir uma comanda nova e olhar os dados do site (DevTools → Application → Local Storage) | As entradas de comandas sem uso há mais de 7 dias foram apagadas. Link que dá "não vale mais" apaga as da própria comanda |
+| 184 | Página /privacidade, seção 5 | Ler | Fala da cópia da comanda no celular, dos 7 dias, dos textos livres apagados aos 90 dias, da notificação sem texto e dos pedidos de exclusão em até 15 dias |
+| 185 | Painel do dono → Equipe, atendente logado no celular dela | "Celular perdido? Tirar … de todos os aparelhos" → Sair de todos os aparelhos | O app dela volta ao login na hora (mesmo com a fila aberta). O PIN antigo ainda entra. Desativar e reativar não traz a sessão de volta |
+| 186 | App do quiosque → Clientes → QR de um cliente | "Trocar o QR deste cliente" → Gerar QR novo agora | Aparece o QR novo. Abrir o link antigo no celular do cliente: "Esse link não vale mais". A conta e os pedidos continuam no QR novo |
+| 187 | Cliente que fez um pedido com a página "Sem sinal" | Trocar o QR dele antes de o sinal voltar | Se o pedido já tinha chegado, a página antiga para de reenviar. Se não tinha, ela mostra o erro e o atendente lança de novo |
+| 188 | Pedido com observação "sem gelo, é para o filho do Marcos", depois cancelado com "Outro: …" (mude a data do cliente para 91 dias atrás e rode o job, ou espere) | Olhar o relatório e a comanda | A observação e o detalhe do motivo sumiram; o relatório continua agrupando em "Outro" |
+| 189 | Reportar um problema na página do cliente, com o celular do dono bloqueado | Olhar a tela do dono | A notificação diz "Toque para ler o aviso no painel", **sem** o texto digitado |
+| 190 | Servidor com `deploy/lgpd/excluir-cliente.sh --link …` (ver `docs/lgpd-procedimento.md`) | Rodar, depois restaurar um backup antigo no banco de treino | O cliente aparece como "Cliente", o link antigo dá 404, e o treino restaurado já sai com a exclusão refeita |
 
 ## 5. Testes E2E (os mesmos do CI)
 

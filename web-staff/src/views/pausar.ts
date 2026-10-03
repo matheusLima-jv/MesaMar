@@ -1,4 +1,5 @@
 import { ApiError, pausar } from '../api'
+import { ativarModal, ligarErro } from '../a11y'
 import { h, registrarSobreposicao } from '../dom'
 import { avisar } from '../toast'
 
@@ -7,24 +8,20 @@ import { avisar } from '../toast'
  * acaba). O recado é opcional e aparece para os clientes, que são avisados na hora.
  */
 export function dialogoPausar (aoConcluir: () => void): void {
-  const anterior = document.activeElement as HTMLElement | null
   const recado = h('input', { id: 'pausa-recado', type: 'text', maxlength: 80, autocomplete: 'off', placeholder: 'ex.: Voltamos em 10 minutos' })
-  const erro = h('p', { class: 'field-err', role: 'alert', hidden: true })
+  const erro = h('p', { class: 'field-err', id: 'pausa-erro', role: 'alert', hidden: true })
   const confirmar = h('button', { type: 'submit', class: 'btn btn-danger btn-block btn-big' }, 'Pausar pedidos')
 
   const fechar = (): void => {
     desregistrar()
-    document.removeEventListener('keydown', teclas)
-    tela.remove()
-    anterior?.focus()
+    desativar()
   }
-  const teclas = (ev: KeyboardEvent): void => { if (ev.key === 'Escape') fechar() }
 
   const form = h('form', {
     novalidate: true,
     onsubmit: (ev: Event) => {
       ev.preventDefault()
-      erro.hidden = true
+      ligarErro(recado, erro, null)
       confirmar.disabled = true
       confirmar.textContent = 'Pausando…'
       pausar(true, recado.value)
@@ -36,8 +33,7 @@ export function dialogoPausar (aoConcluir: () => void): void {
         .catch((e: unknown) => {
           confirmar.disabled = false
           confirmar.textContent = 'Pausar pedidos'
-          erro.textContent = e instanceof ApiError ? e.message : 'Não deu para pausar. Tente de novo.'
-          erro.hidden = false
+          ligarErro(recado, erro, e instanceof ApiError ? e.message : 'Não deu para pausar. Tente de novo.')
         })
     }
   },
@@ -54,9 +50,7 @@ export function dialogoPausar (aoConcluir: () => void): void {
   const tela = h('div', { class: 'dialogo', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'pausa-titulo' },
     h('div', { class: 'dialogo-painel' }, h('h2', { id: 'pausa-titulo' }, 'Pausar pedidos'), form)
   )
-  document.body.append(tela)
   // Trocou de aba, saiu ou a sessão acabou: o diálogo some junto (sem rodar o "ao concluir")
-  const desregistrar = registrarSobreposicao(() => { document.removeEventListener('keydown', teclas); tela.remove() })
-  document.addEventListener('keydown', teclas)
-  recado.focus()
+  const desativar = ativarModal(tela, { aoEscape: fechar, foco: () => recado })
+  const desregistrar = registrarSobreposicao(desativar)
 }

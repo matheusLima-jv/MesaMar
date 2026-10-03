@@ -145,7 +145,7 @@ class LeadFormTest(
         val blocked = http.postForm("/lista-de-espera", validForm("13 99111-2205"))
 
         assertEquals(429, blocked.statusCode())
-        assertContains(blocked.body(), "Recebemos muitos envios deste aparelho.")
+        assertContains(blocked.body(), "Recebemos muitos envios desta conexão.")
         assertEquals(0, countByWhatsapp("+5513991112205"))
 
         // Outro aparelho (outro IP) continua conseguindo enviar.

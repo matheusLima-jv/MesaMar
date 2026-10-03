@@ -47,6 +47,8 @@ export interface NovoCliente {
   guardaSolId: string | null
   whatsapp: string
   consentimento: boolean
+  /** A versão do texto de consentimento que estava na tela (docs/consentimento.md). */
+  consentimentoVersao?: string
 }
 
 export type StatusPedido = 'AGUARDANDO_PAGAMENTO' | 'RECEBIDO' | 'EM_PREPARO' | 'ENTREGUE' | 'CANCELADO'
@@ -287,6 +289,11 @@ export async function definirEsgotado (produtoId: string, esgotado: boolean): Pr
 
 export async function clientes (): Promise<Comanda[]> {
   return await chamar<Comanda[]>('GET', '/clientes')
+}
+
+/** "QR novo": troca o link da comanda (o cliente compartilhou ou perdeu o QR). Os pedidos e o saldo ficam. */
+export async function novoQr (comandaId: string): Promise<Comanda> {
+  return await chamar<Comanda>('POST', `/comandas/${comandaId}/novo-qr`)
 }
 
 export async function guardaSois (): Promise<GuardaSolOpcao[]> {

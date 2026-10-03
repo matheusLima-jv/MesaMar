@@ -23,6 +23,8 @@ data class CheckinRequest(
      * e o servidor o adota quando o check-in chega. Sem este campo, o servidor gera o token.
      */
     val token: String? = null,
+    /** A versão do texto de consentimento que o app mostrou (ex.: "2026-10-v1"). Ver docs/consentimento.md. */
+    val consentimentoVersao: String? = null,
 )
 
 /** Quem está no quiosque fazendo o check-in: o dono ou um atendente (exatamente um dos dois). */
@@ -58,6 +60,7 @@ class CheckinService(
     private val comandas: ComandaRepository,
     private val guardaSois: GuardaSolRepository,
     private val contador: ContadorDiario,
+    private val hub: br.com.mesamar.eventos.HubEventos,
     private val clock: Clock,
 ) {
     @Transactional
@@ -103,7 +106,14 @@ class CheckinService(
         val dia = Fuso.hoje(clock)
         val cliente =
             clientes.save(
-                Cliente(barracaId = barracaId, nome = nome, whatsappE164 = whatsapp, consentimentoEm = agora, criadoEm = agora),
+                Cliente(
+                    barracaId = barracaId,
+                    nome = nome,
+                    whatsappE164 = whatsapp,
+                    consentimentoEm = agora,
+                    consentimentoVersao = versaoDoConsentimento(req.consentimentoVersao),
+                    criadoEm = agora,
+                ),
             )
         val comanda =
             comandas.save(
@@ -123,6 +133,24 @@ class CheckinService(
         return ResultadoCheckin.Ok(ComandaDetalhe(comanda, cliente, guardaSol), nova = true)
     }
 
+    /**
+     * "QR novo": o link da comanda é trocado (o cliente compartilhou ou perdeu o QR). A comanda, os pedidos e o saldo
+     * ficam como estão; o link antigo deixa de abrir, e as conexões em tempo real dele caem. Só para comandas ativas.
+     * O link antigo ainda ajuda a página antiga a descobrir que um pedido que ela reenviava já tinha chegado.
+     */
+    @Transactional
+    fun novoQr(
+        barracaId: UUID,
+        comandaId: UUID,
+    ): ComandaDetalhe? {
+        val comanda = comandas.travar(comandaId)?.takeIf { it.barracaId == barracaId && it.status in StatusComanda.ATIVAS } ?: return null
+        comanda.tokenAnterior = comanda.tokenAcesso
+        comanda.tokenAcesso = SecureTokens.generate(TOKEN_BYTES)
+        comandas.save(comanda)
+        hub.encerrarComanda(comanda.id)
+        return detalhe(comanda)
+    }
+
     /** Clientes com comanda ativa, por ordem de chegada. */
     @Transactional(readOnly = true)
     fun ativos(barracaId: UUID): List<ComandaDetalhe> {
@@ -140,6 +168,13 @@ class CheckinService(
         )
 
     companion object {
+        /** A versão do texto de consentimento que o app atual mostra. O app manda a sua; o servidor só a registra. */
+        const val CONSENTIMENTO_VERSAO_ATUAL = "2026-10-v1"
+
+        /** Versão enviada pelo app, ou "desconhecida" se não veio (app antigo em cache) ou veio com formato estranho. */
+        fun versaoDoConsentimento(enviada: String?): String =
+            enviada?.trim()?.takeIf { Regex("[A-Za-z0-9._-]{1,30}").matches(it) } ?: "desconhecida"
+
         /**
          * 16 bytes em Base64 URL-safe sem preenchimento (22 letras). Não dá para provar a aleatoriedade de um token
          * que veio de fora, mas dá para recusar o que claramente não é: tamanho errado, letras fora do alfabeto,

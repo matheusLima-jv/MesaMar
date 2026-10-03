@@ -135,6 +135,7 @@ class RecuperacaoSenhaService(
     private val passwordEncoder: PasswordEncoder,
     private val email: EmailGateway,
     private val site: SiteProperties,
+    private val hub: br.com.mesamar.eventos.HubEventos,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -193,6 +194,8 @@ class RecuperacaoSenhaService(
         // Celular perdido ou senha vazada: quem estava logado com a senha antiga cai na próxima ação
         usuario.credenciaisEm = Instant.now(clock)
         reset.usadoEm = Instant.now(clock)
+        // As conexões em tempo real abertas com a senha antiga caem em seguida (não só as próximas requisições)
+        hub.revisarAcessosAposCommit()
         log.info("Senha redefinida para usuario={}", usuario.id)
         return true
     }

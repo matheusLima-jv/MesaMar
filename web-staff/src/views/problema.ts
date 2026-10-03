@@ -1,4 +1,5 @@
 import { ApiError, reportarProblema } from '../api'
+import { ligarErro } from '../a11y'
 import { h } from '../dom'
 import { estado } from '../fila-store'
 import { avisar } from '../toast'
@@ -21,13 +22,13 @@ export function descreverConexao (): string {
 /** O cartão "Reportar problema" da aba Mais. Uma frase basta: tela, hora e conexão vão junto. */
 export function cartaoProblema (): HTMLElement {
   const texto = h('textarea', { id: 'problema-texto', rows: 3, maxlength: 500, placeholder: 'Ex.: o pedido do guarda-sol 5 não apareceu na fila' })
-  const erro = h('p', { class: 'field-err', role: 'alert', hidden: true })
+  const erro = h('p', { class: 'field-err', id: 'problema-erro', role: 'alert', hidden: true })
   const enviar = h('button', { type: 'submit', class: 'btn btn-line btn-block' }, 'Enviar aviso')
   const form = h('form', {
     novalidate: true,
     onsubmit: (ev: Event) => {
       ev.preventDefault()
-      erro.hidden = true
+      ligarErro(texto, erro, null)
       enviar.disabled = true
       enviar.textContent = 'Enviando…'
       reportarProblema(texto.value, ultimaTela, descreverConexao())
@@ -36,8 +37,7 @@ export function cartaoProblema (): HTMLElement {
           avisar('Aviso enviado. Obrigado!')
         })
         .catch((e: unknown) => {
-          erro.textContent = e instanceof ApiError ? e.message : 'Não deu para enviar agora. Tente de novo quando o sinal voltar.'
-          erro.hidden = false
+          ligarErro(texto, erro, e instanceof ApiError ? e.message : 'Não deu para enviar agora. Tente de novo quando o sinal voltar.')
         })
         .finally(() => {
           enviar.disabled = false
@@ -45,7 +45,8 @@ export function cartaoProblema (): HTMLElement {
         })
     }
   },
-  h('div', { class: 'field' }, h('label', { for: 'problema-texto' }, 'O que aconteceu?'), texto),
+  h('div', { class: 'field' }, h('label', { for: 'problema-texto' }, 'O que aconteceu?'), texto,
+    h('p', { class: 'hint' }, 'Não escreva nomes, telefones ou outros dados pessoais: o aviso fica guardado por 90 dias.')),
   erro,
   enviar
   )

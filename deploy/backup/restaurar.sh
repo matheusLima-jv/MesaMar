@@ -30,6 +30,8 @@ restaurar_em() {
   $COMPOSE exec -T db pg_restore -U "$DB_USER" -d "$banco" --no-owner --no-privileges --exit-on-error < "$arquivo" \
     || falha "o pg_restore falhou. O banco '$banco' pode estar incompleto: não use."
   log "restauração concluída em '$banco'"
+  # Pedidos de exclusão de dados (LGPD) feitos DEPOIS desta cópia seriam desfeitos pela restauração: refaz todos
+  bash "$(cd "$(dirname "$0")" && pwd)/../lgpd/reaplicar-exclusoes.sh" "$banco"     || falha "a restauração terminou, mas as exclusões de LGPD não foram reaplicadas em '$banco'. NÃO suba a aplicação."
 }
 
 if [ "${1:-}" = "--limpar" ]; then

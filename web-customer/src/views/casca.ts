@@ -40,7 +40,7 @@ export function casca (ctx: Contexto, aba: Aba, ...conteudo: Array<Node | string
       link('pedidos', '#pedidos', 'Meus pedidos'),
       link('conta', '#conta', 'Conta')
     ),
-    h('main', { id: 'conteudo', class: 'page' },
+    h('main', { id: 'conteudo', class: 'page', tabindex: -1 },
       ctx.avisos.length > 0
         ? h('section', { class: 'avisos', role: 'status', 'aria-label': 'Avisos do quiosque' },
           ...ctx.avisos.map((t) => h('p', {}, t)),

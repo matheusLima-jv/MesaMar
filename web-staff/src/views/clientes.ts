@@ -1,12 +1,44 @@
-import { ApiError, clientes, descartada, guardaSois, novoCliente, novoId, type Comanda, type GuardaSolOpcao, type NovoCliente, type Sessao } from '../api'
+import { ApiError, clientes, descartada, guardaSois, novoCliente, novoId, novoQr, type Comanda, type GuardaSolOpcao, type NovoCliente, type Sessao } from '../api'
+import { ativarModal, ligarErro, tecladoDoGrupo } from '../a11y'
+import { CONSENTIMENTO_TEXTO, CONSENTIMENTO_VERSAO } from '../consentimento'
 import { abrirTela, h, mount, registrarSobreposicao } from '../dom'
 import { pendencias } from '../pendencias'
 import { qrSvg } from '../qr'
 import { lancar } from './lancar'
 
+type Situacao = 'todas' | 'ABERTA' | 'AGUARDANDO_PAGAMENTO' | 'BLOQUEADA'
+
+const SITUACOES: Array<{ valor: Situacao, rotulo: string }> = [
+  { valor: 'todas', rotulo: 'Todas' },
+  { valor: 'ABERTA', rotulo: 'Abertas' },
+  { valor: 'AGUARDANDO_PAGAMENTO', rotulo: 'Fechando a conta' },
+  { valor: 'BLOQUEADA', rotulo: 'Bloqueadas' }
+]
+
+const ROTULO_SITUACAO: Record<string, string> = {
+  AGUARDANDO_PAGAMENTO: 'Fechando a conta',
+  BLOQUEADA: 'Bloqueada'
+}
+
+// A busca e o filtro ficam fora da tela: voltar do QR ou do "Pedir" não os perde
+let busca = ''
+let situacao: Situacao = 'todas'
+
+/** Sem acento e sem maiúscula, para "jose" achar "José". */
+const normalizar = (texto: string): string => texto.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
+/** Nome, guarda-sol ("12", "guarda-sol 12", "balcão") e número de chegada: todas as palavras da busca precisam aparecer. */
+export function combinaComBusca (c: Comanda, texto: string): boolean {
+  const palavras = normalizar(texto).split(/\s+/).filter((p) => p !== '')
+  if (palavras.length === 0) return true
+  const feno = normalizar(`${c.nome} ${c.guardaSol === null ? 'balcao sem guarda-sol' : `guarda-sol ${c.guardaSol} gs${c.guardaSol}`} chegada ${c.numeroChegada}`)
+  return palavras.every((p) => feno.includes(p))
+}
+
 /**
  * Aba Clientes: check-in em até 20 segundos (nome → guarda-sol → WhatsApp opcional → consentimento)
- * e o QR pessoal em tela cheia. A lista mostra quem está com comanda aberta, por ordem de chegada.
+ * e o QR pessoal em tela cheia. A lista mostra quem está com comanda aberta, por ordem de chegada, com busca por
+ * nome ou guarda-sol e filtro pela situação da comanda (no pico, achar o cliente certo rápido).
  */
 export function abaClientes (root: HTMLElement, sessao: Sessao): void {
   // Resposta que chega depois de a pessoa ter trocado de aba (ou aberto outra tela) é descartada
@@ -25,36 +57,79 @@ export function abaClientes (root: HTMLElement, sessao: Sessao): void {
 
 function desenharLista (root: HTMLElement, sessao: Sessao, lista: Comanda[]): void {
   const novo = h('button', { type: 'button', class: 'btn btn-sun btn-block btn-big', onclick: () => formNovo(root, sessao) }, '+ Novo cliente')
+  const resultado = h('p', { class: 'hint', id: 'resultado-clientes', role: 'status' })
+  const corpo = h('div', { id: 'lista-clientes' })
+
+  const linha = (c: Comanda): HTMLLIElement =>
+    h('li', {},
+      h('span', { class: 'arrival', 'aria-label': `Chegada número ${c.numeroChegada}` }, `${c.numeroChegada}`),
+      h('div', { class: 'person' },
+        h('strong', {}, c.nome, ROTULO_SITUACAO[c.status] !== undefined ? h('span', { class: 'tag' }, ROTULO_SITUACAO[c.status]) : null),
+        h('span', { class: 'hint' }, `${c.guardaSol === null ? 'Sem guarda-sol' : `Guarda-sol ${c.guardaSol}`} · ${c.hora}`)
+      ),
+      h('button', {
+        type: 'button',
+        class: 'sold',
+        'aria-label': `Lançar pedido para ${c.nome}`,
+        onclick: () => lancar(root, c, () => abaClientes(root, sessao))
+      }, 'Pedir'),
+      h('button', {
+        type: 'button',
+        class: 'sold',
+        'aria-label': `Mostrar o QR de ${c.nome}`,
+        onclick: () => telaQr(sessao, c, () => undefined)
+      }, 'QR')
+    )
+
+  // Só a lista é redesenhada ao digitar: o campo de busca fica no lugar, com o foco e o cursor
+  const filtrar = (): void => {
+    const mostrados = lista.filter((c) => (situacao === 'todas' || c.status === situacao) && combinaComBusca(c, busca))
+    const filtrando = busca.trim() !== '' || situacao !== 'todas'
+    resultado.textContent = lista.length === 0
+      ? 'Ninguém com comanda aberta agora.'
+      : filtrando
+        ? `${mostrados.length} de ${lista.length} ${lista.length === 1 ? 'cliente' : 'clientes'}.`
+        : `${lista.length} com comanda aberta, por ordem de chegada.`
+    if (lista.length === 0) {
+      corpo.replaceChildren(h('p', { class: 'hint center' }, 'Quando alguém chegar: nome, guarda-sol e o cliente lê o QR com a câmera.'))
+    } else if (mostrados.length === 0) {
+      corpo.replaceChildren(h('div', { class: 'empty' },
+        h('p', {}, 'Ninguém combina com essa busca.'),
+        h('button', {
+          type: 'button',
+          class: 'btn btn-line',
+          onclick: () => { busca = ''; situacao = 'todas'; campoBusca.value = ''; seletor.value = 'todas'; filtrar(); campoBusca.focus() }
+        }, 'Limpar a busca')
+      ))
+    } else {
+      corpo.replaceChildren(h('ul', { class: 'people' }, ...mostrados.map(linha)))
+    }
+  }
+
+  const campoBusca = h('input', {
+    id: 'busca-clientes', type: 'search', autocomplete: 'off', enterkeyhint: 'search', placeholder: 'Nome ou guarda-sol', value: busca,
+    'aria-describedby': 'resultado-clientes',
+    oninput: () => { busca = campoBusca.value; filtrar() }
+  })
+  const seletor = h('select', {
+    id: 'situacao-clientes',
+    onchange: () => { situacao = seletor.value as Situacao; filtrar() }
+  }, ...SITUACOES.map((s) => h('option', { value: s.valor, selected: s.valor === situacao }, s.rotulo)))
+
   mount(root,
     h('header', { class: 'tab-head' },
       h('h1', {}, 'Clientes'),
-      h('p', { class: 'hint' }, lista.length === 0 ? 'Ninguém com comanda aberta agora.' : `${lista.length} com comanda aberta, por ordem de chegada.`)
+      resultado
     ),
     novo,
-    lista.length === 0
-      ? h('p', { class: 'hint center' }, 'Quando alguém chegar: nome, guarda-sol e o cliente lê o QR com a câmera.')
-      : h('ul', { class: 'people' }, ...lista.map((c) =>
-        h('li', {},
-          h('span', { class: 'arrival', 'aria-label': `Chegada número ${c.numeroChegada}` }, `${c.numeroChegada}`),
-          h('div', { class: 'person' },
-            h('strong', {}, c.nome),
-            h('span', { class: 'hint' }, `${c.guardaSol === null ? 'Sem guarda-sol' : `Guarda-sol ${c.guardaSol}`} · ${c.hora}`)
-          ),
-          h('button', {
-            type: 'button',
-            class: 'sold',
-            'aria-label': `Lançar pedido para ${c.nome}`,
-            onclick: () => lancar(root, c, () => abaClientes(root, sessao))
-          }, 'Pedir'),
-          h('button', {
-            type: 'button',
-            class: 'sold',
-            'aria-label': `Mostrar o QR de ${c.nome}`,
-            onclick: () => telaQr(sessao, c, () => undefined)
-          }, 'QR')
-        )
-      ))
+    ...(lista.length > 0
+      ? [h('div', { class: 'clientes-filtro' },
+          h('div', { class: 'field' }, h('label', { for: 'busca-clientes' }, 'Buscar cliente'), campoBusca),
+          h('div', { class: 'field' }, h('label', { for: 'situacao-clientes' }, 'Situação da comanda'), seletor))]
+      : []),
+    corpo
   )
+  filtrar()
 }
 
 /** Check-ins sem resposta ficam guardados por barraca: o mesmo aparelho pode entrar em outra barraca depois. */
@@ -85,15 +160,19 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
     id: 'whatsapp', type: 'tel', inputmode: 'tel', autocomplete: 'off', placeholder: '(13) 99999-8888', value: pendente?.dados.whatsapp, readonly: travado
   })
   const consentimento = h('input', { id: 'consentimento', type: 'checkbox', checked: pendente?.dados.consentimento === true, disabled: travado })
-  const grade = h('div', { class: 'umbrellas', role: 'group', 'aria-labelledby': 't-gs' }, h('p', { class: 'hint' }, 'Carregando…'))
+  // Escolha única entre vários botões: é um grupo de radios (setas movem e escolhem; o Tab entra e sai do grupo)
+  const grade = h('div', { class: 'umbrellas', role: 'radiogroup', 'aria-labelledby': 't-gs' }, h('p', { class: 'hint' }, 'Carregando…'))
   const botao = h('button', { type: 'submit', class: 'btn btn-ink btn-block btn-big' }, 'Gerar QR')
+
+  const campoDe: Record<string, HTMLElement> = { nome, whatsapp, consentimento, guardaSolId: grade }
 
   const desenharGrade = (opcoes: GuardaSolOpcao[]): void => {
     const opcao = (valor: string | null, texto: string, rotulo: string, ocupado: boolean): HTMLButtonElement =>
       h('button', {
         type: 'button',
+        role: 'radio',
         class: `umbrella${valor === null ? ' wide' : ''}${ocupado ? ' busy' : ''}${escolhido === valor ? ' on' : ''}`,
-        'aria-pressed': String(escolhido === valor),
+        'aria-checked': String(escolhido === valor),
         'aria-label': rotulo,
         disabled: travado && escolhido !== valor,
         onclick: () => { if (travado) return; escolhido = valor; desenharGrade(opcoes) }
@@ -108,16 +187,18 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
       ))
     )
     if (opcoes.length === 0) grade.append(h('p', { class: 'hint' }, 'Nenhum guarda-sol cadastrado. O dono cria em Painel → Guarda-sóis.'))
+    tecladoDoGrupo(grade, (el) => el.getAttribute('aria-checked') === 'true')
   }
 
   const mostrarErros = (campos: Record<string, string>): void => {
     for (const [campo, msg] of Object.entries(campos)) {
-      const alvo = erros[campo] ?? erroGeral
-      alvo.textContent = msg
-      alvo.hidden = false
+      // O erro fica ligado ao campo (o leitor de tela lê junto); o que não é de campo nenhum vai no aviso geral
+      if (erros[campo] !== undefined) ligarErro(campoDe[campo] ?? null, erros[campo], msg)
+      else { erroGeral.textContent = msg; erroGeral.hidden = false }
     }
     const primeiro = Object.keys(campos)[0]
-    document.getElementById(primeiro === 'guardaSolId' ? 't-gs' : primeiro)?.focus()
+    const alvo = primeiro === 'guardaSolId' ? grade.querySelector<HTMLElement>('[role="radio"]') : campoDe[primeiro] ?? null
+    alvo?.focus()
   }
 
   guardaSois()
@@ -125,7 +206,8 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
     .catch((e: unknown) => {
       if (!aberta() || descartada(e)) return
       desenharGrade([])
-      grade.append(h('p', { class: 'hint' }, 'Não deu para carregar os guarda-sóis. Dá para seguir sem.')) })
+      grade.append(h('p', { class: 'hint' }, 'Não deu para carregar os guarda-sóis. Dá para seguir sem.'))
+    })
 
   const form = h('form', {
     class: 'checkin',
@@ -133,7 +215,7 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
     onsubmit: (ev: Event) => {
       ev.preventDefault()
       erroGeral.hidden = true
-      Object.values(erros).forEach((p) => { p.hidden = true })
+      for (const campo of Object.keys(erros)) ligarErro(campoDe[campo] ?? null, erros[campo], null)
       // O básico é conferido aqui mesmo (resposta na hora, sem depender do sinal); o servidor confere tudo de novo.
       const locais: Record<string, string> = {}
       if (nome.value.trim() === '') locais.nome = 'Digite o nome do cliente.'
@@ -144,7 +226,11 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
       }
       botao.disabled = true
       botao.textContent = 'Gerando…'
-      const envio: NovoCliente = pendente?.dados ?? { id, nome: nome.value, guardaSolId: escolhido, whatsapp: whatsapp.value, consentimento: consentimento.checked }
+      const envio: NovoCliente = pendente?.dados ?? {
+        id, nome: nome.value, guardaSolId: escolhido, whatsapp: whatsapp.value, consentimento: consentimento.checked,
+        // A versão do texto que estava na tela: fica gravada no cadastro (docs/consentimento.md)
+        consentimentoVersao: CONSENTIMENTO_VERSAO
+      }
       // Guardado antes de sair: trocar de aba ou recarregar o app no meio não perde o id deste check-in
       pendencias.guardar('checkin', escopoCheckin(sessao), id, envio)
       novoCliente(envio)
@@ -171,13 +257,13 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
   },
   erroGeral,
   h('div', { class: 'field' }, h('label', { for: 'nome' }, 'Nome do cliente'), nome, erroDe('nome')),
-  h('div', { class: 'field' }, h('p', { id: 't-gs', class: 'label', tabindex: -1 }, 'Guarda-sol'), grade, erroDe('guardaSolId')),
+  h('div', { class: 'field' }, h('p', { id: 't-gs', class: 'label' }, 'Guarda-sol'), grade, erroDe('guardaSolId')),
   h('div', { class: 'field' },
     h('label', { for: 'whatsapp' }, 'WhatsApp ', h('span', { class: 'opt' }, '(opcional, para mandar o link)')),
     whatsapp, erroDe('whatsapp')),
   h('div', { class: 'consent' },
     consentimento,
-    h('label', { for: 'consentimento' }, 'O cliente concorda em informar o nome (e o WhatsApp) só para identificar a comanda e receber o link.')
+    h('label', { for: 'consentimento' }, CONSENTIMENTO_TEXTO)
   ),
   erroDe('consentimento'),
   botao,
@@ -197,23 +283,61 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
 
 /** QR em tela cheia, grande o bastante para a câmera ler a ~50 cm, no sol. */
 function telaQr (sessao: Sessao, c: Comanda, aoFechar: () => void): void {
-  const anterior = document.activeElement as HTMLElement | null
   // Trocar de aba (ou voltar no navegador) com o QR aberto só tira a tela, sem redesenhar a aba antiga.
   const remover = (): void => {
     desregistrar()
-    document.removeEventListener('keydown', teclas)
     window.removeEventListener('hashchange', remover)
-    tela.remove()
+    desativar()
   }
   const fechar = (): void => {
     remover()
-    anterior?.focus()
     aoFechar()
   }
-  const teclas = (ev: KeyboardEvent): void => { if (ev.key === 'Escape') fechar() }
 
   const texto = `Olá, ${c.nome}! Esta é a sua comanda na ${sessao.barraca?.nome ?? 'barraca'}: ${c.link} . Pelo link você vê o cardápio e pede pelo celular.`
   const pronto = h('button', { type: 'button', class: 'btn btn-ink btn-block btn-big', onclick: fechar }, 'Pronto')
+
+  // "QR novo": o cliente compartilhou ou perdeu o link. Em dois passos, para não trocar sem querer
+  const aviso = h('p', { class: 'alert', role: 'alert', hidden: true })
+  const confirmarNovo = h('div', { class: 'qr-novo', hidden: true },
+    h('p', {}, 'O QR e o link atuais deixam de abrir. A comanda, os pedidos e a conta continuam. ' +
+      'Um pedido que ainda estava sendo enviado pelo celular do cliente precisa ser conferido com ele.'),
+    h('button', {
+      type: 'button',
+      class: 'btn btn-line btn-block',
+      onclick: (ev: Event) => {
+        const botao = ev.currentTarget as HTMLButtonElement
+        botao.disabled = true
+        botao.textContent = 'Gerando…'
+        aviso.hidden = true
+        novoQr(c.id)
+          .then((nova) => {
+            // Troca o QR na tela sem voltar para a lista (o foco devolvido no fim ainda é o de quem abriu o primeiro QR)
+            remover()
+            telaQr(sessao, nova, aoFechar)
+          })
+          .catch((e: unknown) => {
+            if (descartada(e)) return
+            botao.disabled = false
+            botao.textContent = 'Gerar QR novo agora'
+            aviso.textContent = e instanceof ApiError ? e.message : 'Não deu para gerar o QR novo. Tente de novo.'
+            aviso.hidden = false
+          })
+      }
+    }, 'Gerar QR novo agora')
+  )
+  const novo = h('button', {
+    type: 'button',
+    class: 'link center-block',
+    'aria-expanded': 'false',
+    onclick: (ev: Event) => {
+      const aberto = confirmarNovo.hidden
+      confirmarNovo.hidden = !aberto
+      ;(ev.currentTarget as HTMLElement).setAttribute('aria-expanded', String(aberto))
+      if (aberto) confirmarNovo.querySelector<HTMLElement>('button')?.focus()
+    }
+  }, 'Trocar o QR deste cliente')
+
   const tela = h('div', { class: 'qr-screen', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'qr-nome' },
     h('div', { class: 'qr-head' },
       h('h2', { id: 'qr-nome' }, c.nome),
@@ -230,13 +354,15 @@ function telaQr (sessao: Sessao, c: Comanda, aoFechar: () => void): void {
           rel: 'noopener'
         }, `Enviar pelo WhatsApp ${c.whatsappExibicao ?? ''}`.trim())
         : null,
-      pronto
+      pronto,
+      aviso,
+      confirmarNovo,
+      novo
     )
   )
-  document.body.append(tela)
+  // O resto do app fica inerte, o Tab não sai do QR e o Esc fecha
+  const desativar = ativarModal(tela, { aoEscape: fechar, foco: () => pronto })
   // Sessão acabou ou o app saiu: o QR some sem voltar para a lista de clientes
   const desregistrar = registrarSobreposicao(remover)
-  document.addEventListener('keydown', teclas)
   window.addEventListener('hashchange', remover)
-  pronto.focus()
 }
