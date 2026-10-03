@@ -39,3 +39,29 @@ test('token local tem 128 bits e formato aceito pelo servidor', () => {
   const f=fila(), tokens=new Set(Array.from({length:100},()=>f.tokenLocal()))
   assert.equal(tokens.size,100); for(const t of tokens) {assert.match(t,/^[A-Za-z0-9_-]{22}$/);assert.ok('AQgw'.includes(t.at(-1)))}
 })
+test('limite de 200 vale por barraca/autor e não bloqueia outra sessão no mesmo aparelho', async () => {
+  const f = fila()
+  for (let n = 1; n <= f.LIMITE_POR_CONTEXTO; n++) await f.preservar('b:a', 'checkin', id(n), novo(n))
+  await assert.rejects(f.preservar('b:a', 'checkin', id(999), novo(999)))
+  const outra = await f.preservar('b:outro', 'checkin', id(1000), novo(1000))
+  assert.equal(outra.contexto, 'b:outro')
+  assert.equal((await f.listarOperacoes('b:a')).length, f.LIMITE_POR_CONTEXTO)
+})
+test('registro corrompido no aparelho não impede preservar a próxima ação', async () => {
+  const banco = new IDBFactory()
+  const f = carregar('fila-offline', { indexedDB: banco }).modulo
+  await f.preservar('b:a', 'checkin', id(1), novo(1))
+  await new Promise((ok, erro) => {
+    const req = banco.open('mesamar-equipe-offline', 1)
+    req.onsuccess = () => { const tx = req.result.transaction('operacoes', 'readwrite'); tx.objectStore('operacoes').put({ chave: 'lixo', versao: 9 }); tx.oncomplete = () => { req.result.close(); ok() }; tx.onerror = erro }
+  })
+  const op = await f.preservar('b:a', 'checkin', id(2), novo(2))
+  assert.equal(op.ordem, 2)
+  assert.deepEqual(Array.from(await f.listarOperacoes('b:a'), o => o.id), [id(1), id(2)])
+})
+test('espera entre tentativas cresce com as falhas, tem teto de 2 minutos e varia', () => {
+  const f = fila()
+  assert.deepEqual([0, 1, 2, 3, 4, 20].map(n => f.esperaSincronia(n, () => 0.5)), [15000, 30000, 60000, 120000, 120000, 120000])
+  assert.equal(f.esperaSincronia(0, () => 0), 12000)
+  assert.equal(f.esperaSincronia(3, () => 1), 144000)
+})

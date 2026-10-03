@@ -1,5 +1,5 @@
 import { definirContextoPendencias } from './pendencias'
-import { drenar, guardarCache, lerCache, listarOperacoes, mudancasOffline, preservar, removerOperacao, tokenLocal, type Operacao } from './fila-offline'
+import { drenar, esperaSincronia, guardarCache, lerCache, listarOperacoes, mudancasOffline, preservar, removerOperacao, tokenLocal, type Operacao } from './fila-offline'
 import { comandaRegra, sessaoRegra } from './contratos'
 import { conferir, lerJson, novoCliente as novoClienteRegra } from '../../web-shared/src/validacao'
 import { contrato } from './contratos'
@@ -316,10 +316,18 @@ export function prepararOffline (s: Sessao): void {
   definirContextoPendencias(contexto)
   if (contexto === '') { try { localStorage.removeItem('mesamar.equipe.sessao') } catch { /* sem armazenamento */ }; return }
   try { if (s.csrf !== '' && navigator.onLine !== false) localStorage.setItem('mesamar.equipe.sessao', JSON.stringify({ versao: 1, em: Date.now(), dados: { ...s, csrf: '' } })) } catch { /* sem persistência: não permite reabertura offline */ }
-  const tentar = (): void => { void sincronizar().catch(() => undefined) }
-  window.addEventListener('online', tentar)
-  const timer = window.setInterval(tentar, 15_000)
-  pararSincronia = () => { window.clearInterval(timer); window.removeEventListener('online', tentar) }
+  // Reenvio com espera crescente enquanto restarem pendências sem confirmação; o sinal voltando recomeça do zero.
+  let falhas = 0
+  let timer = 0
+  let parado = false
+  const agendar = (): void => { if (!parado) { window.clearTimeout(timer); timer = window.setTimeout(tentar, esperaSincronia(falhas)) } }
+  const tentar = (): void => {
+    window.clearTimeout(timer)
+    void sincronizar().then(restam => { falhas = restam ? falhas + 1 : 0 }, () => { falhas += 1 }).finally(agendar)
+  }
+  const voltou = (): void => { falhas = 0; tentar() }
+  window.addEventListener('online', voltou)
+  pararSincronia = () => { parado = true; window.clearTimeout(timer); window.removeEventListener('online', voltou) }
   tentar()
 }
 /** Suspender a página não revoga a sessão nem apaga a última confirmação online. */
@@ -355,8 +363,10 @@ async function enviarOperacao (op: Operacao): Promise<unknown> {
   mudancasOffline.dispatchEvent(new CustomEvent('confirmada', { detail: { contexto: op.contexto, id: op.id, tipo: op.tipo, comandaId: op.comandaId } }))
   return resultado
 }
-export async function sincronizar (): Promise<void> {
-  if (sincronizando || contexto === '' || navigator.onLine === false) return
+/** Envia as pendências em ordem. Devolve `true` se alguma continua aguardando envio (para espaçar a próxima tentativa). */
+export async function sincronizar (): Promise<boolean> {
+  if (contexto === '') return false
+  if (sincronizando || navigator.onLine === false) return true
   sincronizando = true
   const ctx = contexto
   const sinal = sessaoLocal.signal
@@ -368,6 +378,7 @@ export async function sincronizar (): Promise<void> {
       if (atual !== ctx) { eventos.dispatchEvent(new Event('sessao-expirada')); return }
       await drenar(ctx, async op => { await enviarOperacao(op) }, () => !sinal.aborted && ctx === contexto)
     })
+    return (await listarOperacoes(ctx)).some(o => o.estado === 'pendente')
   } finally { sincronizando = false; mudancasOffline.dispatchEvent(new Event('mudou')) }
 }
 export async function estadoSincronia (): Promise<{ sincronizando: boolean, operacoes: Operacao[] }> { return { sincronizando, operacoes: contexto === '' ? [] : await listarOperacoes(contexto) } }
