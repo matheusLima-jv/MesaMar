@@ -5,6 +5,7 @@
 <header th:replace="~{painel/fragments :: appHeader('relatorio')}"></header>
 
 <main id="conteudo" class="wrap app-main">
+  <p class="hint">As listas detalhadas mostram até 100 contas; os totais incluem todas as contas.</p>
   <section class="app-section" aria-labelledby="t-relatorio">
     <p class="kicker">Relatório do dia</p>
     <h1 id="t-relatorio" class="app-title" th:text="${ehHoje} ? |Hoje, ${diaTexto}| : ${diaTexto}">Hoje, 01/10/2026</h1>

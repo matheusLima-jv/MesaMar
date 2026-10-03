@@ -1,36 +1,28 @@
 #!/usr/bin/env bash
-# Backup do PostgreSQL do MesaMar: pg_dump comprimido, conferido, com rotação de 14 dias.
-#
-#   deploy/backup/backup.sh
-#
-# Roda todo dia pelo cron (ver docs/deploy.md). Guarda os dumps em MESAMAR_BACKUP_DIR (padrão /opt/mesamar/backups),
-# apaga os de mais de MESAMAR_BACKUP_DIAS dias (padrão 14) e, se MESAMAR_BACKUP_PING_URL estiver definida (ex.: um
-# monitor do tipo "healthchecks"), avisa que o backup deu certo, para você ser alertado quando ele PARAR de rodar.
-#
-# Sai com código diferente de zero se qualquer passo falhar (o cron/monitor percebe).
 set -euo pipefail
-# shellcheck source=comum.sh
 source "$(cd "$(dirname "$0")" && pwd)/comum.sh"
-
 conferir_banco
-mkdir -p "$BACKUP_DIR"
-chmod 700 "$BACKUP_DIR"
-
-arquivo="$BACKUP_DIR/mesamar-$(date +%F_%H%M).dump"
+inicio=$(date +%s)
+arquivo="$BACKUP_DIR/mesamar-$(date -u +%Y%m%dT%H%M%S)-$(cat /proc/sys/kernel/random/uuid).dump"
 gerar_dump "$arquivo"
-chmod 600 "$arquivo"
-tamanho=$(du -h "$arquivo" | cut -f1)
-log "backup ok: $arquivo ($tamanho)"
-
-# Rotação: apaga o que passou do prazo (só arquivos com o nosso nome, nunca outra coisa que esteja na pasta)
-apagados=$(find "$BACKUP_DIR" -maxdepth 1 -name 'mesamar-*.dump' -mtime "+$((BACKUP_DIAS - 1))" -print -delete | wc -l)
-restantes=$(find "$BACKUP_DIR" -maxdepth 1 -name 'mesamar-*.dump' | wc -l)
-log "rotação: $apagados apagado(s) com mais de $BACKUP_DIAS dias; $restantes backup(s) guardado(s)"
-
-if [ -n "${MESAMAR_BACKUP_PING_URL:-}" ]; then
-  if curl -fsS -m 15 --retry 3 -o /dev/null "$MESAMAR_BACKUP_PING_URL"; then
-    log "monitor avisado"
-  else
-    log "AVISO: não consegui avisar o monitor"
-  fi
-fi
+# Só considera sucesso operacional depois de recuperar o conteúdo completo num banco temporário.
+verificacao="mesamar_verificacao_$(cat /proc/sys/kernel/random/uuid | tr -d - | cut -c1-16)"
+banco_descartavel "$verificacao"
+trap 'psql_db postgres -c "DROP DATABASE IF EXISTS $verificacao" > /dev/null 2>&1 || true' EXIT
+restaurar_validado "$arquivo" "$verificacao"
+psql_db postgres -c "DROP DATABASE $verificacao" > /dev/null
+# Cada backup validado vai para o S3; não há janela semanal diferente do RPO diário.
+configurar_restic
+fontes=("$arquivo" "$arquivo.sha256" "$arquivo.tabelas" "$arquivo.financeiro")
+[[ ! -f "$MESAMAR_LGPD_REGISTRO" ]] || fontes+=("$MESAMAR_LGPD_REGISTRO")
+timeout 3600 restic backup --tag mesamar --tag "rpo-${RPO_SEGUNDOS}" "${fontes[@]}" > /dev/null
+timeout 3600 restic check --read-data-subset=1/7 > /dev/null
+# Agrupar toda a tag mesamar: trocar de VPS/RPO não conserva um grupo antigo indefinidamente.
+# Rotação externa antes da local. Precisa das credenciais de manutenção autorizadas para prune.
+timeout 3600 restic forget --tag mesamar --group-by "" --keep-within "${BACKUP_DIAS}d" --prune > /dev/null
+timeout 3600 restic check --read-data-subset=1/7 > /dev/null
+# Retenção só remove conjuntos completos e somente após sucesso remoto.
+while IFS= read -r -d '' antigo; do rm -f "$antigo" "$antigo.sha256" "$antigo.tabelas" "$antigo.financeiro"; done < <(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'mesamar-*.dump' -mmin "+$((BACKUP_DIAS * 1440))" -print0)
+printf '%s\n' "$(date -u +%FT%TZ)" > "$BACKUP_DIR/ultima-copia-externa.txt"
+if [[ -n "$BACKUP_PING" ]]; then curl -fsS -m 15 --retry 3 -o /dev/null "$BACKUP_PING"; fi
+log "Backup local e externo verificados; retenção ${BACKUP_DIAS} dias; duração $(( $(date +%s) - inicio )) segundos."

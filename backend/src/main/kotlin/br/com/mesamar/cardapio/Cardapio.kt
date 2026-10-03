@@ -5,6 +5,7 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.persistence.Version
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import java.time.Instant
@@ -23,6 +24,8 @@ class Categoria(
     var ordem: Int,
     @Column(name = "criada_em", nullable = false)
     val criadaEm: Instant,
+    @Version
+    var versao: Long = 0,
 )
 
 @Entity
@@ -50,6 +53,8 @@ class Produto(
     val criadoEm: Instant,
     @Column(name = "atualizado_em", nullable = false)
     var atualizadoEm: Instant,
+    @Version
+    var versao: Long = 0,
 ) {
     val preco: String get() = Money.format(precoCentavos)
 }

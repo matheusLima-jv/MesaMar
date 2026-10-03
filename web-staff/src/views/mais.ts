@@ -1,4 +1,4 @@
-import { ApiError, descartada, sair, type Sessao } from '../api'
+import { descartada, sair, type Sessao } from '../api'
 import { ativarPush, desativarPush, estadoPush, testar, type EstadoPush } from '../push'
 import { avisar } from '../toast'
 import { abrirTela, h, mount } from '../dom'
@@ -30,23 +30,13 @@ export function abaMais (root: HTMLElement, sessao: Sessao, aoSair: () => void):
       botaoSair.disabled = true
       botaoSair.textContent = 'Saindo…'
       erroSair.hidden = true
-      // Quem sai deste celular deixa de receber os avisos de pedido nele
-      desativarPush().catch(() => undefined)
-        .then(async () => { await sair() })
-        .then(aoSair)
-        .catch((e: unknown) => {
-          // 401: o servidor já não tinha esta sessão, então a saída está feita
-          if (e instanceof ApiError && e.status === 401) { aoSair(); return }
-          if (descartada(e)) return
-          // O servidor não confirmou: o app NÃO finge que saiu (recarregar a página voltaria logado)
-          botaoSair.disabled = false
-          botaoSair.textContent = 'Sair deste celular'
-          erroSair.textContent = 'Não deu para sair agora: o servidor não respondeu. Confira o sinal e tente de novo.'
-          erroSair.hidden = false
-        })
+      // Encerramento local imediato; o próximo acesso online confirma a revogação antes de entrar.
+      void desativarPush().catch(() => undefined)
+      void sair()
+      aoSair()
     }
   }, 'Sair deste celular')
-  const erroSair = h('p', { class: 'alert', role: 'alert', hidden: true })
+  const erroSair = h('p', { class: 'hint' }, 'Sair remove o acesso neste aparelho. Sem sinal, a revogação no servidor será confirmada na próxima conexão.')
 
   mount(root,
     h('header', { class: 'tab-head' }, h('h1', {}, 'Mais')),

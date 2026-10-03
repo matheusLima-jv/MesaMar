@@ -48,6 +48,10 @@ data class PagamentosView(
     val agora: String,
     val aguardando: List<ContaAPagarView>,
     val abertas: List<ContaAPagarView>,
+    val pagina: Int = 0,
+    val temMais: Boolean = false,
+    val totalAguardando: Long = aguardando.size.toLong(),
+    val totalSaldoAbertoCentavos: Long = 0,
 )
 
 data class ConfirmacaoRequest(
@@ -94,9 +98,20 @@ class StaffPagamentosController(
     @GetMapping("/pagamentos")
     fun listar(
         @AuthenticationPrincipal principal: StaffPrincipal,
+        @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") pagina: Int,
+        @org.springframework.web.bind.annotation.RequestParam(defaultValue = "100") tamanho: Int,
     ): PagamentosView {
-        val contas = pagamentos.listar(principal.barracaId)
-        return PagamentosView(Instant.now(clock).toString(), contas.aguardando.map(::view), contas.abertas.map(::view))
+        require(pagina >= 0 && tamanho in 1..200)
+        val contas = pagamentos.listar(principal.barracaId, pagina, tamanho)
+        return PagamentosView(
+            Instant.now(clock).toString(),
+            contas.aguardando.map(::view),
+            contas.abertas.map(::view),
+            contas.pagina,
+            contas.temMais,
+            contas.totalAguardando,
+            contas.totalSaldoAbertoCentavos,
+        )
     }
 
     /** Confirma o que o cliente pagou. Reenviar o mesmo `id` devolve o pagamento que já existe (200), sem cobrar de novo. */

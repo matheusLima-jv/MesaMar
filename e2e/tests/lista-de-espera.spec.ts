@@ -1,7 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, permitirHttp } from './fixtures'
 import { failOnConsoleErrors, randomWhatsapp } from './helpers'
 
 test('envio vazio mostra uma mensagem em cada campo', async ({ page }) => {
+  permitirHttp(/\/lista-de-espera(?:[?#]|$)/, 422)
   await page.goto('/#lista-de-espera')
   await page.getByRole('button', { name: 'Entrar na lista do piloto' }).click()
 

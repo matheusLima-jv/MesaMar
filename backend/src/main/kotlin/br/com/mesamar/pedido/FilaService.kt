@@ -70,6 +70,7 @@ sealed interface ResultadoFila {
  */
 @Service
 class FilaService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
     private val pedidos: PedidoRepository,
     private val itens: ItemPedidoRepository,
     private val comandas: ComandaRepository,
@@ -81,7 +82,7 @@ class FilaService(
     private val em: EntityManager,
     private val clock: Clock,
 ) {
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun listar(barracaId: UUID): List<PedidoFila> = montar(pedidos.findFila(barracaId, NA_FILA))
 
     /** Passa o pedido para "em preparo" ou "entregue". Repetir a mesma ação é inofensivo (idempotente). */
@@ -92,6 +93,7 @@ class FilaService(
         novo: StatusPedido,
         quem: AbertaPor,
     ): ResultadoFila {
+        autorHistorico.marcar()
         if (novo != StatusPedido.EM_PREPARO && novo != StatusPedido.ENTREGUE) {
             return ResultadoFila.Invalido("Use \"em preparo\" ou \"entregue\". Para desfazer um pedido, cancele.")
         }
@@ -116,6 +118,7 @@ class FilaService(
         detalhe: String?,
         quem: AbertaPor,
     ): ResultadoFila {
+        autorHistorico.marcar()
         val m = MotivoCancelamento.de(motivo) ?: return ResultadoFila.Invalido("Escolha o motivo do cancelamento.")
         val (comanda, pedido) = travarComandaEPedido(barracaId, pedidoId) ?: return ResultadoFila.NaoEncontrado
         if (pedido.status == StatusPedido.CANCELADO) return ResultadoFila.Ok(montar(pedido))
@@ -140,29 +143,6 @@ class FilaService(
         return ResultadoFila.Ok(montar(pedido))
     }
 
-    /**
-     * Cancela um pedido que ainda esperava pagamento, dentro do fechamento forçado da conta. Diferente do cancelamento
-     * comum: quem chama já travou a comanda e já conferiu que a conta não fica negativa, e **não libera** os pedidos
-     * seguintes para a fila (a conta está sendo encerrada, ninguém vai preparar nada).
-     */
-    fun cancelarNoEncerramento(
-        pedido: Pedido,
-        texto: String,
-        quem: AbertaPor,
-    ) {
-        em.refresh(pedido, LockModeType.PESSIMISTIC_WRITE)
-        if (pedido.status != StatusPedido.AGUARDANDO_PAGAMENTO) return
-        val linhas = itens.findAllByPedidoIdOrderByLinha(pedido.id)
-        linhas.filter { !it.cancelado }.forEach {
-            it.cancelado = true
-            it.motivoCancelamento = texto
-        }
-        itens.saveAll(linhas)
-        cancelar(pedido, texto, quem)
-        pedidos.save(pedido)
-        eventos.pedidoMudou(pedido.barracaId, pedido.comandaId, pedido.id)
-    }
-
     /** Cancela só uma linha ("acabou o pastel"). Se era a última, o pedido todo fica cancelado. */
     @Transactional
     fun cancelarItem(
@@ -173,6 +153,7 @@ class FilaService(
         detalhe: String?,
         quem: AbertaPor,
     ): ResultadoFila {
+        autorHistorico.marcar()
         val m = MotivoCancelamento.de(motivo) ?: return ResultadoFila.Invalido("Escolha o motivo do cancelamento.")
         val (comanda, pedido) = travarComandaEPedido(barracaId, pedidoId) ?: return ResultadoFila.NaoEncontrado
         val linhas = itens.findAllByPedidoIdOrderByLinha(pedido.id)

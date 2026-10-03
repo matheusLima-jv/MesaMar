@@ -60,7 +60,7 @@ class PainelBarracaTest(
         assertHtmlContains(home, "Barraca criada. Agora falta a chave Pix.", anchor = "<main")
         assertHtmlContains(home, "O que falta para abrir", anchor = "<main")
         assertHtmlContains(home, "Configurar", anchor = "<main")
-        assertHtmlContains(home, "Em breve", anchor = "<main")
+        assertHtmlContains(home, "Abrir o app do quiosque", anchor = "<main")
     }
 
     @Test

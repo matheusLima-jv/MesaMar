@@ -1,3 +1,10 @@
+import { definirContextoPendencias } from './pendencias'
+import { drenar, guardarCache, lerCache, listarOperacoes, mudancasOffline, preservar, removerOperacao, tokenLocal, type Operacao } from './fila-offline'
+import { comandaRegra, sessaoRegra } from './contratos'
+import { conferir, lerJson, novoCliente as novoClienteRegra } from '../../web-shared/src/validacao'
+import { contrato } from './contratos'
+import { registro, texto, inteiro } from '../../web-shared/src/validacao'
+export { novoId, reais, lerReais } from '../../web-shared/src/valores'
 // Cliente da API do quiosque (/api/staff). Sessão por cookie; POSTs levam o token CSRF.
 
 export type Papel = 'DONO' | 'ATENDENTE'
@@ -5,7 +12,7 @@ export type Papel = 'DONO' | 'ATENDENTE'
 export interface Sessao {
   logado: boolean
   csrf: string
-  usuario?: { nome: string, papel: Papel }
+  usuario?: { id: string, nome: string, papel: Papel }
   barraca?: { nome: string, codigo: string, praia: string, demo?: boolean }
 }
 
@@ -43,6 +50,7 @@ export interface GuardaSolOpcao { id: string, numero: number, clientes: number }
 
 export interface NovoCliente {
   id: string
+  token?: string
   nome: string
   guardaSolId: string | null
   whatsapp: string
@@ -118,6 +126,10 @@ export interface ContaAPagar {
 }
 
 export interface Pagamentos {
+  pagina: number
+  temMais: boolean
+  totalAguardando: number
+  totalSaldoAbertoCentavos: number
   /** Horário do servidor no momento da resposta. */
   agora: string
   /** Quem tocou em "fechar a conta", por ordem de aviso. */
@@ -146,6 +158,8 @@ export class ApiError extends Error {
   ) {
     super(mensagem)
   }
+
+  get temporario (): boolean { return !this.descartada && (this.status === 0 || this.status >= 500 || this.status === 408 || this.status === 429) }
 
   /**
    * A chamada foi descartada porque a sessão local acabou (saiu, trocou de pessoa) enquanto ela estava em andamento.
@@ -186,14 +200,16 @@ async function lerErro (res: Response): Promise<ApiError> {
   const retry = Number(res.headers.get('Retry-After'))
   const esperaMs = res.status === 429 && Number.isFinite(retry) && retry > 0 ? retry * 1000 : undefined
   try {
-    const body = await res.json() as { erro?: string, mensagem?: string, tentativasRestantes?: number, campos?: Record<string, string> }
-    return new ApiError(res.status, body.erro ?? 'erro', body.mensagem ?? 'Algo deu errado. Tente de novo.', body.tentativasRestantes, body.campos, esperaMs)
+    const bruto: unknown = await res.json()
+    const body = registro(bruto) ? bruto : {}
+    const campos = registro(body.campos) && Object.keys(body.campos).length <= 30 && Object.values(body.campos).every(texto(2000)) ? body.campos as Record<string, string> : {}
+    return new ApiError(res.status, texto(100, 1)(body.erro) ? String(body.erro) : 'erro', texto(2000, 1)(body.mensagem) ? String(body.mensagem) : 'Algo deu errado. Tente de novo.', inteiro(0, 100)(body.tentativasRestantes) ? Number(body.tentativasRestantes) : undefined, campos, esperaMs)
   } catch {
     return new ApiError(res.status, 'erro', 'Algo deu errado. Tente de novo.', undefined, {}, esperaMs)
   }
 }
 
-async function chamar<T> (method: 'GET' | 'POST', path: string, body?: unknown, tentarDeNovo = true): Promise<T> {
+async function chamarRede<T> (method: 'GET' | 'POST', path: string, body?: unknown, tentarDeNovo = true): Promise<T> {
   const daSessao = sessaoLocal.signal
   const descartar = (): ApiError => new ApiError(0, 'descartada', 'Ação descartada.')
   if (daSessao.aborted) throw descartar()
@@ -234,8 +250,10 @@ async function chamar<T> (method: 'GET' | 'POST', path: string, body?: unknown, 
     if (res.ok) {
       let dados: T & { csrf?: string }
       try {
-        dados = await res.json() as T & { csrf?: string }
-      } catch {
+        const bruto: unknown = await res.json()
+        try { dados = contrato<T & { csrf?: string }>(path, method, bruto) } catch { throw new ApiError(502, 'contrato', 'Resposta incompatível. Confira a operação antes de repetir.') }
+      } catch (e) {
+        if (e instanceof ApiError) throw e
         // 2xx com o corpo cortado (o sinal caiu no meio): a ação pode ter sido gravada. Quem chama repete com o mesmo id.
         throw semResposta()
       }
@@ -248,8 +266,9 @@ async function chamar<T> (method: 'GET' | 'POST', path: string, body?: unknown, 
     if (daSessao.aborted) throw descartar()
     // Token CSRF vencido (sessão expirou no servidor): pega um novo e repete uma vez.
     if (erro.status === 403 && erro.codigo === 'csrf' && tentarDeNovo) {
-      await sessao()
-      return await chamar<T>(method, path, body, false)
+      await chamarRede<Sessao>('GET', '/sessao')
+      if (daSessao.aborted) throw descartar()
+      return await chamarRede<T>(method, path, body, false)
     }
     if (erro.status === 401 && erro.codigo === 'sessao') eventos.dispatchEvent(new Event('sessao-expirada'))
     throw erro
@@ -259,7 +278,137 @@ async function chamar<T> (method: 'GET' | 'POST', path: string, body?: unknown, 
   }
 }
 
+let contexto = ''
+let sincronizando = false
+let pararSincronia: (() => void) | null = null
+const SAIDA = 'mesamar.equipe.saida-pendente'
+function lerSaida (): boolean { try { return localStorage.getItem(SAIDA) === '1' } catch { return false } }
+async function confirmarSaida (): Promise<void> {
+  if (!lerSaida()) return
+  try { await chamarRede<void>('POST', '/sair') } catch (e) { if (!(e instanceof ApiError && e.status === 401)) throw e }
+  try { localStorage.removeItem(SAIDA) } catch { /* sem armazenamento */ }
+}
+async function chamar<T> (method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  if (path.startsWith('/entrar/')) await confirmarSaida()
+  const destaSessao = sessaoLocal.signal
+  const desteContexto = contexto
+  try {
+    const dados = await chamarRede<T>(method, path, body)
+    if (destaSessao.aborted || desteContexto !== contexto) throw new ApiError(0, 'descartada', 'Ação descartada.')
+    if (method === 'GET' && contexto !== '' && ['/cardapio', '/guarda-sois'].includes(path)) {
+      try { await guardarCache(contexto, path, dados) } catch { /* leitura permanece utilizável sem cache */ }
+    }
+    return dados
+  } catch (e) {
+    if (method === 'GET' && contexto !== '' && e instanceof ApiError && e.temporario && !e.descartada && ['/cardapio', '/guarda-sois', '/clientes?pagina=0'].includes(path)) {
+      try {
+        const salvo = await lerCache(contexto, path)
+        if (destaSessao.aborted || desteContexto !== contexto) throw new ApiError(0, 'descartada', 'Ação descartada.')
+        if (salvo !== undefined) return contrato<T>(path, method, salvo)
+      } catch { /* sem cópia válida */ }
+    }
+    throw e
+  }
+}
+export function prepararOffline (s: Sessao): void {
+  pararSincronia?.()
+  contexto = s.logado && s.usuario !== undefined && s.barraca !== undefined ? `${s.barraca.codigo}:${s.usuario.id}` : ''
+  definirContextoPendencias(contexto)
+  if (contexto === '') { try { localStorage.removeItem('mesamar.equipe.sessao') } catch { /* sem armazenamento */ }; return }
+  try { if (s.csrf !== '' && navigator.onLine !== false) localStorage.setItem('mesamar.equipe.sessao', JSON.stringify({ versao: 1, em: Date.now(), dados: { ...s, csrf: '' } })) } catch { /* sem persistência: não permite reabertura offline */ }
+  const tentar = (): void => { void sincronizar().catch(() => undefined) }
+  window.addEventListener('online', tentar)
+  const timer = window.setInterval(tentar, 15_000)
+  pararSincronia = () => { window.clearInterval(timer); window.removeEventListener('online', tentar) }
+  tentar()
+}
+/** Suspender a página não revoga a sessão nem apaga a última confirmação online. */
+export function suspenderOffline (): void {
+  pararSincronia?.(); pararSincronia = null
+  contexto = ''
+  definirContextoPendencias('')
+}
+export function restaurarSessaoOffline (): Sessao | null {
+  if (lerSaida()) return null
+  try {
+    const v = lerJson(localStorage.getItem('mesamar.equipe.sessao'))
+    if (!registro(v) || v.versao !== 1 || !inteiro(1)(v.em) || Number(v.em) > Date.now() || Date.now() - Number(v.em) > 3 * 86_400_000) return null
+    const s = conferir<Sessao>(v.dados, sessaoRegra)
+    return s.logado && s.usuario !== undefined && s.barraca !== undefined ? s : null
+  } catch { return null }
+}
+async function exclusaoMutua<T> (executar: () => Promise<T>): Promise<T> {
+  if ('locks' in navigator) return await navigator.locks.request(`mesamar-sync:${contexto}`, executar)
+  // Identificadores idempotentes protegem navegadores antigos sem Web Locks.
+  return await executar()
+}
+async function enviarOperacao (op: Operacao): Promise<unknown> {
+  const path = op.tipo === 'checkin' ? '/clientes' : `/comandas/${op.comandaId ?? ''}/pedidos`
+  const resultado = await chamarRede<unknown>('POST', path, op.dados)
+  // Guarda confirmação no contexto do autor, nunca no contexto que eventualmente abriu depois.
+  await guardarCache(op.contexto, `confirmacao:${op.id}`, resultado)
+  if (op.tipo === 'checkin') {
+    const atuais = await lerCache(op.contexto, '/clientes?pagina=0')
+    const lista = Array.isArray(atuais) ? atuais.filter(v => !registro(v) || v.id !== op.id) : []
+    await guardarCache(op.contexto, '/clientes?pagina=0', [resultado, ...lista].slice(0, 200))
+  }
+  mudancasOffline.dispatchEvent(new CustomEvent('confirmada', { detail: { contexto: op.contexto, id: op.id, tipo: op.tipo, comandaId: op.comandaId } }))
+  return resultado
+}
+export async function sincronizar (): Promise<void> {
+  if (sincronizando || contexto === '' || navigator.onLine === false) return
+  sincronizando = true
+  const ctx = contexto
+  const sinal = sessaoLocal.signal
+  try {
+    await exclusaoMutua(async () => {
+      const s = await chamarRede<Sessao>('GET', '/sessao')
+      const atual = s.logado && s.usuario !== undefined && s.barraca !== undefined ? `${s.barraca.codigo}:${s.usuario.id}` : ''
+      if (sinal.aborted || ctx !== contexto) return
+      if (atual !== ctx) { eventos.dispatchEvent(new Event('sessao-expirada')); return }
+      await drenar(ctx, async op => { await enviarOperacao(op) }, () => !sinal.aborted && ctx === contexto)
+    })
+  } finally { sincronizando = false; mudancasOffline.dispatchEvent(new Event('mudou')) }
+}
+export async function estadoSincronia (): Promise<{ sincronizando: boolean, operacoes: Operacao[] }> { return { sincronizando, operacoes: contexto === '' ? [] : await listarOperacoes(contexto) } }
+export async function descartarConflito (id: string): Promise<void> {
+  const op = (await listarOperacoes(contexto)).find(o => o.id === id)
+  if (op?.estado !== 'conflito') return
+  await removerOperacao(op.chave)
+  await sincronizar()
+}
+async function enviarPreservado<T> (tipo: Operacao['tipo'], id: string, dados: unknown, comandaId?: string): Promise<T> {
+  if (contexto === '') throw new ApiError(401, 'sessao', 'Entre novamente para preservar esta ação.')
+  const ctx = contexto
+  const sinal = sessaoLocal.signal
+  let op: Operacao
+  try { op = await preservar(ctx, tipo, id, dados, comandaId) } catch { throw new ApiError(507, 'armazenamento', 'Não foi possível guardar a ação. Libere espaço no aparelho e tente de novo.') }
+  let resultado: unknown
+  let falha: unknown
+  await exclusaoMutua(async () => {
+    if (sinal.aborted || ctx !== contexto) return
+    const s = await chamarRede<Sessao>('GET', '/sessao').catch(e => { falha = e; return null })
+    if (s === null) return
+    if (!s.logado || s.usuario === undefined || s.barraca === undefined || `${s.barraca.codigo}:${s.usuario.id}` !== ctx) { falha = new ApiError(401, 'sessao', 'A sessão mudou. Entre novamente com o autor desta ação.'); eventos.dispatchEvent(new Event('sessao-expirada')); return }
+    await drenar(ctx, async pendente => {
+      try { const r = await enviarOperacao(pendente); if (pendente.id === id) resultado = r } catch (e) { falha = e; throw e }
+    }, () => !sinal.aborted && ctx === contexto)
+  })
+  if (sinal.aborted || ctx !== contexto) throw new ApiError(0, 'descartada', 'Ação descartada.')
+  if (resultado !== undefined) return resultado as T
+  // Outra aba pode ter confirmado durante a espera pela trava.
+  const confirmado = await lerCache(ctx, `confirmacao:${id}`)
+  if (confirmado !== undefined) return contrato<T>(tipo === 'checkin' ? '/clientes' : `/comandas/${comandaId ?? ''}/pedidos`, 'POST', confirmado)
+  if (falha instanceof ApiError && !falha.temporario) throw falha
+  if (op.estado === 'conflito') throw new ApiError(409, 'conflito-offline', op.motivo ?? 'Confira a ação recusada no indicador de sincronização.')
+  throw new ApiError(0, 'enfileirada', 'Ação preservada neste aparelho. Será reenviada em ordem quando o sinal voltar.')
+}
+
 export async function sessao (): Promise<Sessao> {
+  if (lerSaida()) {
+    if (navigator.onLine !== false) { try { await confirmarSaida() } catch (e) { if (!(e instanceof ApiError && e.temporario)) throw e } }
+    return { logado: false, csrf: '' }
+  }
   return await chamar<Sessao>('GET', '/sessao')
 }
 
@@ -276,7 +425,10 @@ export async function entrarAtendente (codigo: string, atendenteId: string, pin:
 }
 
 export async function sair (): Promise<void> {
-  await chamar<void>('POST', '/sair')
+  try { localStorage.setItem(SAIDA, '1'); localStorage.removeItem('mesamar.equipe.sessao') } catch { /* encerramento em memória */ }
+  pararSincronia?.(); contexto = ''
+  encerrarSessaoLocal()
+  try { await confirmarSaida() } catch { /* a próxima conexão confirma a saída antes de qualquer login */ }
 }
 
 export async function cardapio (): Promise<Secao[]> {
@@ -287,8 +439,18 @@ export async function definirEsgotado (produtoId: string, esgotado: boolean): Pr
   return await chamar<Produto>('POST', `/produtos/${produtoId}/esgotado`, { esgotado })
 }
 
-export async function clientes (): Promise<Comanda[]> {
-  return await chamar<Comanda[]>('GET', '/clientes')
+export async function clientes (pagina = 0): Promise<Comanda[]> {
+  const ctx = contexto
+  const sinal = sessaoLocal.signal
+  const dados = await chamar<Comanda[]>('GET', `/clientes?pagina=${pagina}`)
+  if (pagina !== 0 || ctx === '') return dados
+  const pendentes = (await listarOperacoes(ctx)).filter(o => o.tipo === 'checkin')
+  const cache = await lerCache(ctx, '/clientes?pagina=0')
+  if (sinal.aborted || ctx !== contexto) throw new ApiError(0, 'descartada', 'Ação descartada.')
+  const locais = Array.isArray(cache) ? cache.filter(v => registro(v) && pendentes.some(o => o.id === v.id) && !dados.some(c => c.id === v.id)).map(v => conferir<Comanda>(v, comandaRegra)) : []
+  const mesclados = [...locais, ...dados].slice(0, 200)
+  try { await guardarCache(ctx, '/clientes?pagina=0', mesclados) } catch { /* rede utilizável sem cache */ }
+  return mesclados
 }
 
 /** "QR novo": troca o link da comanda (o cliente compartilhou ou perdeu o QR). Os pedidos e o saldo ficam. */
@@ -302,18 +464,22 @@ export async function guardaSois (): Promise<GuardaSolOpcao[]> {
 
 /**
  * Check-in. O `id` nasce no celular: se a rede cair no meio, reenviar o mesmo id devolve a mesma
- * comanda em vez de criar outra. Sem rede, tenta de novo sozinho mais 2 vezes antes de desistir.
+ * comanda em vez de criar outra. A fila preserva a ação antes de enviar e reenvia em ordem quando houver conexão.
  */
 export async function novoCliente (c: NovoCliente): Promise<Comanda> {
-  for (const espera of [1000, 3000]) {
-    try {
-      return await chamar<Comanda>('POST', '/clientes', c)
-    } catch (e) {
-      if (!(e instanceof ApiError) || e.status !== 0) throw e
-      await new Promise((resolve) => setTimeout(resolve, espera))
-    }
+  const existente = (await listarOperacoes(contexto)).find(o => o.tipo === 'checkin' && o.id === c.id)
+  const dados: NovoCliente & { token: string } = existente !== undefined && registro(existente.dados) && typeof existente.dados.token === 'string' ? conferir<NovoCliente & { token: string }>(existente.dados, novoClienteRegra) : { ...c, token: c.token ?? tokenLocal() }
+  try { return await enviarPreservado<Comanda>('checkin', dados.id, dados) } catch (e) {
+    if (!(e instanceof ApiError) || e.codigo !== 'enfileirada') throw e
+    const ctx = contexto
+    const gs = await lerCache(ctx, '/guarda-sois')
+    const guardaSol = Array.isArray(gs) ? gs.find(v => registro(v) && v.id === c.guardaSolId) : undefined
+    const local: Comanda = { id: c.id, numeroChegada: 0, nome: c.nome.trim(), guardaSol: registro(guardaSol) ? Number(guardaSol.numero) : null, whatsapp: null, whatsappExibicao: null, link: `${location.origin}/c/${dados.token}`, hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), status: 'ABERTA' }
+    conferir(local, comandaRegra)
+    const cache = await lerCache(ctx, '/clientes?pagina=0')
+    await guardarCache(ctx, '/clientes?pagina=0', [local, ...(Array.isArray(cache) ? cache.filter(v => !registro(v) || v.id !== local.id) : [])].slice(0, 200))
+    return local
   }
-  return await chamar<Comanda>('POST', '/clientes', c)
 }
 
 export interface ItemLancado { produtoId: string, quantidade: number, observacao?: string, precoCentavos?: number }
@@ -332,15 +498,7 @@ export interface PedidoLancado {
  * devolve o que já existe em vez de criar outro. Tenta de novo sozinho se a rede cair.
  */
 export async function lancarPedido (comandaId: string, pedido: { id: string, itens: ItemLancado[] }): Promise<PedidoLancado> {
-  for (const espera of [1000, 3000]) {
-    try {
-      return await chamar<PedidoLancado>('POST', `/comandas/${comandaId}/pedidos`, pedido)
-    } catch (e) {
-      if (!(e instanceof ApiError) || e.status !== 0) throw e
-      await new Promise((resolve) => setTimeout(resolve, espera))
-    }
-  }
-  return await chamar<PedidoLancado>('POST', `/comandas/${comandaId}/pedidos`, pedido)
+  return await enviarPreservado<PedidoLancado>('lancamento', pedido.id, pedido, comandaId)
 }
 
 /** A fila: pedidos pendentes, o mais antigo primeiro. */
@@ -383,8 +541,8 @@ export async function testarPush (endpoint: string): Promise<void> {
 }
 
 /** O que está para pagar: quem avisou que vai pagar e as contas abertas com saldo. */
-export async function pagamentos (): Promise<Pagamentos> {
-  return await chamar<Pagamentos>('GET', '/pagamentos')
+export async function pagamentos (pagina = 0): Promise<Pagamentos> {
+  return await chamar<Pagamentos>('GET', `/pagamentos?pagina=${pagina}`)
 }
 
 /**
@@ -416,30 +574,11 @@ export async function fecharSemReceber (comandaId: string, motivo: string): Prom
   return await chamar<ContaAPagar>('POST', `/comandas/${comandaId}/fechamento-forcado`, { motivo })
 }
 
-/** 12300 → "R$ 123,00" (o mesmo formato do servidor: Money.format). */
-export function reais (centavos: number): string {
-  const inteiro = String(Math.floor(centavos / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  return `R$ ${inteiro},${String(centavos % 100).padStart(2, '0')}`
-}
 
-/** "100", "100,50" ou "R$ 1.250,00" → centavos. `null` se não for um valor em reais. */
-export function lerReais (texto: string): number | null {
-  const limpo = texto.replace(/R\$/g, '').replace(/\s/g, '')
-  const m = /^(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,2}))?$/.exec(limpo)
-  if (m === null) return null
-  return Number(m[1].replace(/\./g, '')) * 100 + Number((m[2] ?? '').padEnd(2, '0'))
-}
+
+
 
 /** "Reportar problema": o texto e o contexto que o app conhece (tela, conexão). */
 export async function reportarProblema (mensagem: string, tela: string, conexao: string): Promise<void> {
   await chamar<unknown>('POST', '/problemas', { mensagem, tela, conexao })
-}
-
-/** UUID v4 com crypto.getRandomValues (o crypto.randomUUID não existe fora de HTTPS, ex.: http://IP-DO-PC). */
-export function novoId (): string {
-  const b = crypto.getRandomValues(new Uint8Array(16))
-  b[6] = (b[6] & 0x0f) | 0x40
-  b[8] = (b[8] & 0x3f) | 0x80
-  const hex = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }

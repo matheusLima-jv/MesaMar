@@ -103,6 +103,7 @@ sealed interface ResultadoPedido {
  */
 @Service
 class PedidoService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
     private val pedidos: PedidoRepository,
     private val itens: ItemPedidoRepository,
     private val produtos: ProdutoRepository,
@@ -122,6 +123,7 @@ class PedidoService(
         /** `null`: o cliente pediu pela página dele. Preenchido: a equipe lançou (origem ATENDENTE). */
         equipe: LancadoPor? = null,
     ): ResultadoPedido {
+        autorHistorico.marcar()
         require(equipe == null || (equipe.usuarioId == null) != (equipe.atendenteId == null)) { "pedido sem autor ou com dois autores" }
         val id =
             req.id ?: return "Não deu para identificar o pedido. Atualize a página e tente de novo.".let {

@@ -56,7 +56,10 @@ class SinalControllerTest(
         assertEquals(2300, row["carregamento_ms"])
         assertEquals(180, row["ping_ms"])
         assertEquals("4g", row["tipo_conexao"])
-        assertEquals(setOf("id", "praia", "carregamento_ms", "ping_ms", "tipo_conexao", "criada_em"), row.keys)
+        assertEquals(
+            setOf("id", "praia", "carregamento_ms", "ping_ms", "tipo_conexao", "criada_em", "metrica", "sucesso", "amostras"),
+            row.keys,
+        )
     }
 
     @Test

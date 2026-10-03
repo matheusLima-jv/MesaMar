@@ -1,13 +1,14 @@
+import { mudancasOffline } from './fila-offline'
 import './style.css'
 import './install'
-import { ApiError, encerrarSessaoLocal, eventos, sessao, type Sessao } from './api'
+import { ApiError, descartarConflito, encerrarSessaoLocal, estadoSincronia, eventos, prepararOffline, restaurarSessaoOffline, sessao, suspenderOffline, type Sessao } from './api'
 import { anunciar } from './a11y'
 import { avisosFixos, dispensarAviso, limparAvisos, observarAvisos } from './avisos-store'
 import { fecharSobreposicoes, h, mount } from './dom'
 import { abaCardapio } from './views/cardapio'
 import { abaClientes } from './views/clientes'
 import { iniciarFila, observar, pararFila, pendentes } from './fila-store'
-import { limparDadosAntigos } from './pendencias'
+import { limparDadosAntigos, pendencias } from './pendencias'
 import { religarPush } from './push'
 import { abaFila } from './views/fila'
 import { abaPagamentos } from './views/pagamentos'
@@ -29,6 +30,7 @@ const ABAS: Array<{ id: Aba, rotulo: string }> = [
 
 const root = document.getElementById('app') as HTMLElement
 let atual: Sessao | null = null
+let pararDeObservarSync: (() => void) | null = null
 let pararDeObservar: (() => void) | null = null
 let pararDeObservarPagamentos: (() => void) | null = null
 let pararDeObservarAvisos: (() => void) | null = null
@@ -74,9 +76,27 @@ function desenharAvisosFixos (faixa: HTMLElement): void {
 
 function app (s: Sessao): void {
   atual = s
+  prepararOffline(s)
   limparDadosAntigos()
   const conteudo = h('main', { id: 'conteudo', class: 'tab', tabindex: -1 })
   const nav = h('nav', { class: 'tabs', 'aria-label': 'Seções do app' })
+  const sync = h('section', { class: 'alert', role: 'status', 'aria-label': 'Sincronização' })
+  const desenharSync = (): void => {
+    void estadoSincronia().then(({ sincronizando, operacoes }) => {
+      if (atual !== s) return
+      sync.replaceChildren(h('p', {}, `${sincronizando ? 'Sincronizando' : navigator.onLine ? 'Conectado' : 'Sem sinal'} · ${operacoes.length} ações pendentes`),
+        ...operacoes.filter(o => o.estado === 'conflito').map(o => h('div', {}, h('p', {}, o.motivo ?? 'Ação recusada. Confira com a equipe.'), h('button', { type: 'button', class: 'btn btn-line', onclick: () => { void descartarConflito(o.id).catch(() => undefined) } }, 'Conferi: descartar ação recusada'))))
+    }).catch(() => { sync.textContent = 'Não foi possível conferir as ações salvas neste aparelho.' })
+  }
+  mudancasOffline.addEventListener('mudou', desenharSync)
+  const aoConfirmar = (ev: Event): void => {
+    const d = (ev as CustomEvent<{ contexto: string, tipo: string, comandaId?: string }>).detail
+    if (d.contexto === `${s.barraca?.codigo ?? ''}:${s.usuario?.id ?? ''}` && d.tipo === 'lancamento' && d.comandaId !== undefined) pendencias.apagar('lancamento', d.comandaId)
+    desenharSync()
+  }
+  mudancasOffline.addEventListener('confirmada', aoConfirmar)
+  pararDeObservarSync = () => { mudancasOffline.removeEventListener('mudou', desenharSync); mudancasOffline.removeEventListener('confirmada', aoConfirmar) }
+  desenharSync()
   const faixa = h('section', { class: 'avisos-fixos', 'aria-label': 'Avisos importantes', hidden: true })
 
   const mostrar = (): void => {
@@ -112,6 +132,7 @@ function app (s: Sessao): void {
       h('p', { class: 'brand' }, 'MesaMar'),
       h('p', { class: 'where' }, s.barraca?.nome ?? '', h('span', {}, ` · ${s.usuario?.nome ?? ''}`))
     ),
+    sync,
     faixa,
     conteudo,
     nav
@@ -151,6 +172,8 @@ function app (s: Sessao): void {
 
 function voltarAoLogin (): void {
   atual = null
+  prepararOffline({ logado: false, csrf: '' })
+  pararDeObservarSync?.(); pararDeObservarSync = null
   // Tudo o que estava em andamento é descartado: nenhuma resposta atrasada repopula a fila, os pagamentos ou uma tela
   encerrarSessaoLocal()
   fecharSobreposicoes()
@@ -178,6 +201,8 @@ async function iniciar (): Promise<void> {
     if (s.logado) app(s)
     else telaLogin(root, app)
   } catch (e) {
+    const salva = e instanceof ApiError && e.temporario ? restaurarSessaoOffline() : null
+    if (salva !== null) { app(salva); return }
     mount(root, h('main', { class: 'login' },
       h('p', { class: 'brand' }, 'MesaMar'),
       h('div', { class: 'card' },
@@ -194,4 +219,6 @@ if ('serviceWorker' in navigator) {
   })
 }
 
+window.addEventListener('pageshow', () => { if (atual !== null) { prepararOffline(atual); iniciarFila(); iniciarPagamentos() } })
+window.addEventListener('pagehide', () => { suspenderOffline(); encerrarSessaoLocal(); pararFila(); pararPagamentos() })
 void iniciar()

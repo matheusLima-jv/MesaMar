@@ -1,0 +1,51 @@
+name: Dependências e segredos
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with: { distribution: temurin, java-version: '21' }
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with: { node-version: '22' }
+      - name: Auditar dependências JS
+        run: |
+          for app in web-customer web-staff e2e; do (cd "$app" && npm ci --ignore-scripts && npm audit --audit-level=high); done
+      - name: Inventário das dependências Kotlin de execução
+        run: ./gradlew :backend:inventarioDependencias -PskipFrontendBuild
+      - name: Auditar bibliotecas realmente entregues
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.70.0
+          scan-type: sbom
+          scan-ref: backend/build/runtime.cdx.json
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - name: Auditar a imagem e seus pacotes do sistema regularmente
+        run: docker build --tag mesamar-auditoria:${{ github.sha }} .
+      - uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.70.0
+          image-ref: mesamar-auditoria:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Detectar segredos no histórico e nas fontes
+        run: |
+          scanner=ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          docker run --rm -v "$PWD:/repo:ro" "$scanner" git /repo --config /repo/.gitleaks.toml --redact --log-opts=--all
+          git ls-files -z | tar --null -T - -cf /tmp/fontes.tar
+          mkdir /tmp/fontes-mesamar
+          tar -xf /tmp/fontes.tar -C /tmp/fontes-mesamar
+          docker run --rm -v /tmp/fontes-mesamar:/repo:ro "$scanner" dir /repo --config /repo/.gitleaks.toml --redact

@@ -1,0 +1,11 @@
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const carregar = require('../../web-shared/tests/sw-harness.cjs')
+test('equipe reabre offline após primeira visita e atualização preserva cache do cliente', async () => {
+  const h = carregar('web-staff', { fetch: async () => { throw new Error('offline') } })
+  await h.evento('install'); h.lojas.set('mesamar-cliente-viva', new Map()); h.lojas.set('mesamar-staff-antiga', new Map())
+  await h.evento('activate')
+  assert(h.lojas.has('mesamar-cliente-viva')); assert(!h.lojas.has('mesamar-staff-antiga'))
+  assert.equal(await (await h.evento('fetch', { request: { url: 'https://mesamar.com.br/staff/', method: 'GET', mode: 'navigate' } })).text(), 'shell')
+  assert.equal(await h.evento('fetch', { request: new Request('https://mesamar.com.br/api/staff/sessao') }), undefined)
+})

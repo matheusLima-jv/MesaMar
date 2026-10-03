@@ -13,7 +13,7 @@ function versaoDoServiceWorker (prefixo: string, base: string, pastas: string[])
   return {
     name: 'mesamar-versao-do-sw',
     apply: 'build',
-    closeBundle () {
+    writeBundle () {
       const dist = 'dist'
       const arquivos = pastas
         .filter((pasta) => existsSync(join(dist, pasta)))

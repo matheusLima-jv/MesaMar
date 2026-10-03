@@ -77,6 +77,7 @@ sealed interface ResultadoConta {
  */
 @Service
 class FechamentoService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
     private val comandas: ComandaRepository,
     private val barracas: BarracaRepository,
     private val pedidos: PedidoService,
@@ -86,7 +87,7 @@ class FechamentoService(
     private val spring: ApplicationEventPublisher,
     private val clock: Clock,
 ) {
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun extrato(comanda: Comanda): Extrato = montar(comanda, barracas.findById(comanda.barracaId).orElseThrow())
 
     @Transactional
@@ -95,6 +96,7 @@ class FechamentoService(
         metodo: MetodoPagamento?,
         trocoParaCentavos: Long?,
     ): ResultadoConta {
+        autorHistorico.marcar()
         val comanda = comandas.travar(comandaLida.id) ?: return ResultadoConta.Recusado("comanda", "Esse link não vale mais.")
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
         recusaPorEstado(barraca, comanda, aceitaAguardando = true)?.let { return it }
@@ -133,6 +135,7 @@ class FechamentoService(
     /** O cliente pagou o Pix no banco e avisa o quiosque. Repetir o aviso não muda a hora do primeiro. */
     @Transactional
     fun jaPaguei(comandaLida: Comanda): ResultadoConta {
+        autorHistorico.marcar()
         val comanda = comandas.travar(comandaLida.id) ?: return ResultadoConta.Recusado("comanda", "Esse link não vale mais.")
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
         if (comanda.status != StatusComanda.AGUARDANDO_PAGAMENTO || comanda.metodoPagamentoPretendido != MetodoPagamento.PIX) {
@@ -151,6 +154,7 @@ class FechamentoService(
     /** "Voltar e pedir mais": só enquanto nenhum pagamento foi confirmado. Já aberta, não faz nada. */
     @Transactional
     fun reabrir(comandaLida: Comanda): ResultadoConta {
+        autorHistorico.marcar()
         val comanda = comandas.travar(comandaLida.id) ?: return ResultadoConta.Recusado("comanda", "Esse link não vale mais.")
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
         when (comanda.status) {

@@ -62,18 +62,18 @@ class StaffClientesController(
     @GetMapping("/clientes")
     fun clientes(
         @AuthenticationPrincipal principal: StaffPrincipal,
-    ): List<ComandaView> = checkin.ativos(principal.barracaId).map(::view)
+        @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") pagina: Int,
+        @org.springframework.web.bind.annotation.RequestParam(defaultValue = "100") tamanho: Int,
+    ): List<ComandaView> {
+        if (pagina < 0 || tamanho !in 1..200) throw IllegalArgumentException("Paginação inválida")
+        return checkin.ativos(principal.barracaId, pagina, tamanho).map(::view)
+    }
 
     @GetMapping("/guarda-sois")
     fun guardaSois(
         @AuthenticationPrincipal principal: StaffPrincipal,
     ): List<GuardaSolOpcao> {
-        val ocupacao =
-            checkin
-                .ativos(principal.barracaId)
-                .mapNotNull { it.guardaSol?.id }
-                .groupingBy { it }
-                .eachCount()
+        val ocupacao = checkin.ocupacao(principal.barracaId)
         val barraca = barracas.findById(principal.barracaId).orElseThrow()
         return guardaSois
             .listar(barraca)
@@ -91,9 +91,12 @@ class StaffClientesController(
             try {
                 checkin.checkin(principal.barracaId, quem, body)
             } catch (e: DataIntegrityViolationException) {
-                // Dois envios do mesmo check-in ao mesmo tempo: o segundo encontra o primeiro.
-                if (body.id == null) throw e
-                checkin.checkin(principal.barracaId, quem, body)
+                if (!br.com.mesamar.common.Restricoes
+                        .unica(e, "uk_comanda_token")
+                ) {
+                    throw e
+                }
+                ResultadoCheckin.Conflito
             }
         return when (resultado) {
             is ResultadoCheckin.Ok ->

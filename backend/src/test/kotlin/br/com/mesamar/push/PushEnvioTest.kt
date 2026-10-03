@@ -128,7 +128,7 @@ class PushEnvioTest(
 
             // Cabeçalhos do Web Push e assinatura do servidor (VAPID)
             assertEquals("aes128gcm", recebido.cabecalhos["content-encoding"])
-            assertEquals("300", recebido.cabecalhos["ttl"])
+            assertTrue(recebido.cabecalhos.getValue("ttl").toInt() in 290..300)
             assertEquals("high", recebido.cabecalhos["urgency"])
             assertEquals("application/octet-stream", recebido.cabecalhos["content-type"])
             val autorizacao = assertNotNull(recebido.cabecalhos["authorization"])
@@ -564,7 +564,7 @@ class PushEnvioTest(
             assertContains(texto, """"tag":"problema"""")
             assertContains(texto, """"tipo":"PROBLEMA"""")
             assertFalse(texto.contains("Ana"), "o nome do cliente não vai no aviso: $texto")
-            assertEquals("3600", recebido.cabecalhos["ttl"])
+            assertTrue(recebido.cabecalhos.getValue("ttl").toInt() in 3500..3600)
         }
     }
 

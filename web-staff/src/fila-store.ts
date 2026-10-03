@@ -1,3 +1,4 @@
+import { inteiro, registro } from '../../web-shared/src/validacao'
 // A fila do quiosque, guardada fora das telas: a conexão em tempo real (SSE) fica aberta enquanto o app está
 // logado, então o número de pedidos na aba e o aviso de pedido novo funcionam em qualquer aba.
 //
@@ -28,6 +29,7 @@ let timerReconexao: number | undefined
 let timerAtrasos: number | undefined
 /** O app está logado e ouvindo. Depois de sair, nada (timer, reconexão, resposta atrasada) volta a ligar a fila. */
 let ativa = false
+let geracao = 0
 let primeiraBusca = true
 const vistos = new Set<string>()
 const chegadas = new Map<string, number>()
@@ -87,9 +89,10 @@ export const recarregar = umaPorVez(buscarFila)
 
 async function buscarFila (): Promise<void> {
   if (!ativa) return
+  const destaBusca = geracao
   try {
     const nova = await fila()
-    if (!ativa) return
+    if (!ativa || destaBusca !== geracao) return
     diferencaMs = Date.parse(nova.agora) - Date.now()
     const recebidos = nova.pedidos.filter((p: PedidoFila) => p.status === 'RECEBIDO' && !vistos.has(p.id))
     nova.pedidos.forEach((p) => vistos.add(p.id))
@@ -104,7 +107,7 @@ async function buscarFila (): Promise<void> {
     atualizarAvisosDeAtraso()
   } catch (e) {
     // Resposta da sessão anterior (saiu no meio): descarta sem mexer em nada
-    if (descartada(e) || !ativa) return
+    if (descartada(e) || !ativa || destaBusca !== geracao) return
     // 401: o app já volta para o login (evento da api). Sem sinal: segue com a última fila e tenta de novo.
     falhou = !(e instanceof ApiError && e.status === 401)
   }
@@ -121,28 +124,35 @@ function conectar (): void {
   if (origem !== null || !ativa) return
   const es = new EventSource('/api/staff/eventos')
   origem = es
+  const ouvir = (nome: string, acao: (ev: MessageEvent<string>) => void): void => {
+    es.addEventListener(nome, ev => { if (ativa && origem === es) acao(ev as MessageEvent<string>) })
+  }
   es.onopen = () => {
+    if (!ativa || origem !== es) return
     conectado = true
     // Pode ter perdido avisos enquanto estava fora do ar
     void recarregar()
     agendarPagamentos()
   }
   // Pedido criado, liberado ou cancelado muda também o saldo das contas: a aba Pagamentos busca de novo
-  es.addEventListener('fila', () => { agendarBusca(); agendarPagamentos() })
-  es.addEventListener('cardapio', () => { cardapioMudou.dispatchEvent(new Event('mudou')) })
-  es.addEventListener('ressincronizar', () => { agendarBusca(); agendarPagamentos() })
+  ouvir('fila', () => { agendarBusca(); agendarPagamentos() })
+  ouvir('cardapio', () => { cardapioMudou.dispatchEvent(new Event('mudou')) })
+  ouvir('ressincronizar', () => { agendarBusca(); agendarPagamentos() })
   // Uma conta mudou (o cliente fechou ou avisou que vai pagar, alguém recebeu): a aba Pagamentos busca de novo
-  es.addEventListener('conta', agendarPagamentos)
+  ouvir('conta', agendarPagamentos)
   // Um pedido passou do tempo de espera da barraca: alerta no app aberto (o push cobre o app fechado)
-  es.addEventListener('atraso', (ev) => {
+  ouvir('atraso', (ev) => {
     try {
-      const { numero } = JSON.parse((ev as MessageEvent<string>).data) as { numero: number }
+      const bruto: unknown = JSON.parse(ev.data)
+      if (!registro(bruto) || !inteiro(1)(bruto.numero)) return
+      const numero = Number(bruto.numero)
       avisar(`O pedido nº ${numero} está parado há muito tempo.`, true)
     } catch { /* aviso sem número: só toca o alerta */ }
     avisarAtraso()
     agendarBusca()
   })
   es.onerror = () => {
+    if (!ativa || origem !== es) return
     conectado = false
     avisarOuvintes()
     // O navegador reconecta sozinho. Se a conexão foi recusada de vez (ex.: sessão acabou), ele fecha: a busca
@@ -182,6 +192,7 @@ export function iniciarFila (): void {
 
 export function pararFila (): void {
   ativa = false
+  geracao++
   document.removeEventListener('visibilitychange', aoVoltarParaFrente)
   origem?.close()
   origem = null

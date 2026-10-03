@@ -2,7 +2,7 @@ import { ApiError, descartada, bloquearComanda, desbloquearComanda, encerrarComa
 import { adiarSeEmUso, mountPreservando } from '../a11y'
 import { h } from '../dom'
 import { estado as estadoDaFila } from '../fila-store'
-import { agoraDoServidor, estado, observar, recarregar } from '../pagamentos-store'
+import { agoraDoServidor, estado, observar, recarregar, mudarPagina } from '../pagamentos-store'
 import { avisar } from '../toast'
 import { dialogoFecharSemReceber, dialogoReceber } from './receber'
 
@@ -60,6 +60,11 @@ function render (root: HTMLElement, sessao: Sessao): void {
   mountPreservando(root,
     h('header', { class: 'tab-head' },
       h('h1', {}, 'Pagamentos'),
+      h('p', { class: 'hint' }, `Total em aberto: ${reais(dados.totalSaldoAbertoCentavos)}`),
+      h('nav', { 'aria-label': 'Páginas de pagamentos', class: 'acoes' },
+        h('button', { type: 'button', class: 'btn btn-line', disabled: dados.pagina === 0, onclick: () => { mudarPagina(dados.pagina - 1) } }, 'Anterior'),
+        h('span', {}, `Página ${dados.pagina + 1}`),
+        h('button', { type: 'button', class: 'btn btn-line', disabled: !dados.temMais, onclick: () => { mudarPagina(dados.pagina + 1) } }, 'Próxima')),
       h('p', { class: 'hint' }, aguardando.length === 0
         ? 'Ninguém avisou que vai pagar.'
         : `${aguardando.length} ${aguardando.length === 1 ? 'conta aguarda' : 'contas aguardam'} o recebimento, a mais antiga em cima.`),
@@ -74,7 +79,7 @@ function render (root: HTMLElement, sessao: Sessao): void {
       h('h2', { id: 'devendo-titulo' }, `Contas abertas com saldo (${abertas.length})`),
       abertas.length === 0
         ? h('p', { class: 'hint' }, 'Nenhuma conta aberta com saldo.')
-        : h('p', { class: 'hint' }, `${reais(devendo)} em aberto. As maiores primeiro.`),
+        : h('p', { class: 'hint' }, `${reais(devendo)} em aberto nesta página. As maiores primeiro.`),
       abertas.length > 0 ? h('ul', { class: 'fila', 'aria-label': 'Contas abertas com saldo' }, ...abertas.map((c) => cartao(root, sessao, c, dono))) : ''
     )
   )

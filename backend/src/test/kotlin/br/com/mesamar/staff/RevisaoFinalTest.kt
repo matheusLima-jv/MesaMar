@@ -33,6 +33,7 @@ import kotlin.test.assertTrue
 /** Fase 7 · 7.4 (revisão final): cancelar depois de pagar, liberar pedido ao cancelar, encerramento diário e sessões do dono. */
 @IntegrationTest
 class RevisaoFinalTest(
+    private val entregador: br.com.mesamar.common.Entregador,
     @Value("\${local.server.port}") private val port: Int,
     convites: ConviteService,
     private val usuarios: UsuarioRepository,
@@ -244,6 +245,7 @@ class RevisaoFinalTest(
         assertEquals(200, appAberto.get("/api/staff/cardapio").statusCode())
 
         painel.post(painel.session(), "/painel/esqueci-senha", "/painel/esqueci-senha", mapOf("email" to email))
+        entregador.rodar()
         val link = assertNotNull(emails.ultimoLink(email))
         val novaSenha = "maré cheia às quatro"
         val troca =

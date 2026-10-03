@@ -1,6 +1,5 @@
 package br.com.mesamar.conta
 
-import br.com.mesamar.common.EmailGateway
 import br.com.mesamar.common.SecureTokens
 import br.com.mesamar.config.SiteProperties
 import org.slf4j.LoggerFactory
@@ -92,6 +91,7 @@ class ContaService(
     private val conviteService: ConviteService,
     private val passwordEncoder: PasswordEncoder,
     private val clock: Clock,
+    private val jdbc: org.springframework.jdbc.core.JdbcTemplate,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -104,10 +104,11 @@ class ContaService(
     ): CadastroResultado {
         // Trava o convite antes de conferir: um segundo cadastro simultâneo espera e depois o encontra já usado
         if (token.isNullOrBlank()) return CadastroResultado.ConviteInvalido
+        val emailNormalizado = email.trim().lowercase()
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 2))", emailNormalizado)
         val convite =
             convites.travarPorHash(SecureTokens.hash(token))?.takeIf { it.isValid(Instant.now(clock)) }
                 ?: return CadastroResultado.ConviteInvalido
-        val emailNormalizado = email.trim().lowercase()
         if (usuarios.findByEmailIgnoreCase(emailNormalizado) != null) return CadastroResultado.EmailEmUso
 
         val now = Instant.now(clock)
@@ -130,10 +131,12 @@ class ContaService(
 
 @Service
 class RecuperacaoSenhaService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
     private val usuarios: UsuarioRepository,
     private val resets: ResetSenhaRepository,
     private val passwordEncoder: PasswordEncoder,
-    private val email: EmailGateway,
+    private val entregas: br.com.mesamar.common.Entregas,
+    private val jdbc: org.springframework.jdbc.core.JdbcTemplate,
     private val site: SiteProperties,
     private val hub: br.com.mesamar.eventos.HubEventos,
     private val clock: Clock,
@@ -162,19 +165,25 @@ class RecuperacaoSenhaService(
             ),
         )
         val link = site.absoluteUrl("/painel/nova-senha?token=$token")
-        email.send(
-            to = usuario.email,
-            subject = "MesaMar: troca de senha",
-            body =
-                """
-                Olá, ${usuario.nome}!
+        jdbc.update("DELETE FROM entrega_pendente WHERE tipo = 'EMAIL' AND destino = ?", usuario.id)
+        entregas.registrar(
+            "EMAIL",
+            usuario.id,
+            br.com.mesamar.common.EmailPendente(
+                to = usuario.email,
+                subject = "MesaMar: troca de senha",
+                body =
+                    """
+                    Olá, ${usuario.nome}!
 
-                Para criar uma senha nova no painel do MesaMar, abra o link abaixo (vale por 1 hora):
+                    Para criar uma senha nova no painel do MesaMar, abra o link abaixo (vale por 1 hora):
 
-                $link
+                    $link
 
-                Se não foi você que pediu, pode ignorar este e-mail: a sua senha continua a mesma.
-                """.trimIndent(),
+                    Se não foi você que pediu, pode ignorar este e-mail: a sua senha continua a mesma.
+                    """.trimIndent(),
+            ),
+            now.plus(VALIDADE),
         )
         log.info("Troca de senha solicitada para usuario={}", usuario.id)
     }
@@ -186,14 +195,18 @@ class RecuperacaoSenhaService(
         token: String?,
         novaSenha: String,
     ): Boolean {
+        autorHistorico.marcar()
         // Trava o link antes de conferir: o mesmo link usado duas vezes ao mesmo tempo só troca a senha uma vez
         if (token.isNullOrBlank()) return false
+        val usuarioId = resets.usuarioDoHash(SecureTokens.hash(token)) ?: return false
+        // Mesma ordem de solicitar: usuário antes do reset. Evita deadlock entre pedido e uso do link.
+        val usuario = usuarios.travar(usuarioId) ?: return false
         val reset = resets.travarPorHash(SecureTokens.hash(token))?.takeIf { it.isValid(Instant.now(clock)) } ?: return false
-        val usuario = usuarios.findById(reset.usuarioId).orElse(null) ?: return false
         usuario.senhaHash = requireNotNull(passwordEncoder.encode(novaSenha))
         // Celular perdido ou senha vazada: quem estava logado com a senha antiga cai na próxima ação
         usuario.credenciaisEm = Instant.now(clock)
         reset.usadoEm = Instant.now(clock)
+        jdbc.update("DELETE FROM entrega_pendente WHERE tipo = 'EMAIL' AND destino = ?", usuario.id)
         // As conexões em tempo real abertas com a senha antiga caem em seguida (não só as próximas requisições)
         hub.revisarAcessosAposCommit()
         log.info("Senha redefinida para usuario={}", usuario.id)

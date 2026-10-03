@@ -10,15 +10,13 @@ import br.com.mesamar.pedido.PedidoAtrasado
 import br.com.mesamar.pedido.PedidoCriado
 import br.com.mesamar.pedido.StatusPedido
 import br.com.mesamar.problema.ProblemaReportado
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
-import java.util.concurrent.Executors
 
 /**
- * Transforma o que aconteceu no quiosque em aviso de push. Só age **depois do commit**: ninguém recebe aviso de um
- * pedido que a transação desfez. Roda numa thread à parte, então o cliente que está pedindo não espera os avisos.
+ * Transforma o que aconteceu no quiosque em aviso de push. Registra entregas **antes do commit**: ninguém recebe aviso de um
+ * pedido que a transação desfez. O worker só enxerga registros confirmados e envia fora da transação.
  */
 @Component
 class NotificadorPush(
@@ -27,98 +25,83 @@ class NotificadorPush(
     private val guardaSois: GuardaSolRepository,
     private val itens: ItemPedidoRepository,
 ) {
-    private val log = LoggerFactory.getLogger(javaClass)
-    private val executor = Executors.newVirtualThreadPerTaskExecutor()
-
     /** Pedido novo na fila: "Pedido nº 23 · Guarda-sol 12" e "3 itens". Pedido que aguarda pagamento não avisa ainda. */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     fun aoCriarPedido(e: PedidoCriado) {
         if (!push.habilitado || e.status != StatusPedido.RECEBIDO) return
-        executor.execute {
-            runCatching {
-                val guardaSol =
-                    comandas
-                        .findById(
-                            e.comandaId,
-                        ).orElse(null)
-                        ?.guardaSolId
-                        ?.let { guardaSois.findById(it).orElse(null) }
-                        ?.numero
-                val unidades = itens.findAllByPedidoIdOrderByLinha(e.pedidoId).sumOf { it.quantidade }
-                push.enviarParaBarraca(
-                    e.barracaId,
-                    MensagemPush(
-                        titulo = "Pedido nº ${e.numeroPedido} · ${local(guardaSol)}",
-                        corpo = if (unidades == 1) "1 item" else "$unidades itens",
-                        url = URL_FILA,
-                        tag = "pedido-${e.pedidoId}",
-                        tipo = "NOVO_PEDIDO",
-                        validadeSegundos = 300,
-                    ),
-                )
-            }.onFailure { log.warn("Não deu para avisar o pedido {}: {}", e.pedidoId, it.message) }
-        }
+        val guardaSol =
+            comandas
+                .findById(
+                    e.comandaId,
+                ).orElse(null)
+                ?.guardaSolId
+                ?.let { guardaSois.findById(it).orElse(null) }
+                ?.numero
+        val unidades = itens.findAllByPedidoIdOrderByLinha(e.pedidoId).sumOf { it.quantidade }
+        push.enviarParaBarraca(
+            e.barracaId,
+            MensagemPush(
+                titulo = "Pedido nº ${e.numeroPedido} · ${local(guardaSol)}",
+                corpo = if (unidades == 1) "1 item" else "$unidades itens",
+                url = URL_FILA,
+                tag = "pedido-${e.pedidoId}",
+                tipo = "NOVO_PEDIDO",
+                validadeSegundos = 300,
+            ),
+        )
     }
 
     /** Pedido parado além do tempo configurado pela barraca. */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     fun aoAtrasar(e: PedidoAtrasado) {
         if (!push.habilitado) return
-        executor.execute {
-            runCatching {
-                push.enviarParaBarraca(
-                    e.barracaId,
-                    MensagemPush(
-                        titulo = "Pedido nº ${e.numero} está parado",
-                        corpo = "${local(e.guardaSol)} · esperando há ${e.minutos} min",
-                        url = URL_FILA,
-                        tag = "atraso-${e.pedidoId}",
-                        tipo = "PEDIDO_ATRASADO",
-                        validadeSegundos = 600,
-                    ),
-                )
-            }.onFailure { log.warn("Não deu para avisar o atraso do pedido {}: {}", e.pedidoId, it.message) }
-        }
+        push.enviarParaBarraca(
+            e.barracaId,
+            MensagemPush(
+                titulo = "Pedido nº ${e.numero} está parado",
+                corpo = "${local(e.guardaSol)} · esperando há ${e.minutos} min",
+                url = URL_FILA,
+                tag = "atraso-${e.pedidoId}",
+                tipo = "PEDIDO_ATRASADO",
+                validadeSegundos = 600,
+            ),
+        )
     }
 
     /**
      * O cliente avisou que está indo pagar (dinheiro ou cartão) ou que já pagou o Pix. Como nos outros avisos, o texto não
      * leva o nome do cliente (o app aberto mostra o nome). No Pix, lembra de conferir no app do banco.
      */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     fun aoAvisarPagamento(e: PagamentoAvisado) {
         if (!push.habilitado) return
-        executor.execute {
-            runCatching {
-                val guardaSol =
-                    comandas
-                        .findById(e.comandaId)
-                        .orElse(null)
-                        ?.guardaSolId
-                        ?.let { guardaSois.findById(it).orElse(null) }
-                        ?.numero
-                val valor = Money.format(e.saldoCentavos)
-                val pix = e.metodo == MetodoPagamento.PIX
-                push.enviarParaBarraca(
-                    e.barracaId,
-                    MensagemPush(
-                        titulo = if (pix) "${local(guardaSol)} · Pix enviado" else "${local(guardaSol)} · indo pagar",
-                        corpo =
-                            when {
-                                pix -> "$valor · confira no app do banco"
-                                e.trocoParaCentavos != null -> "$valor · ${e.metodo.rotulo} (troco para ${Money.format(
-                                    e.trocoParaCentavos,
-                                )})"
-                                else -> "$valor · ${e.metodo.rotulo}"
-                            },
-                        url = URL_PAGAMENTOS,
-                        tag = "pagar-${e.comandaId}",
-                        tipo = "INDO_PAGAR",
-                        validadeSegundos = 600,
-                    ),
-                )
-            }.onFailure { log.warn("Não deu para avisar o pagamento da comanda {}: {}", e.comandaId, it.message) }
-        }
+        val guardaSol =
+            comandas
+                .findById(e.comandaId)
+                .orElse(null)
+                ?.guardaSolId
+                ?.let { guardaSois.findById(it).orElse(null) }
+                ?.numero
+        val valor = Money.format(e.saldoCentavos)
+        val pix = e.metodo == MetodoPagamento.PIX
+        push.enviarParaBarraca(
+            e.barracaId,
+            MensagemPush(
+                titulo = if (pix) "${local(guardaSol)} · Pix enviado" else "${local(guardaSol)} · indo pagar",
+                corpo =
+                    when {
+                        pix -> "$valor · confira no app do banco"
+                        e.trocoParaCentavos != null -> "$valor · ${e.metodo.rotulo} (troco para ${Money.format(
+                            e.trocoParaCentavos,
+                        )})"
+                        else -> "$valor · ${e.metodo.rotulo}"
+                    },
+                url = URL_PAGAMENTOS,
+                tag = "pagar-${e.comandaId}",
+                tipo = "INDO_PAGAR",
+                validadeSegundos = 600,
+            ),
+        )
     }
 
     /**
@@ -126,24 +109,20 @@ class NotificadorPush(
      * ter dado pessoal, e a notificação aparece na tela bloqueada. O texto fica na página Avisos do painel (com login).
      * A etiqueta é a mesma para todos os avisos, então vários seguidos viram uma notificação só.
      */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     fun aoReportarProblema(e: ProblemaReportado) {
         if (!push.habilitado) return
-        executor.execute {
-            runCatching {
-                push.enviarParaDono(
-                    e.barracaId,
-                    MensagemPush(
-                        titulo = "Aviso de problema · ${if (e.origem == "CLIENTE") "Cliente" else "Equipe"}",
-                        corpo = CORPO_DO_AVISO_DE_PROBLEMA,
-                        url = URL_PROBLEMAS,
-                        tag = "problema",
-                        tipo = "PROBLEMA",
-                        validadeSegundos = 3600,
-                    ),
-                )
-            }.onFailure { log.warn("Não deu para avisar o problema da barraca {}: {}", e.barracaId, it.message) }
-        }
+        push.enviarParaDono(
+            e.barracaId,
+            MensagemPush(
+                titulo = "Aviso de problema · ${if (e.origem == "CLIENTE") "Cliente" else "Equipe"}",
+                corpo = CORPO_DO_AVISO_DE_PROBLEMA,
+                url = URL_PROBLEMAS,
+                tag = "problema",
+                tipo = "PROBLEMA",
+                validadeSegundos = 3600,
+            ),
+        )
     }
 
     private fun local(guardaSol: Int?) = if (guardaSol == null) "Balcão" else "Guarda-sol $guardaSol"

@@ -1,0 +1,17 @@
+title = "MesaMar — fixtures de testes"
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Chave VAPID de fixture, sem uso em produção"
+condition = "AND"
+paths = ['''(?:^|/)backend/src/test/resources/application\-test\.yml$''']
+regexTarget = "secret"
+regexes = ['''^yfWPiYE\-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ\-oRw$''']
+
+[[allowlists]]
+description = "Chave VAPID de fixture, sem uso em produção"
+condition = "AND"
+paths = ['''(?:^|/)backend/src/test/kotlin/br/com/mesamar/push/PushEnvioTest\.kt$''']
+regexTarget = "secret"
+regexes = ['''^BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8$''']

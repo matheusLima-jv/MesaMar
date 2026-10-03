@@ -61,7 +61,7 @@ class FrontendBundleTest(
 
         assertTrue(scripts.isNotEmpty(), "Nenhum <script src> encontrado em $route")
         scripts.forEach { src ->
-            assertTrue(src.startsWith(route), "Script $src deveria estar sob $route (base do Vite)")
+            assertTrue(src.startsWith(route) || src == "/js/medicoes.js", "Script $src deveria estar sob $route (base do Vite)")
             assertEquals(200, http.get(src).statusCode(), "GET $src")
         }
     }

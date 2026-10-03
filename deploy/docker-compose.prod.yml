@@ -9,24 +9,26 @@
 # fala com ela pela rede Docker externa "web". Nada muda no firewall.
 name: mesamar
 
-# O Docker guarda no máximo 5 arquivos de 10 MB de log por serviço: o disco da VPS não enche.
-x-logging: &logging
-  driver: json-file
-  options:
-    max-size: "10m"
-    max-file: "5"
-
+# Logs persistentes possuem retenção por idade; ver docs/adr/0019-retencao-concorrencia-e-entregas.md.
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     restart: unless-stopped
-    logging: *logging
+    logging:
+      driver: none
+    command: ["postgres", "-c", "logging_collector=on", "-c", "log_filename=postgresql-%a.log", "-c", "log_truncate_on_rotation=on", "-c", "log_rotation_age=1d", "-c", "log_rotation_size=0"]
     environment:
       POSTGRES_DB: ${DB_NAME:-mesamar}
-      POSTGRES_USER: ${DB_USER:-mesamar}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+      POSTGRES_USER: ${DB_ADMIN_USER:-mesamar_admin}
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD:?defina DB_ADMIN_PASSWORD no .env}
+      DB_USER: ${DB_USER:-mesamar_app}
+      DB_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+      DB_MIGRATION_USER: ${DB_MIGRATION_USER:-mesamar_migration}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?defina DB_MIGRATION_PASSWORD no .env}
     volumes:
       - db-data:/var/lib/postgresql/data
+      - ./db/01-contas.sh:/docker-entrypoint-initdb.d/01-contas.sh:ro
+      - ./db:/opt/mesamar-db:ro
     networks: [internal]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -34,20 +36,38 @@ services:
       timeout: 5s
       retries: 10
 
-  app:
-    # Tag da imagem publicada pelo CI. Para voltar a uma versão anterior, troque
-    # MESAMAR_TAG no .env pelo SHA do commit (ex.: 34d4f4d) e rode "up -d" de novo.
-    image: ghcr.io/matheuslima-jv/mesamar:${MESAMAR_TAG:-latest}
-    container_name: mesamar-app
-    restart: unless-stopped
-    logging: *logging
+  migrate:
+    image: ${MESAMAR_IMAGE:?defina MESAMAR_IMAGE com o digest validado pelo CI}
+    restart: "no"
+    logging:
+      driver: none
     depends_on:
       db:
         condition: service_healthy
     environment:
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-mesamar}
+      DB_MIGRATION_USER: ${DB_MIGRATION_USER:-mesamar_migration}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?defina DB_MIGRATION_PASSWORD}
+    entrypoint: ["java", "-Dloader.main=br.com.mesamar.config.MigrarBancoKt", "-cp", "/app/app.jar", "org.springframework.boot.loader.launch.PropertiesLauncher"]
+    networks: [internal]
+
+  app:
+    # Imagem exata validada no E2E. Rollback exige conferir compatibilidade.json do destino.
+    image: ${MESAMAR_IMAGE:?defina MESAMAR_IMAGE com o digest validado pelo CI}
+    container_name: mesamar-app
+    restart: unless-stopped
+    # Logs da aplicação têm retenção por idade no Logback; evita uma segunda cópia sem prazo.
+    logging:
+      driver: none
+    volumes:
+      - app-logs:/app/logs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-mesamar}
-      DB_USER: ${DB_USER:-mesamar}
+      DB_USER: ${DB_USER:-mesamar_app}
       DB_PASSWORD: ${DB_PASSWORD}
       MESAMAR_PUBLIC_URL: ${MESAMAR_PUBLIC_URL:?defina MESAMAR_PUBLIC_URL no .env}
       MESAMAR_WHATSAPP: ${MESAMAR_WHATSAPP:-}
@@ -71,6 +91,7 @@ services:
 
 volumes:
   db-data:
+  app-logs:
 
 networks:
   internal:
@@ -78,3 +99,19 @@ networks:
   web:
     external: true
     name: ${NGINX_NETWORK:-web}
+
+# Compartilha a interpolação da mesma .env com todos os scripts operacionais.
+x-operacao:
+  dias: ${MESAMAR_BACKUP_DIAS:-14}
+  diretorio: ${MESAMAR_BACKUP_DIR:-/opt/mesamar/backups}
+  repositorio: ${RESTIC_REPOSITORY:-}
+  senhaArquivo: ${RESTIC_PASSWORD_FILE:-}
+  awsArquivo: ${MESAMAR_AWS_ARQUIVO:-}
+  lgpdRegistro: ${MESAMAR_LGPD_REGISTRO:-/opt/mesamar/lgpd/exclusoes.txt}
+  pingBackup: ${MESAMAR_BACKUP_PING_URL:-}
+  rpoSegundos: ${MESAMAR_RPO_SEGUNDOS:-86400}
+  rtoSegundos: ${MESAMAR_RTO_SEGUNDOS:-7200}
+  healthUrl: ${MESAMAR_PUBLIC_URL:-http://localhost:8080}/actuator/health
+  pingDisponibilidade: ${MESAMAR_DISPONIBILIDADE_PING_URL:-}
+  pingBackupMonitor: ${MESAMAR_BACKUP_MONITOR_PING_URL:-}
+  toleranciaSegundos: ${MESAMAR_BACKUP_TOLERANCIA_SEGUNDOS:-0}

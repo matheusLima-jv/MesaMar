@@ -61,7 +61,7 @@ function enviar (
     })
     .catch((e: unknown) => {
       if (descartada(e)) return
-      if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && !e.temporario) {
         // O servidor recusou: nada foi gravado, dá para corrigir e enviar outro
         pendencias.apagar('lancamento', comanda.id)
         if (aberta()) aoRecusar(e)
@@ -93,7 +93,7 @@ function telaPendente (root: HTMLElement, comanda: Comanda, voltar: () => void, 
       h('p', { class: 'hint' }, `Para ${comanda.nome} · ${comanda.guardaSol === null ? 'sem guarda-sol' : `guarda-sol ${comanda.guardaSol}`}`)
     ),
     h('p', { class: 'alert', role: 'status' },
-      'Este pedido foi enviado e a resposta não chegou. Reenvie: se ele já tinha chegado, não vira pedido duplicado.'),
+      'Pedido preservado neste aparelho. Será reenviado em ordem quando o sinal voltar. Se já tiver chegado, não será duplicado.'),
     h('ul', { class: 'linhas' }, ...lancamento.linhas.map((l) => h('li', {}, l))),
     h('p', { class: 'lancar-total' }, reais(lancamento.totalCentavos)),
     erro,

@@ -3,7 +3,7 @@
 #   http://localhost:8080/actuator/health
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     environment:
       POSTGRES_DB: ${DB_NAME:-mesamar}
       POSTGRES_USER: ${DB_USER:-mesamar}
@@ -56,3 +56,19 @@ services:
 
 volumes:
   db-data:
+
+# Compartilha a interpolação da mesma .env com todos os scripts operacionais.
+x-operacao:
+  dias: ${MESAMAR_BACKUP_DIAS:-14}
+  diretorio: ${MESAMAR_BACKUP_DIR:-/opt/mesamar/backups}
+  repositorio: ${RESTIC_REPOSITORY:-}
+  senhaArquivo: ${RESTIC_PASSWORD_FILE:-}
+  awsArquivo: ${MESAMAR_AWS_ARQUIVO:-}
+  lgpdRegistro: ${MESAMAR_LGPD_REGISTRO:-/opt/mesamar/lgpd/exclusoes.txt}
+  pingBackup: ${MESAMAR_BACKUP_PING_URL:-}
+  rpoSegundos: ${MESAMAR_RPO_SEGUNDOS:-86400}
+  rtoSegundos: ${MESAMAR_RTO_SEGUNDOS:-7200}
+  healthUrl: ${MESAMAR_PUBLIC_URL:-http://localhost:8080}/actuator/health
+  pingDisponibilidade: ${MESAMAR_DISPONIBILIDADE_PING_URL:-}
+  pingBackupMonitor: ${MESAMAR_BACKUP_MONITOR_PING_URL:-}
+  toleranciaSegundos: ${MESAMAR_BACKUP_TOLERANCIA_SEGUNDOS:-0}

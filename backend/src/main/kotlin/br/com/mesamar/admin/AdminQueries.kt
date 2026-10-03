@@ -25,8 +25,8 @@ data class LeadRow(
 
 data class MedicaoRow(
     val praia: String,
-    val carregamentoMs: Int,
-    val pingMs: Int,
+    val carregamentoMs: Int?,
+    val pingMs: Int?,
     val tipoConexao: String?,
     val criadaEm: Instant,
 ) {
@@ -95,8 +95,8 @@ class AdminQueries(
             RowMapper { rs, _ ->
                 MedicaoRow(
                     praia = praiaLabel(rs.getString("praia")),
-                    carregamentoMs = rs.getInt("carregamento_ms"),
-                    pingMs = rs.getInt("ping_ms"),
+                    carregamentoMs = rs.getObject("carregamento_ms", Int::class.javaObjectType),
+                    pingMs = rs.getObject("ping_ms", Int::class.javaObjectType),
                     tipoConexao = rs.getString("tipo_conexao"),
                     criadaEm = rs.getTimestamp("criada_em").toInstant(),
                 )

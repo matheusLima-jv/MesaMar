@@ -57,6 +57,7 @@ sealed interface ResultadoPin {
 
 @Service
 class AtendenteService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
     private val repository: AtendenteRepository,
     private val encoder: PasswordEncoder,
     private val barracas: BarracaRepository,
@@ -74,6 +75,7 @@ class AtendenteService(
         form: AtendenteForm,
         errors: Errors,
     ): Atendente? {
+        autorHistorico.marcar()
         // Uma criação por vez na barraca: o limite e o nome repetido são conferidos sem corrida
         barracas.travar(barraca.id)
         val nome = validarNome(barraca, form.nome, exceto = null, errors)
@@ -105,6 +107,7 @@ class AtendenteService(
         pin: String,
         errors: Errors,
     ): Boolean {
+        autorHistorico.marcar()
         val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return false
         PinRules.problema(pin)?.let { errors.rejectValue("pin", "pin", it) }
         if (errors.hasErrors()) return false
@@ -120,6 +123,7 @@ class AtendenteService(
         id: UUID,
         ativo: Boolean,
     ): Atendente? {
+        autorHistorico.marcar()
         val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return null
         atendente.ativo = ativo
         // Desativar mata as sessões abertas para sempre: reativar depois não as faz voltar a valer (o atendente entra de novo)
@@ -139,6 +143,7 @@ class AtendenteService(
         barraca: Barraca,
         id: UUID,
     ): Atendente? {
+        autorHistorico.marcar()
         val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return null
         revogar(atendente)
         salvar(atendente)
@@ -164,6 +169,7 @@ class AtendenteService(
         barraca: Barraca,
         id: UUID,
     ): Atendente? {
+        autorHistorico.marcar()
         val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return null
         liberar(atendente)
         salvar(atendente)
@@ -186,6 +192,7 @@ class AtendenteService(
         pin: String,
         origem: String = "",
     ): ResultadoPin {
+        autorHistorico.marcar()
         val atendente = repository.findForUpdate(atendenteId, barracaId)
         if (atendente == null || !atendente.ativo) return ResultadoPin.Indisponivel
         val now = Instant.now(clock)

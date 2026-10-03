@@ -1,5 +1,7 @@
 # Servidor de produção. Todos os segredos vêm de variáveis de ambiente (ver .env.example).
 spring:
+  flyway:
+    enabled: false
   datasource:
     url: ${DB_URL}
     username: ${DB_USER}
@@ -12,8 +14,18 @@ server:
         secure: true # só HTTPS (Cloudflare → Nginx)
 
 logging:
+  file:
+    name: /app/logs/mesamar.log
+  logback:
+    rollingpolicy:
+      file-name-pattern: /app/logs/mesamar.%d{yyyy-MM-dd}.%i.log.gz
+      max-file-size: 10MB
+      max-history: 7
+      total-size-cap: 50MB
+      clean-history-on-start: true
   structured:
     format:
       console: ecs # logs em JSON para facilitar a leitura no servidor
+      file: ecs
   level:
     root: INFO

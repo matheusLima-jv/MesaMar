@@ -74,8 +74,8 @@ button { font: inherit; }
 /* ---------- Login ---------- */
 .login { max-width: 28rem; margin: 0 auto; padding: max(1.5rem, env(safe-area-inset-top)) 1rem 2rem; }
 .login-head h1 { font-size: 2.4rem; margin: 0.25rem 0 1.5rem; }
-.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; padding: 0.25rem; background: var(--paper-2); border-radius: 999px; margin-bottom: 1rem; }
-.segmented button { min-height: 48px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; color: var(--ink-2); cursor: pointer; }
+.segmented { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.25rem; padding: 0.25rem; background: var(--paper-2); border-radius: 999px; margin-bottom: 1rem; }
+.segmented button { min-width: 0; padding-inline: 0.25rem; overflow-wrap: anywhere; min-height: 48px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; color: var(--ink-2); cursor: pointer; }
 .segmented button.on { background: var(--ink); color: var(--paper); }
 .card { background: #fff; border: 2px solid var(--ink); border-radius: 18px; padding: 1.25rem; margin-bottom: 1rem; }
 .card-title { font-size: 1.4rem; margin: 0.25rem 0 1rem; }
@@ -194,14 +194,14 @@ button { font: inherit; }
   border-radius: 999px; background: var(--late); color: #fff; font: 800 0.85rem/1 var(--body);
 }
 
-.fila-barra { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.5rem; }
+.fila-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.5rem; }
 .live { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; }
 .live::before { content: ''; width: 0.7rem; height: 0.7rem; border-radius: 50%; background: var(--ok); }
 .live.off { color: var(--late); }
 .live.off::before { background: var(--late); }
 .sold.som { min-width: 0; min-height: 44px; font-size: 0.95rem; }
 
-.fila-filtros { display: grid; gap: 0.75rem; margin: 0.75rem 0 1rem; }
+.fila-filtros { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; margin: 0.75rem 0 1rem; }
 .fila-filtros .segmented { margin-bottom: 0; }
 .filtro-gs { margin: 0; }
 .field select {
@@ -328,7 +328,7 @@ button { font: inherit; }
 .aviso-fixo p { flex: 1 1 12rem; margin: 0; font-weight: 700; }
 
 /* Busca de clientes */
-.clientes-filtro { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0 0.75rem; margin-bottom: 0.5rem; }
+.clientes-filtro { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: 0 0.75rem; margin-bottom: 0.5rem; }
 .field input[type='search'] { -webkit-appearance: none; appearance: none; }
 .qr-novo { padding: 0.75rem; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper); }
 .qr-novo p { margin: 0 0 0.75rem; }

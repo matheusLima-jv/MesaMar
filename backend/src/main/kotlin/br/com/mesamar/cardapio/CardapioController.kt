@@ -57,11 +57,12 @@ class CardapioController(
     fun renomear(
         @PathVariable id: UUID,
         @RequestParam(defaultValue = "") nome: String,
+        @RequestParam(required = false) versao: Long?,
         model: Model,
         redirect: RedirectAttributes,
     ): String {
         val barraca = model.barraca() ?: return "redirect:/painel/barraca"
-        resultado(redirect, service.renomearCategoria(barraca, id, nome), "Categoria renomeada.")
+        resultado(redirect, service.renomearCategoria(barraca, id, nome, versao), "Categoria renomeada.")
         return "redirect:/painel/cardapio#categoria-$id"
     }
 

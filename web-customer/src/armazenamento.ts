@@ -41,7 +41,7 @@ export function limparComandasAntigas (tokenAtual: string): void {
     for (const token of tokens) {
       const visto = Number(localStorage.getItem(chaveVisto(token)))
       if (!Number.isFinite(visto) || visto <= 0) marcarVisto(token)
-      else if (visto < limite) esquecerComanda(token)
+      else if (visto < limite || visto > Date.now() + 300_000) esquecerComanda(token)
     }
   } catch { /* sem armazenamento: nada a limpar */ }
 }

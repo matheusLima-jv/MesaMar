@@ -166,7 +166,7 @@ class PainelController(
                 noCardapio > 0,
                 "/painel/cardapio",
             ),
-            PassoConfig("App do quiosque", "Chega na próxima etapa do piloto.", false, null),
+            PassoConfig("App do quiosque", "Check-in, fila, pedidos pela equipe e pagamentos já disponíveis.", true, "/staff/"),
         )
     }
 

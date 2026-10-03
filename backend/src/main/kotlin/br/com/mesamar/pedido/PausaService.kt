@@ -16,6 +16,7 @@ import java.util.UUID
  */
 @Service
 class PausaService(
+    private val autorHistorico: br.com.mesamar.common.AutorHistorico,
     private val barracas: BarracaRepository,
     private val eventos: PublicadorEventos,
     private val clock: Clock,
@@ -26,6 +27,7 @@ class PausaService(
         pausado: Boolean,
         mensagem: String?,
     ): Barraca {
+        autorHistorico.marcar()
         val barraca = barracas.travar(barracaId) ?: throw NoSuchElementException("barraca $barracaId")
         val recado = if (pausado) limpar(mensagem) else null
         if (barraca.pedidosPausados == pausado && barraca.mensagemPausa == recado) return barraca
