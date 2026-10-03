@@ -412,7 +412,7 @@ test('dono recebe convite, cria a conta e deixa a barraca pronta', async ({ page
   await expect(app.locator('.pedido').last()).toContainText('Bruno')
   await expect(app.locator('.pedido').last()).toContainText('2× Água de coco')
   // O Bruno vê o pedido na página dele, sem recarregar
-  await bruno.getByRole('link', { name: 'Meus pedidos' }).click()
+  await bruno.getByRole('link', { name: 'Meus pedidos', exact: true }).click()
   await expect(bruno.locator('.order')).toHaveCount(2)
 
   // 15) Reportar problema na página do cliente (7.3): uma frase, e o aviso sai
