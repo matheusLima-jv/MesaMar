@@ -27,9 +27,21 @@ test('dono do projeto vê o lead no painel e baixa o CSV', async ({ page }) => {
   await expect(page.getByRole('cell', { name: nome })).toBeVisible()
 
   // CSV
-  const download = page.waitForEvent('download')
-  await page.getByRole('link', { name: 'Baixar CSV' }).first().click()
-  expect((await download).suggestedFilename()).toMatch(/^mesamar-leads-\d{4}-\d{2}-\d{2}\.csv$/)
+  const nomeCsv = /^mesamar-leads-\d{4}-\d{2}-\d{2}\.csv$/
+  if (test.info().project.name === 'iphone') {
+    // WebKit no Linux não emite o evento de download do Playwright e mostra o CSV como página (o visualizador
+    // de texto injeta CSS, bloqueado pela nossa CSP). O download real fica coberto no Chromium; aqui conferimos
+    // o contrato do endpoint com a sessão do navegador.
+    const resposta = await page.request.get(await page.getByRole('link', { name: 'Baixar CSV' }).first().getAttribute('href') ?? '')
+    expect(resposta.status()).toBe(200)
+    expect(resposta.headers()['content-disposition']).toMatch(/^attachment;/)
+    expect(resposta.headers()['content-disposition']).toMatch(/filename="?mesamar-leads-\d{4}-\d{2}-\d{2}\.csv"?/)
+    expect(await resposta.text()).toContain(nome)
+  } else {
+    const download = page.waitForEvent('download')
+    await page.getByRole('link', { name: 'Baixar CSV' }).first().click()
+    expect((await download).suggestedFilename()).toMatch(nomeCsv)
+  }
 
   // sair
   await page.getByRole('button', { name: 'Sair' }).click()
