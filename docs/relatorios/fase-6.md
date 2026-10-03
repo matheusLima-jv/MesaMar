@@ -89,7 +89,7 @@ Aprovação do 6.1 para começar o 6.2.
 ## Correções da revisão de código (lote 2: itens 21 a 40)
 
 - **Data:** 2026-10-02.
-- **Testes:** 432 testes de backend localmente (eram 428). Novo: `CorrecoesRevisao2Test` (4). Quase todo o lote é dos apps, que não têm teste automático além do E2E: o roteiro manual ganhou os itens 165 a 177.
+- **CI:** ✅ verde no PR #7 (commit `282fb6a`: 432 testes de backend, eram 428; 11 E2E). Novo: `CorrecoesRevisao2Test` (4). Quase todo o lote é dos apps, que não têm teste automático além do E2E: o roteiro manual ganhou os itens 165 a 177.
 
 ### A base que resolve vários itens de uma vez (app do quiosque)
 
