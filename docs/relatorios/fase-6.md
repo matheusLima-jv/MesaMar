@@ -140,7 +140,7 @@ Aprovação do 6.1 para começar o 6.2.
 ## Correções da revisão de código (lote 3: itens 22 a 29 e 49 a 60)
 
 - **Data:** 2026-10-03. Decisões em [ADR 0018](../adr/0018-revisao-lote-3-acesso-dados-e-acessibilidade.md).
-- **Testes:** 446 de backend (eram 432) e os 11 E2E, rodados **localmente** com o app no Docker antes do push. Novos: `CorrecoesRevisao3Test` (14), `LgpdSqlTest` (2), um caso em `AnonimizacaoTest`, e o passo 14c do E2E.
+- **CI:** ✅ verde no PR #7 (commit `df63368`: 446 testes de backend, eram 432; 11 E2E). Os E2E também rodaram **localmente** com o app no Docker antes do push. Novos: `CorrecoesRevisao3Test` (14), `LgpdSqlTest` (2), um caso em `AnonimizacaoTest`, e o passo 14c do E2E.
 - **O E2E achou bugs reais de layout** que eu não tinha visto: com 190px de largura (zoom de 200%) o nome do produto ficava com uma letra por linha, o nome longo do cliente vazava do cabeçalho, e as abas fixas cobriam o conteúdo. Todos corrigidos.
 
 ### Acessibilidade e uso (22 a 29)
