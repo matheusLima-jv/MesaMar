@@ -298,12 +298,12 @@ Estes itens são **no servidor de produção** (ou num ambiente igual a ele), se
 | 119 | VPS: `./deploy/backup/backup.sh` | Rodar à mão | `backup ok: /opt/mesamar/backups/mesamar-AAAA-MM-DD_HHMM.dump (…)` e `rotação: … backup(s) guardado(s)`. O arquivo existe e é só seu (`ls -l`: `-rw-------`) |
 | 120 | VPS: `./deploy/backup/testar-restauracao.sh` | Rodar fora do horário de movimento | No fim: **`RESTAURAÇÃO OK: N tabelas, M linhas, esquema V12, idêntico ao banco original`**. O banco de produção continua intacto |
 | 121 | VPS: `crontab -l` e, **no dia seguinte**, `ls -lh /opt/mesamar/backups` e `tail /opt/mesamar/backups/backup.log` | Conferir o cron | Um backup novo da madrugada (3h15) e a linha `backup ok` no log |
-| 122 | VPS: `./deploy/backup/restaurar.sh <um backup>` (sem `--producao`) | Abrir o banco de treino (`docker compose … exec db psql -U mesamar -d mesamar_restauracao`, `select count(*) from pedido;`) e depois `./deploy/backup/restaurar.sh --limpar` | Os dados do backup estão lá; o banco de produção **não mudou**; `--limpar` apaga o de treino |
+| 122 | Ambiente de ensaio: `./deploy/backup/restaurar.sh ARQUIVO.dump` | Usar o nome `mesamar_recuperacao_<id>` mostrado no log para consultar o treino pelo administrador; após conferir, removê-lo com `DROP DATABASE nome_do_treino` | Dados validados; produção **não mudou**. Confira o nome antes de remover. Não existe opção `--limpar` |
 | 123 | UptimeRobot (ou outro) | Criar o monitor de `https://mesamar.0mega.fun/actuator/health` com a palavra-chave `"status":"UP"`. Para testar: `docker compose -f docker-compose.prod.yml stop app`, esperar 5 a 10 min, depois `start app` | Você recebe o alerta de "fora do ar" e depois o de "voltou" |
 | 124 | healthchecks.io (opcional) | Criar um monitor com período de 1 dia e colocar a URL em `MESAMAR_BACKUP_PING_URL` no cron | O monitor fica verde depois do backup; se você **comentar o cron por 2 dias**, ele alerta |
 | 125 | Seu computador | Copiar um backup para fora: `scp usuario@vps:/opt/mesamar/backups/mesamar-*.dump ~/backups-mesamar/` e rodar `restaurar.sh` com ele (sem `--producao`) | O backup copiado também restaura. Defina **onde** e **com que frequência** você guarda cópias fora da VPS |
 
-> **Não** teste `restaurar.sh --producao` no servidor de verdade só por curiosidade: ele apaga o banco. Para ensaiar, use uma cópia da VPS ou o ambiente local (`docker compose up`), onde o comando é seguro.
+> **Não** teste `restaurar.sh ARQUIVO.dump --producao` no servidor real só por curiosidade: ele ativa os dados do backup, preservando o banco anterior como resgate. Para ensaiar, use uma cópia descartável da VPS ou o ambiente local.
 
 ### Barraca de demonstração e materiais (Fase 7 · checkpoint 7.2)
 
@@ -458,11 +458,23 @@ O perfil `prod` exige credenciais de execução sem DDL, migração separada, SM
 
 1. Entre no app do quiosque como atendente em um celular e como dono em outro. No painel, abra **Equipe → Aparelhos da equipe**: em até 1 minuto, os dois aparecem com o nome, o tipo (Android, iPhone/iPad ou computador), "Última sincronização" e "Tudo enviado".
 2. Coloque o celular da atendente em **modo avião**. Lance pedidos para dois clientes (por exemplo 6 e 4 pastéis). O app mostra "Pedido preservado neste aparelho". No painel, a hora desse aparelho para de mudar.
-3. Espere 15 minutos ainda em modo avião e recarregue o painel: o aparelho aparece primeiro, com **Atenção** e "2 ações aguardando envio". (Para não esperar, use dois aparelhos e confira só que a hora não muda.)
+3. O painel só conhece a última contagem enviada pelo aparelho; ações criadas totalmente sem sinal aparecem depois de um informe que alcance o servidor. Em ensaio, mantenha uma ação pendente com resposta 503 por mais de 15 minutos, permitindo os informes de sincronia: o contato continua recente, mas **Atenção** e a hora da ação mais antiga permanecem. A idade pode ser simulada nos testes automatizados.
 4. Tire o modo avião. Em segundos o indicador volta a 🟢; na fila chegam exatamente os dois pedidos, com 10 itens no total, uma vez cada. No painel, o aparelho volta para "Tudo enviado" com a hora nova.
 5. Repita com os **dois celulares em modo avião** lançando na **mesma comanda**. Volte a rede de um, depois do outro. A comanda tem os dois pedidos, nenhum duplicado, e o total soma os dois.
 6. Ligue e desligue o modo avião várias vezes seguidas com um pedido guardado: ele chega uma única vez.
 7. Com um pedido recusado (por exemplo, a comanda encerrada antes da sincronização), o painel mostra "1 recusada: confira no aparelho" com **Atenção**.
+
+## Correções da auditoria geral
+
+1. **QR revogado:** abra uma conta no cliente, gere QR novo na equipe e tente criar pedido, fechar, avisar ou reabrir pelo link antigo. Nenhuma nova ação deve ser gravada; o QR atual funciona. Reenvio de UUID já confirmado mantém um único pedido.
+2. **Navegação:** com rede lenta, abra Clientes/Cardápio e mude rapidamente para Fila/Pagamentos. A resposta atrasada não pode substituir o título ou conteúdo da aba atual. E2E `auditoria-navegacao` controla as quatro corridas.
+3. **Limites:** em cardápio de 31 produtos, selecione 30 e tente o último. A tela informa o limite e continua utilizável. Com 60 unidades, a próxima é recusada. Pedido com produto repetido pela API responde 400 e não altera saldo.
+4. **Aparelho compartilhado:** A preserva ação, sai e B entra no mesmo aparelho. No painel, filas de A e B permanecem separadas; entrar novamente como A recupera suas ações. Sincronizações recentes não escondem uma pendência antiga já informada.
+5. **Outro dia:** em ambiente descartável, preserve check-in e lançamento antes da virada do dia em São Paulo, reabra e sincronize no dia seguinte. Novas ações viram conflito com orientação para conferir a conta; não criam registros do dia novo. UUID confirmado antes da virada deve confirmar o resultado existente, sem duplicar. Atualize o app antes deste ensaio.
+6. **Pedidos não pagos:** ative pagar por pedido, envie coco e pastel e abra Pagamentos → Revisar pedidos não pagos. Os itens aparecem. Cancelar sem motivo mostra erro; cancelar um item com motivo abate o saldo e aparece no cliente. Cancelar o restante remove o pedido da lista e mantém autoria/histórico. O fluxo não devolve pagamentos registrados.
+7. **Cache e toque:** conferir URL com hash de `medicoes.js` nos dois fronts/service workers; a URL simples revalida. Enquanto toca Adicionar, receber atualização da conta não pode perder a seleção. Repetir em Safari e Chrome físicos na entrega final.
+8. **Operação isolada:** executar os testes de imagem/implantação indicados no relatório. Subida saudável persiste digest; falha preserva `.env`; Compose independente usa o novo digest. Ensaio de restauração usa `ARQUIVO.dump --producao`, preserva o banco anterior e retorna a ele se a ativação falhar.
+9. **Concorrência de cadastro:** dois envios simultâneos do mesmo WhatsApp devem manter um lead e atualizar os campos sem erro 500, preservando criação, origem e identificador originais.
 
 ## Limpar tudo
 

@@ -2,7 +2,7 @@
 
 Comanda digital para quiosques e carrinhos de praia. O cliente faz um cadastro rápido no quiosque, recebe um QR pessoal, pede pelo celular e fecha a conta sem chamar garçom. O dono recebe os pedidos numa fila por ordem de chegada.
 
-> **Status:** cliente, equipe, fila, pagamentos, relatórios e modo offline da equipe disponíveis. A revisão 61–110 está na `main`; a revisão 116 (111–115, checkpoint 6.3 e banco V20) aguarda aprovação. Publicação e serviços externos (S3, monitores, SMTP) ainda pendentes. Estado atual: [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md).
+> **Status:** cliente, equipe, fila, pagamentos, relatórios e modo offline da equipe disponíveis. As revisões 61–116 estão na `main`; as [correções da auditoria geral](docs/relatorios/correcoes-auditoria-geral.md), com banco V21, aguardam aprovação. Publicação e serviços externos (S3, monitores, SMTP) ainda pendentes. Estado atual: [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md).
 
 ## Stack
 

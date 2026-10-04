@@ -2,11 +2,11 @@
 
 A execução final do piloto está organizada em [preparação operacional](preparacao-piloto.md), com responsáveis, evidências, treinamento e exemplos fictícios explicitamente identificados. SMTP, suporte real, implantação e monitores reais foram adiados por orientação do usuário na revisão 111–115; os procedimentos abaixo continuam necessários antes da produção.
 
-Esta revisão prepara arquivos e procedimentos; não altera a VPS, SSH, firewall, DNS ou Cloudflare. Use uma janela de manutenção e um backup validado para mudar permissões ou esquema. Requisitos no host: Docker Compose, Bash, `flock`, Python 3, `sha256sum`, `timeout`, curl e Restic. Segredos e dumps ficam com permissões restritas, fora do Git.
+Esta revisão prepara arquivos e procedimentos; não altera a VPS, SSH, firewall, DNS ou Cloudflare. Use uma janela de manutenção e um backup validado para mudar permissões ou esquema. Requisitos no host: Docker Compose, Bash, `flock`, Python 3, `realpath`, `sha256sum`, `timeout`, curl e Restic. Segredos e dumps ficam com permissões restritas, fora do Git.
 
 ## Configuração e imagem validada
 
-Copie `deploy/docker-compose.prod.yml`, `deploy/prod.env.example`, `deploy/db`, `deploy/backup`, `deploy/lgpd`, `deploy/monitorar.py`, `deploy/implantar.sh` e `deploy/compatibilidade.json` para `/opt/mesamar`, preservando os caminhos. Renomeie o exemplo para `.env`, preencha e aplique `chmod 600 .env`. Configure `NGINX_NETWORK` para a rede existente do proxy. O banco não publica uma porta externa.
+Copie `deploy/docker-compose.prod.yml`, `deploy/prod.env.example`, `deploy/db`, `deploy/backup`, `deploy/lgpd`, `deploy/monitorar.py`, `deploy/implantar.sh`, `deploy/atualizar-imagem.py` e `deploy/compatibilidade.json` para `/opt/mesamar`, preservando os caminhos. Renomeie o exemplo para `.env`, preencha e aplique `chmod 600 .env`. Configure `NGINX_NETWORK` para a rede existente do proxy. O banco não publica uma porta externa.
 
 Preencha `MESAMAR_IMAGE` com o endereço completo `ghcr.io/<organização>/<imagem>@sha256:<digest>` do artefato `versao-validada.json` da CI. Não use `latest`. A CI constrói uma vez, testa essa imagem e publica o mesmo ID. `/actuator/info` registra o commit; guarde o artefato com cada implantação.
 
@@ -31,7 +31,9 @@ export MESAMAR_ENV_FILE=/opt/mesamar/.env
 bash /opt/mesamar/implantar.sh 'ghcr.io/<organização>/<imagem>@sha256:<digest>'
 ```
 
-O script lê da imagem seu manifesto de compatibilidade, recusa esquema de origem incompatível, executa migração, para o app antes da migração, confere o destino e sobe com `--wait`. Para esta publicação: origem mínima 17 (ou banco vazio), destino 20, aplicação compatível apenas com esquema 20. A V20 só cria a tabela `sincronizacao_aparelho` (ADR 0021); faça o backup validado antes, como em qualquer migração. Primeiro atualize volumes mais antigos com uma versão intermediária validada. Testes automatizados também ensaiam V17 → V20 com contas, pedidos e pagamentos existentes.
+O script lê da imagem seu manifesto de compatibilidade, recusa esquema de origem incompatível, executa migração, para o app antes da migração, confere o destino e sobe com `--wait`. Para esta publicação: origem mínima 17 (ou banco vazio), destino 21, aplicação compatível apenas com esquema 21. A V21 preserva os informes existentes e separa pendências por autor, com a idade da ação mais antiga ([ADR 0022](adr/0022-correcoes-auditoria-geral.md)); faça o backup validado antes. Primeiro atualize volumes mais antigos com uma versão intermediária validada. Testes automatizados ensaiam V17 → V20 → V21 com contas, pedidos, pagamentos e pendências existentes.
+
+Depois de a aplicação ficar saudável, o script persiste o digest no `MESAMAR_ENV_FILE` (ou `.env` do diretório atual), por troca atômica com modo 600. Falhas de migração, compatibilidade ou subida preservam o arquivo original. Antes de um Compose independente ou restauração, execute `unset MESAMAR_IMAGE` para evitar um override antigo do shell. Use o mesmo arquivo de ambiente em todas as rotinas, inclusive rollback. Se o host cair entre saúde e persistência, confira o digest do container e a `.env` antes de retomar.
 
 Cada nova migração exige atualizar o manifesto e testar a versão anterior contra o esquema resultante. A reversão usa o digest anterior somente se seu manifesto aceitar o esquema atual. Caso contrário, mantenha manutenção e restaure o backup anterior com a imagem correspondente. Reverter imagem por si só não desfaz migrações. Não execute migrações irreversíveis sem ensaio de recuperação e avaliação da perda de gravações posteriores.
 
@@ -65,7 +67,7 @@ Configure logrotate diário: logs da operação por 14 dias, modo 600, compress�
 ```bash
 bash /opt/mesamar/backup/testar-restauracao.sh /opt/mesamar/backups/<arquivo>.dump
 bash /opt/mesamar/backup/recuperar-externo.sh latest
-bash /opt/mesamar/backup/restaurar.sh --producao /caminho/recuperado/<arquivo>.dump
+bash /opt/mesamar/backup/restaurar.sh /caminho/recuperado/<arquivo>.dump --producao
 ```
 
 A primeira rotina mede duração e registra `ultimo-ensaio.json`. A externa baixa snapshot cifrado com verificação, une exclusões LGPD e ensaia a restauração. Em perda total, primeiro reponha host, segredos e volume PostgreSQL; selecione a imagem compatível com o backup. O RTO de 2 horas inclui essa preparação, download, restauração, exclusões, migrações, subida e verificações de negócio. O tempo local não comprova esse prazo na rede/bucket reais.
