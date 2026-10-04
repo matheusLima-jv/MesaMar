@@ -20,6 +20,7 @@ data class EstadoAparelho(
     val aparelhoId: UUID,
     val pendentes: Int,
     val conflitos: Int,
+    val pendenteDesde: Instant? = null,
 )
 
 /** Uma linha da lista que o dono vê. */
@@ -31,6 +32,7 @@ data class AparelhoView(
     val conflitos: Int,
     /** Tem ação recusada, ou ação parada no aparelho há mais que [SincroniaAparelho.ATRASO]: o dono precisa ir atrás desse celular. */
     val atencao: Boolean,
+    val pendenteDesde: Instant?,
 )
 
 enum class TipoAparelho(
@@ -75,14 +77,18 @@ class SincroniaAparelho(
     ) {
         require((autor.usuarioId == null) != (autor.atendenteId == null))
         require(estado.pendentes in 0..MAX_ACOES && estado.conflitos in 0..MAX_ACOES)
+        val agora = Instant.now(clock)
+        val informado = estado.pendenteDesde?.coerceAtMost(agora)
+        val desde = if (estado.pendentes > 0) informado ?: agora else null
         jdbc.update(
             """INSERT INTO sincronizacao_aparelho
-                (barraca_id, aparelho_id, usuario_id, atendente_id, tipo_aparelho, pendentes, conflitos, sincronizado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (barraca_id, aparelho_id) DO UPDATE SET
-                    usuario_id = EXCLUDED.usuario_id, atendente_id = EXCLUDED.atendente_id,
+                (barraca_id, aparelho_id, usuario_id, atendente_id, tipo_aparelho, pendentes, conflitos, sincronizado_em, pendente_desde)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (barraca_id, aparelho_id, autor_id) DO UPDATE SET
                     tipo_aparelho = EXCLUDED.tipo_aparelho, pendentes = EXCLUDED.pendentes,
-                    conflitos = EXCLUDED.conflitos, sincronizado_em = EXCLUDED.sincronizado_em""",
+                    conflitos = EXCLUDED.conflitos, sincronizado_em = EXCLUDED.sincronizado_em,
+                    pendente_desde = CASE WHEN EXCLUDED.pendentes = 0 THEN NULL
+                        ELSE coalesce(?, sincronizacao_aparelho.pendente_desde, EXCLUDED.pendente_desde) END""",
             barracaId,
             estado.aparelhoId,
             autor.usuarioId,
@@ -90,7 +96,9 @@ class SincroniaAparelho(
             tipo.name,
             estado.pendentes,
             estado.conflitos,
-            Timestamp.from(Instant.now(clock)),
+            Timestamp.from(agora),
+            desde?.let(Timestamp::from),
+            informado?.let(Timestamp::from),
         )
     }
 
@@ -100,27 +108,30 @@ class SincroniaAparelho(
         val agora = Instant.now(clock)
         return jdbc
             .query(
-                """SELECT coalesce(a.nome, u.nome) AS quem, s.tipo_aparelho, s.sincronizado_em, s.pendentes, s.conflitos
+                """SELECT coalesce(a.nome, u.nome) AS quem, s.tipo_aparelho, s.sincronizado_em, s.pendentes, s.conflitos, s.pendente_desde
                     FROM sincronizacao_aparelho s
                     LEFT JOIN atendente a ON a.id = s.atendente_id AND a.barraca_id = s.barraca_id
                     LEFT JOIN usuario u ON u.id = s.usuario_id AND u.barraca_id = s.barraca_id
                     WHERE s.barraca_id = ?
-                    ORDER BY s.sincronizado_em
+                    ORDER BY (s.conflitos > 0 OR (s.pendente_desde IS NOT NULL AND s.pendente_desde < ?)) DESC, s.sincronizado_em
                     LIMIT ?""",
                 { rs, _ ->
                     val em = rs.getTimestamp("sincronizado_em").toInstant()
                     val pendentes = rs.getInt("pendentes")
                     val conflitos = rs.getInt("conflitos")
+                    val desde = rs.getTimestamp("pendente_desde")?.toInstant()
                     AparelhoView(
                         quem = rs.getString("quem") ?: "Equipe",
                         tipo = TipoAparelho.valueOf(rs.getString("tipo_aparelho")).rotulo,
                         sincronizadoEm = em,
                         pendentes = pendentes,
                         conflitos = conflitos,
-                        atencao = conflitos > 0 || (pendentes > 0 && Duration.between(em, agora) > ATRASO),
+                        atencao = conflitos > 0 || (desde != null && Duration.between(desde, agora) > ATRASO),
+                        pendenteDesde = desde,
                     )
                 },
                 barracaId,
+                Timestamp.from(agora.minus(ATRASO)),
                 MAX_LISTA,
             ).sortedWith(compareByDescending<AparelhoView> { it.atencao }.thenBy { it.sincronizadoEm })
     }

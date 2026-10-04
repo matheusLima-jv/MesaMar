@@ -10,9 +10,11 @@ import { defineConfig, type Plugin } from 'vite'
  * Este arquivo fica fora do `tsc` (é lido pelo Vite, que roda no Node).
  */
 function versaoDoServiceWorker (prefixo: string, base: string, pastas: string[]): Plugin {
+  const medicao = `/js/medicoes-${createHash('md5').update(readFileSync('../backend/src/main/resources/static/js/medicoes.js')).digest('hex')}.js`
   return {
     name: 'mesamar-versao-do-sw',
     apply: 'build',
+    transformIndexHtml: html => html.replaceAll('/js/medicoes.js', medicao),
     writeBundle () {
       const dist = 'dist'
       const arquivos = pastas
@@ -24,7 +26,7 @@ function versaoDoServiceWorker (prefixo: string, base: string, pastas: string[])
         .digest('hex')
         .slice(0, 12)
       const caminho = join(dist, 'sw.js')
-      const fonte = readFileSync(caminho, 'utf8')
+      const fonte = readFileSync(caminho, 'utf8').replaceAll('/js/medicoes.js', medicao)
       const marcaVersao = `'${prefixo}dev'`
       const marcaArquivos = '/* ARQUIVOS */ []'
       if (!fonte.includes(marcaVersao) || !fonte.includes(marcaArquivos)) throw new Error('sw.js sem as marcas de versão e de arquivos')

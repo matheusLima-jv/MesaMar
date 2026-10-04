@@ -5,6 +5,7 @@ import br.com.mesamar.cliente.ItemPedidoView
 import br.com.mesamar.cliente.PedidoView
 import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.common.Restricoes
+import br.com.mesamar.pedido.FilaService
 import br.com.mesamar.pedido.LancadoPor
 import br.com.mesamar.pedido.PedidoRequest
 import br.com.mesamar.pedido.PedidoService
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -32,7 +34,19 @@ import java.util.UUID
 class StaffPedidosController(
     private val pedidos: PedidoService,
     private val comandas: ComandaRepository,
+    private val fila: FilaService,
 ) {
+    @GetMapping("/comandas/{id}/pedidos-aguardando")
+    fun aguardando(
+        @AuthenticationPrincipal principal: StaffPrincipal,
+        @PathVariable id: UUID,
+    ): ResponseEntity<Any> {
+        val lista =
+            fila.aguardando(principal.barracaId, id)
+                ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErroView("comanda", "Não achamos essa comanda."))
+        return ResponseEntity.ok(lista.map(PedidoFilaView::of))
+    }
+
     @PostMapping("/comandas/{id}/pedidos")
     fun lancar(
         @AuthenticationPrincipal principal: StaffPrincipal,

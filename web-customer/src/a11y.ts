@@ -10,6 +10,30 @@ interface FocoGuardado {
   fim: number | null
 }
 
+interface Interacao { ponteiros: Set<number>, redesenhar?: () => void }
+const interacoes = new WeakMap<HTMLElement, Interacao>()
+
+/** Mantém o alvo do toque até o click. Trocar o DOM entre pointerdown e pointerup perde a ação. */
+export function acompanharInteracao (root: HTMLElement, signal: AbortSignal): void {
+  const estado: Interacao = { ponteiros: new Set() }
+  interacoes.set(root, estado)
+  root.addEventListener('pointerdown', ev => { estado.ponteiros.add(ev.pointerId) }, { capture: true, signal })
+  const soltar = (ev: PointerEvent): void => {
+    estado.ponteiros.delete(ev.pointerId)
+    if (estado.ponteiros.size > 0 || estado.redesenhar === undefined) return
+    // O click acontece depois de pointerup; reconstruir usando o carrinho já atualizado.
+    window.setTimeout(() => {
+      if (signal.aborted || estado.ponteiros.size > 0) return
+      const redesenhar = estado.redesenhar
+      estado.redesenhar = undefined
+      redesenhar?.()
+    }, 0)
+  }
+  document.addEventListener('pointerup', soltar, { capture: true, signal })
+  document.addEventListener('pointercancel', soltar, { capture: true, signal })
+  signal.addEventListener('abort', () => { estado.redesenhar = undefined; interacoes.delete(root) }, { once: true })
+}
+
 function guardarFoco (el: HTMLElement): FocoGuardado {
   const campo = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el : null
   return {
@@ -43,6 +67,11 @@ export function controleEmUso (root: HTMLElement): boolean {
  * ou está digitando não perde o lugar. Se a pessoa está num campo de texto, a atualização espera ela sair dele.
  */
 export function mountPreservando (root: HTMLElement, redesenhar: () => void, ...nodes: Node[]): void {
+  const interacao = interacoes.get(root)
+  if (interacao !== undefined && interacao.ponteiros.size > 0) {
+    interacao.redesenhar = redesenhar
+    return
+  }
   if (controleEmUso(root)) {
     root.addEventListener('focusout', () => { window.setTimeout(redesenhar, 0) }, { once: true })
     return

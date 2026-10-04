@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.time.Instant
 import java.util.UUID
 
 data class SincronizacaoRequest(
@@ -21,6 +22,8 @@ data class SincronizacaoRequest(
     val pendentes: Int? = null,
     /** Ações recusadas pelo servidor, esperando alguém conferir no aparelho. */
     val conflitos: Int? = null,
+    /** Quando nasceu a ação pendente mais antiga; o heartbeat não redefine sua idade. */
+    val pendenteDesde: Instant? = null,
 )
 
 /** O app conta, a cada rodada de sincronia, quantas ações ainda estão no aparelho. Barraca e autor vêm da sessão. */
@@ -45,7 +48,7 @@ class StaffSincroniaController(
         sincronia.registrar(
             principal.barracaId,
             AutorAparelho(principal.usuarioId, principal.atendenteId),
-            EstadoAparelho(aparelho, pendentes, conflitos),
+            EstadoAparelho(aparelho, pendentes, conflitos, body.pendenteDesde),
             TipoAparelho.de(userAgent),
         )
         return ResponseEntity.noContent().build()

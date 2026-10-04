@@ -45,6 +45,7 @@ data class AparelhoLinha(
     val pendentes: Int,
     val conflitos: Int,
     val atencao: Boolean,
+    val pendenteDesde: String?,
 ) {
     val situacao: String
         get() =
@@ -169,7 +170,15 @@ class EquipeController(
         model.addAttribute(
             "aparelhos",
             sincronia.listar(barraca.id).map {
-                AparelhoLinha(it.quem, it.tipo, DIA_HORA.format(it.sincronizadoEm), it.pendentes, it.conflitos, it.atencao)
+                AparelhoLinha(
+                    it.quem,
+                    it.tipo,
+                    DIA_HORA.format(it.sincronizadoEm),
+                    it.pendentes,
+                    it.conflitos,
+                    it.atencao,
+                    it.pendenteDesde?.let(DIA_HORA::format),
+                )
             },
         )
         return "painel/equipe"

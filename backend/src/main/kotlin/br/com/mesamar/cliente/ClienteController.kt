@@ -296,7 +296,7 @@ class ClienteController(
             val mensagem = "Forma de pagamento desconhecida."
             return ResponseEntity.badRequest().body(ErroValidacaoView("validacao", mensagem, mapOf("metodo" to mensagem)))
         }
-        return respostaConta(conta.fechar(comanda, metodo, body.trocoParaCentavos))
+        return respostaConta(conta.fechar(comanda, metodo, body.trocoParaCentavos, token))
     }
 
     /** Pix: "já paguei". Avisa o quiosque para conferir no app do banco. */
@@ -307,7 +307,7 @@ class ClienteController(
     ): ResponseEntity<Any> {
         val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-conta:${comanda.id}", LIMITE_CONTA, JANELA_COMANDA)) return muitas()
-        return respostaConta(conta.jaPaguei(comanda))
+        return respostaConta(conta.jaPaguei(comanda, token))
     }
 
     /** "Voltar e pedir mais": desiste do fechamento, desde que nenhum pagamento tenha sido confirmado. */
@@ -318,7 +318,7 @@ class ClienteController(
     ): ResponseEntity<Any> {
         val comanda = comandaVigente(token) ?: return recusado(request)
         if (!rateLimiter.tryAcquire("c-conta:${comanda.id}", LIMITE_CONTA, JANELA_COMANDA)) return muitas()
-        return respostaConta(conta.reabrir(comanda))
+        return respostaConta(conta.reabrir(comanda, token))
     }
 
     private fun respostaConta(r: ResultadoConta): ResponseEntity<Any> =
@@ -329,7 +329,17 @@ class ClienteController(
             }
             is ResultadoConta.Invalido ->
                 ResponseEntity.badRequest().body(ErroValidacaoView("validacao", r.mensagem, mapOf(r.campo to r.mensagem)))
-            is ResultadoConta.Recusado -> ResponseEntity.status(HttpStatus.CONFLICT).body(ErroView(r.codigo, r.mensagem))
+            is ResultadoConta.Recusado ->
+                ResponseEntity
+                    .status(
+                        if (r.codigo ==
+                            "link-revogado"
+                        ) {
+                            HttpStatus.NOT_FOUND
+                        } else {
+                            HttpStatus.CONFLICT
+                        },
+                    ).body(ErroView(r.codigo, r.mensagem))
         }
 
     /** "Reportar problema": o texto e o contexto (tela, conexão). A barraca e a comanda vêm do token. */
@@ -360,7 +370,7 @@ class ClienteController(
         if (!rateLimiter.tryAcquire("c-pedido:${comanda.id}", LIMITE_PEDIDOS, JANELA_COMANDA)) return muitas()
         val resultado =
             try {
-                pedidos.criar(comanda, body)
+                pedidos.criar(comanda, body, tokenCliente = token)
             } catch (e: DataIntegrityViolationException) {
                 if (!br.com.mesamar.common.Restricoes
                         .unica(e, "pedido_pkey")
@@ -369,7 +379,7 @@ class ClienteController(
                 }
                 // Dois envios do mesmo pedido ao mesmo tempo: o segundo encontra o primeiro.
                 if (body.id == null) throw e
-                pedidos.criar(comanda, body)
+                pedidos.criar(comanda, body, tokenCliente = token)
             }
         return when (resultado) {
             is ResultadoPedido.Ok ->
@@ -377,7 +387,9 @@ class ClienteController(
             is ResultadoPedido.Invalido ->
                 ResponseEntity.badRequest().body(ErroValidacaoView("validacao", resultado.mensagem, resultado.campos))
             is ResultadoPedido.Bloqueado ->
-                ResponseEntity.status(HttpStatus.CONFLICT).body(ErroView(resultado.bloqueio.codigo, resultado.bloqueio.mensagem))
+                ResponseEntity
+                    .status(if (resultado.bloqueio.codigo == "link-revogado") HttpStatus.NOT_FOUND else HttpStatus.CONFLICT)
+                    .body(ErroView(resultado.bloqueio.codigo, resultado.bloqueio.mensagem))
             is ResultadoPedido.PrecoMudou ->
                 ResponseEntity
                     .status(HttpStatus.CONFLICT)

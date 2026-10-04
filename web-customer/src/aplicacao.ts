@@ -5,7 +5,7 @@ import {
   type Comanda, type Produto
 } from './api'
 import { Carrinho, pendente } from './carrinho'
-import { mountPreservando } from './a11y'
+import { acompanharInteracao, mountPreservando } from './a11y'
 import { esquecerComanda, limparComandasAntigas, marcarVisto } from './armazenamento'
 import { h, lembrar, mount } from './dom'
 import { telaCardapio } from './views/cardapio'
@@ -251,7 +251,7 @@ export function criarAplicacao (root: HTMLElement) {
       const dados = await comanda(estado.token)
       if (!estado.ativo || atual !== estado.geracao) return
       usar(dados)
-      if (redesenhar) desenhar()
+      if (redesenhar) desenhar(false)
     } catch { /* sem sinal: segue com o que a página já tem */ }
   }
 
@@ -269,6 +269,7 @@ export function criarAplicacao (root: HTMLElement) {
   async function iniciar (): Promise<void> {
     cancelamento.abort()
     cancelamento = new AbortController()
+    acompanharInteracao(root, cancelamento.signal)
     estado.ativo = true
     estado.enviando = false
     estado.geracao++

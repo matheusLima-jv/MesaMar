@@ -4,7 +4,7 @@ import './install'
 import { ApiError, descartarConflito, encerrarSessaoLocal, estadoSincronia, eventos, prepararOffline, restaurarSessaoOffline, sessao, suspenderOffline, type Sessao } from './api'
 import { anunciar } from './a11y'
 import { avisosFixos, dispensarAviso, limparAvisos, observarAvisos } from './avisos-store'
-import { fecharSobreposicoes, h, mount } from './dom'
+import { abrirTela, fecharSobreposicoes, h, mount } from './dom'
 import { abaCardapio } from './views/cardapio'
 import { abaClientes } from './views/clientes'
 import { iniciarFila, observar, pararFila, pendentes } from './fila-store'
@@ -116,6 +116,7 @@ function app (s: Sessao): void {
     // Diálogos da aba anterior (receber, cancelar, pausar) não ficam por cima da aba nova
     fecharSobreposicoes()
     document.title = `${ABAS.find((a) => a.id === aba)?.rotulo ?? 'App'} · MesaMar`
+    abrirTela(conteudo)
     switch (aba) {
       case 'clientes': abaClientes(conteudo, s); break
       case 'fila': abaFila(conteudo); break

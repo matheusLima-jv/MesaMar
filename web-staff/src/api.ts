@@ -302,11 +302,13 @@ function idDoAparelho (): string {
 async function informarSincronia (ops: Operacao[], enviou: boolean): Promise<void> {
   const pendentes = ops.filter(o => o.estado === 'pendente').length
   const conflitos = ops.length - pendentes
-  const chave = `${contexto}:${pendentes}:${conflitos}`
+  const maisAntiga = ops.filter(o => o.estado === 'pendente').reduce<number | undefined>((em, o) => em === undefined ? o.criadaEm : Math.min(em, o.criadaEm), undefined)
+  const pendenteDesde = maisAntiga === undefined ? null : new Date(maisAntiga).toISOString()
+  const chave = `${contexto}:${pendentes}:${conflitos}:${pendenteDesde ?? ''}`
   // Sem envio e sem mudança, um informe por minuto basta: a hora mostrada ao dono não precisa de precisão de segundos.
   if (!enviou && chave === ultimoInforme.chave && Date.now() - ultimoInforme.em < 60_000) return
   try {
-    await chamarRede<undefined>('POST', '/sincronizacao', { aparelhoId: idDoAparelho(), pendentes, conflitos })
+    await chamarRede<undefined>('POST', '/sincronizacao', { aparelhoId: idDoAparelho(), pendentes, conflitos, pendenteDesde })
     ultimoInforme = { chave, em: Date.now() }
   } catch { /* o informe é só para o dono acompanhar; a fila continua igual */ }
 }
@@ -381,7 +383,7 @@ async function exclusaoMutua<T> (executar: () => Promise<T>): Promise<T> {
 }
 async function enviarOperacao (op: Operacao): Promise<unknown> {
   const path = op.tipo === 'checkin' ? '/clientes' : `/comandas/${op.comandaId ?? ''}/pedidos`
-  const resultado = await chamarRede<unknown>('POST', path, op.dados)
+  const resultado = await chamarRede<unknown>('POST', path, { ...(op.dados as Record<string, unknown>), criadoNoAparelhoEm: new Date(op.criadaEm).toISOString() })
   // Guarda confirmação no contexto do autor, nunca no contexto que eventualmente abriu depois.
   await guardarCache(op.contexto, `confirmacao:${op.id}`, resultado)
   if (op.tipo === 'checkin') {
@@ -550,6 +552,11 @@ export async function lancarPedido (comandaId: string, pedido: { id: string, ite
 /** A fila: pedidos pendentes, o mais antigo primeiro. */
 export async function fila (): Promise<Fila> {
   return await chamar<Fila>('GET', '/fila')
+}
+
+/** Pedidos ainda não pagos desta conta, separados da fila de preparo. */
+export async function pedidosAguardando (comandaId: string): Promise<PedidoFila[]> {
+  return await chamar<PedidoFila[]>('GET', `/comandas/${comandaId}/pedidos-aguardando`)
 }
 
 /** "Em preparo" ou "Entregue". Repetir a mesma ação não faz mal. */
