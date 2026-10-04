@@ -23,7 +23,8 @@ O escopo completo (problema, personas, domínio, fases e portões) está em [`do
 
 - **Na `main`:** Fases 0 a 5 e 7, Fase 6.1 (PR #7), revisão 61–110 com a fila offline 6.2 (PR #8) e revisão 111–116 com o checkpoint 6.3 e banco V20 (PR #22).
 - **Branch `correcoes-auditoria-geral`, aguardando aprovação:** [correções da auditoria geral](docs/relatorios/correcoes-auditoria-geral.md): dez bugs corrigidos, recusa de novas ações offline de outro dia e revisão/cancelamento de pedidos ainda não pagos. Banco passa para **V21**, com filas separadas por autor e idade da ação mais antiga. Decisões: [ADR 0022](docs/adr/0022-correcoes-auditoria-geral.md).
-- **Próximo passo:** aprovação do Matheus para o PR da `correcoes-auditoria-geral`; depois, preparação do piloto ([lista de execução](docs/preparacao-piloto.md)).
+- **Branch `correcoes-revisao-externa`, a partir da anterior:** [correções da revisão externa](docs/relatorios/correcoes-revisao-externa.md): perfil `prod` deixa de exigir V19 fixo (o app não iniciaria), troca de PIN não desfaz desativação, pagamento incerto não é esquecido em sessão vencida/limite e celular com relógio errado volta a lançar ([ADR 0023](docs/adr/0023-idade-da-acao-no-aparelho.md)). Três achados P3 registrados para depois.
+- **Próximo passo:** aprovação do Matheus para o PR #27 (`correcoes-auditoria-geral`) e para a `correcoes-revisao-externa`; depois, preparação do piloto ([lista de execução](docs/preparacao-piloto.md)).
 
 | Área | Disponível |
 |---|---|
