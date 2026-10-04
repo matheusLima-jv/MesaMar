@@ -137,6 +137,12 @@ class StaffPagamentosController(
         return responder(r)
     }
 
+    @PostMapping("/comandas/{id}/continuar")
+    fun continuar(
+        @AuthenticationPrincipal principal: StaffPrincipal,
+        @PathVariable id: UUID,
+    ): ResponseEntity<Any> = responder(pagamentos.continuar(principal.barracaId, id))
+
     @PostMapping("/comandas/{id}/bloquear")
     fun bloquear(
         @AuthenticationPrincipal principal: StaffPrincipal,

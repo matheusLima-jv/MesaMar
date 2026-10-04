@@ -1,9 +1,9 @@
 import { definirContextoPendencias } from './pendencias'
-import { drenar, guardarCache, lerCache, listarOperacoes, mudancasOffline, preservar, removerOperacao, tokenLocal, type Operacao } from './fila-offline'
+import { drenar, esperaSincronia, guardarCache, lerCache, listarOperacoes, mudancasOffline, preservar, removerOperacao, tokenLocal, type Operacao } from './fila-offline'
 import { comandaRegra, sessaoRegra } from './contratos'
 import { conferir, lerJson, novoCliente as novoClienteRegra } from '../../web-shared/src/validacao'
 import { contrato } from './contratos'
-import { registro, texto, inteiro } from '../../web-shared/src/validacao'
+import { registro, texto, inteiro, uuid } from '../../web-shared/src/validacao'
 export { novoId, reais, lerReais } from '../../web-shared/src/valores'
 // Cliente da API do quiosque (/api/staff). Sessão por cookie; POSTs levam o token CSRF.
 
@@ -281,6 +281,35 @@ async function chamarRede<T> (method: 'GET' | 'POST', path: string, body?: unkno
 let contexto = ''
 let sincronizando = false
 let pararSincronia: (() => void) | null = null
+let ultimoInforme = { chave: '', em: 0 }
+let aparelhoVolatil: string | undefined
+
+/** Identificador deste aparelho, criado uma vez. Só serve para o dono distinguir os celulares da equipe. */
+function idDoAparelho (): string {
+  try {
+    const salvo = localStorage.getItem('mesamar.equipe.aparelho')
+    if (salvo !== null && uuid(salvo)) return salvo
+    const novo = crypto.randomUUID()
+    localStorage.setItem('mesamar.equipe.aparelho', novo)
+    return novo
+  } catch {
+    aparelhoVolatil ??= crypto.randomUUID()
+    return aparelhoVolatil
+  }
+}
+
+/** Conta ao servidor quantas ações ainda estão neste aparelho, para o dono ver a última sincronização (Fase 6.3). */
+async function informarSincronia (ops: Operacao[], enviou: boolean): Promise<void> {
+  const pendentes = ops.filter(o => o.estado === 'pendente').length
+  const conflitos = ops.length - pendentes
+  const chave = `${contexto}:${pendentes}:${conflitos}`
+  // Sem envio e sem mudança, um informe por minuto basta: a hora mostrada ao dono não precisa de precisão de segundos.
+  if (!enviou && chave === ultimoInforme.chave && Date.now() - ultimoInforme.em < 60_000) return
+  try {
+    await chamarRede<undefined>('POST', '/sincronizacao', { aparelhoId: idDoAparelho(), pendentes, conflitos })
+    ultimoInforme = { chave, em: Date.now() }
+  } catch { /* o informe é só para o dono acompanhar; a fila continua igual */ }
+}
 const SAIDA = 'mesamar.equipe.saida-pendente'
 function lerSaida (): boolean { try { return localStorage.getItem(SAIDA) === '1' } catch { return false } }
 async function confirmarSaida (): Promise<void> {
@@ -316,10 +345,18 @@ export function prepararOffline (s: Sessao): void {
   definirContextoPendencias(contexto)
   if (contexto === '') { try { localStorage.removeItem('mesamar.equipe.sessao') } catch { /* sem armazenamento */ }; return }
   try { if (s.csrf !== '' && navigator.onLine !== false) localStorage.setItem('mesamar.equipe.sessao', JSON.stringify({ versao: 1, em: Date.now(), dados: { ...s, csrf: '' } })) } catch { /* sem persistência: não permite reabertura offline */ }
-  const tentar = (): void => { void sincronizar().catch(() => undefined) }
-  window.addEventListener('online', tentar)
-  const timer = window.setInterval(tentar, 15_000)
-  pararSincronia = () => { window.clearInterval(timer); window.removeEventListener('online', tentar) }
+  // Reenvio com espera crescente enquanto restarem pendências sem confirmação; o sinal voltando recomeça do zero.
+  let falhas = 0
+  let timer = 0
+  let parado = false
+  const agendar = (): void => { if (!parado) { window.clearTimeout(timer); timer = window.setTimeout(tentar, esperaSincronia(falhas)) } }
+  const tentar = (): void => {
+    window.clearTimeout(timer)
+    void sincronizar().then(restam => { falhas = restam ? falhas + 1 : 0 }, () => { falhas += 1 }).finally(agendar)
+  }
+  const voltou = (): void => { falhas = 0; tentar() }
+  window.addEventListener('online', voltou)
+  pararSincronia = () => { parado = true; window.clearTimeout(timer); window.removeEventListener('online', voltou) }
   tentar()
 }
 /** Suspender a página não revoga a sessão nem apaga a última confirmação online. */
@@ -355,19 +392,27 @@ async function enviarOperacao (op: Operacao): Promise<unknown> {
   mudancasOffline.dispatchEvent(new CustomEvent('confirmada', { detail: { contexto: op.contexto, id: op.id, tipo: op.tipo, comandaId: op.comandaId } }))
   return resultado
 }
-export async function sincronizar (): Promise<void> {
-  if (sincronizando || contexto === '' || navigator.onLine === false) return
+/** Envia as pendências em ordem. Devolve `true` se alguma continua aguardando envio (para espaçar a próxima tentativa). */
+export async function sincronizar (): Promise<boolean> {
+  if (contexto === '') return false
+  if (sincronizando || navigator.onLine === false) return true
   sincronizando = true
   const ctx = contexto
   const sinal = sessaoLocal.signal
   try {
+    let falouComServidor = false
+    let enviou = false
     await exclusaoMutua(async () => {
       const s = await chamarRede<Sessao>('GET', '/sessao')
       const atual = s.logado && s.usuario !== undefined && s.barraca !== undefined ? `${s.barraca.codigo}:${s.usuario.id}` : ''
       if (sinal.aborted || ctx !== contexto) return
       if (atual !== ctx) { eventos.dispatchEvent(new Event('sessao-expirada')); return }
-      await drenar(ctx, async op => { await enviarOperacao(op) }, () => !sinal.aborted && ctx === contexto)
+      await drenar(ctx, async op => { await enviarOperacao(op); enviou = true }, () => !sinal.aborted && ctx === contexto)
+      falouComServidor = true
     })
+    const ops = await listarOperacoes(ctx)
+    if (falouComServidor && !sinal.aborted && ctx === contexto) await informarSincronia(ops, enviou)
+    return ops.some(o => o.estado === 'pendente')
   } finally { sincronizando = false; mudancasOffline.dispatchEvent(new Event('mudou')) }
 }
 export async function estadoSincronia (): Promise<{ sincronizando: boolean, operacoes: Operacao[] }> { return { sincronizando, operacoes: contexto === '' ? [] : await listarOperacoes(contexto) } }
@@ -491,6 +536,7 @@ export interface PedidoLancado {
   status: StatusPedido
   hora: string
   totalCentavos: number
+  excecoes?: string[]
 }
 
 /**
@@ -554,6 +600,10 @@ export async function receberPagamento (
   pagamento: { id: string, metodo: Metodo, valorCentavos: number, valorRecebidoCentavos: number | null }
 ): Promise<Confirmacao> {
   return await chamar<Confirmacao>('POST', `/comandas/${comandaId}/pagamentos`, pagamento)
+}
+
+export async function continuarComanda (comandaId: string): Promise<ContaAPagar> {
+  return await chamar<ContaAPagar>('POST', `/comandas/${comandaId}/continuar`)
 }
 
 export async function bloquearComanda (comandaId: string): Promise<ContaAPagar> {

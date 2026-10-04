@@ -2,7 +2,7 @@
 
 Comanda digital para quiosques e carrinhos de praia. O cliente faz um cadastro rápido no quiosque, recebe um QR pessoal, pede pelo celular e fecha a conta sem chamar garçom. O dono recebe os pedidos numa fila por ordem de chegada.
 
-> **Status:** cliente, equipe, fila, pagamentos, relatórios e fila offline de check-ins/pedidos disponíveis. Alterações 61–110 neste checkout, com [checkpoint de retomada](docs/relatorios/revisao-81-110.md); validação final, publicação e configuração do provedor externo ainda pendentes. Estado atual: [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md).
+> **Status:** cliente, equipe, fila, pagamentos, relatórios e modo offline da equipe disponíveis. A revisão 61–110 está na `main`; a revisão 116 (111–115, checkpoint 6.3 e banco V20) aguarda aprovação. Publicação e serviços externos (S3, monitores, SMTP) ainda pendentes. Estado atual: [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md).
 
 ## Stack
 
@@ -119,4 +119,4 @@ Para ver o botão de WhatsApp da landing localmente, crie um `.env` com `MESAMAR
 
 A cada PR, a CI executa análise estática, testes unitários e integração com PostgreSQL, constrói a imagem uma vez e executa smoke, E2E e recuperação contra essa imagem. A publicação em `main` reutiliza a imagem aprovada e registra commit, ID e digest em `versao-validada.json`. O deploy usa esse digest e confere a faixa de esquema permitida. Dependências e segredos têm checagem semanal; Actions, bases Docker e Wrapper possuem referências verificáveis.
 
-O deploy permanece manual. Procedimentos, metas de recuperação, alertas e configuração S3 estão em [`docs/deploy.md`](docs/deploy.md). Resultados e verificações externas pendentes estão em [`docs/relatorios/revisao-81-110.md`](docs/relatorios/revisao-81-110.md).
+O deploy permanece manual. Procedimentos, metas de recuperação, alertas e configuração S3 estão em [`docs/deploy.md`](docs/deploy.md). Resultados e verificações externas pendentes estão em [`ESTADO_DO_PROJETO.md`](ESTADO_DO_PROJETO.md) e nos relatórios em [`docs/relatorios/`](docs/relatorios/).

@@ -1,5 +1,7 @@
 # Operação e recuperação
 
+A execução final do piloto está organizada em [preparação operacional](preparacao-piloto.md), com responsáveis, evidências, treinamento e exemplos fictícios explicitamente identificados. SMTP, suporte real, implantação e monitores reais foram adiados por orientação do usuário na revisão 111–115; os procedimentos abaixo continuam necessários antes da produção.
+
 Esta revisão prepara arquivos e procedimentos; não altera a VPS, SSH, firewall, DNS ou Cloudflare. Use uma janela de manutenção e um backup validado para mudar permissões ou esquema. Requisitos no host: Docker Compose, Bash, `flock`, Python 3, `sha256sum`, `timeout`, curl e Restic. Segredos e dumps ficam com permissões restritas, fora do Git.
 
 ## Configuração e imagem validada
@@ -29,7 +31,7 @@ export MESAMAR_ENV_FILE=/opt/mesamar/.env
 bash /opt/mesamar/implantar.sh 'ghcr.io/<organização>/<imagem>@sha256:<digest>'
 ```
 
-O script lê da imagem seu manifesto de compatibilidade, recusa esquema de origem incompatível, executa migração, para o app antes da migração, confere o destino e sobe com `--wait`. Para esta publicação: origem mínima 17 (ou banco vazio), destino 19, aplicação compatível apenas com esquema 19. Primeiro atualize volumes mais antigos com uma versão intermediária validada. Testes automatizados também ensaiam V17 → V19 com contas, pedidos e pagamentos existentes.
+O script lê da imagem seu manifesto de compatibilidade, recusa esquema de origem incompatível, executa migração, para o app antes da migração, confere o destino e sobe com `--wait`. Para esta publicação: origem mínima 17 (ou banco vazio), destino 20, aplicação compatível apenas com esquema 20. A V20 só cria a tabela `sincronizacao_aparelho` (ADR 0021); faça o backup validado antes, como em qualquer migração. Primeiro atualize volumes mais antigos com uma versão intermediária validada. Testes automatizados também ensaiam V17 → V20 com contas, pedidos e pagamentos existentes.
 
 Cada nova migração exige atualizar o manifesto e testar a versão anterior contra o esquema resultante. A reversão usa o digest anterior somente se seu manifesto aceitar o esquema atual. Caso contrário, mantenha manutenção e restaure o backup anterior com a imagem correspondente. Reverter imagem por si só não desfaz migrações. Não execute migrações irreversíveis sem ensaio de recuperação e avaliação da perda de gravações posteriores.
 

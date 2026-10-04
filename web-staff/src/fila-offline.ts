@@ -24,6 +24,7 @@ export function validarOperacao (v: unknown): Operacao {
 
 /** Transações IndexedDB serializam inclusão e sequência, inclusive entre abas. Falha de quota impede promessa de preservação. */
 const BANCO = 'mesamar-equipe-offline'
+export const LIMITE_POR_CONTEXTO = 200
 async function abrir (): Promise<IDBDatabase> {
   return await new Promise((resolve, reject) => {
     const req = indexedDB.open(BANCO, 1)
@@ -64,10 +65,15 @@ export async function preservar (contexto: string, tipo: Operacao['tipo'], id: s
   const op = validarOperacao({ versao: 1, chave: `${contexto}:${id}`, contexto, tipo, id, dados, comandaId, criadaEm: Date.now(), ordem: 1, estado: 'pendente' })
   const salvo = await transacao<Operacao>('operacoes', 'readwrite', (store, concluir) => {
     store.getAll().onsuccess = e => {
-      const todas = (e.target as IDBRequest<unknown[]>).result.map(validarOperacao)
+      // Um registro corrompido é descartado aqui mesmo: não pode impedir que a nova ação seja preservada.
+      const todas: Operacao[] = []
+      for (const v of (e.target as IDBRequest<unknown[]>).result) {
+        try { todas.push(validarOperacao(v)) } catch { if (registro(v) && typeof v.chave === 'string') store.delete(v.chave) }
+      }
       const existente = todas.find(o => o.chave === op.chave)
       if (existente !== undefined) { concluir(existente); return }
-      if (todas.length >= 200) { store.transaction.abort(); return }
+      // O limite vale por barraca/autor: pendências de outra sessão no mesmo aparelho não bloqueiam esta.
+      if (todas.filter(o => o.contexto === contexto).length >= LIMITE_POR_CONTEXTO) { store.transaction.abort(); return }
       op.ordem = Math.max(0, ...todas.map(o => o.ordem)) + 1
       store.add(op); concluir(op)
     }
@@ -100,6 +106,14 @@ export async function drenar (contexto: string, enviar: (op: Operacao) => Promis
       await conflito(op, erro.message ?? 'Operação recusada. Confira com a equipe.'); return
     }
   }
+}
+/**
+ * Espera até a próxima tentativa de sincronia: 15 s sem falhas, dobrando a cada falha seguida até 2 min,
+ * com variação de ±20% para que vários aparelhos não voltem todos no mesmo instante.
+ */
+export function esperaSincronia (falhas: number, aleatorio: () => number = Math.random): number {
+  const base = Math.min(120_000, 15_000 * 2 ** Math.max(0, Math.min(falhas, 10)))
+  return Math.round(base * (0.8 + 0.4 * aleatorio()))
 }
 export function tokenLocal (): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
