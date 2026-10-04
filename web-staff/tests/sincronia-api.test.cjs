@@ -30,7 +30,10 @@ test('reenvio mantém instante original e informe usa a ação mais antiga mesmo
   const envios = corpos.filter(c => c.url.endsWith('/clientes'))
   assert.equal(envios.length, 2)
   assert.equal(envios[0].body.criadoNoAparelhoEm, new Date(antiga).toISOString())
-  assert.deepEqual(envios[1].body, envios[0].body)
+  // O envio leva o relógio do aparelho naquele momento: o servidor calcula a idade sem depender do acerto do relógio
+  envios.forEach(e => assert.ok(Date.parse(e.body.enviadoNoAparelhoEm) - antiga >= 3_600_000))
+  const semEnvio = ({ enviadoNoAparelhoEm: _enviado, ...resto }) => resto
+  assert.deepEqual(semEnvio(envios[1].body), semEnvio(envios[0].body))
   const informe = corpos.find(c => c.url.endsWith('/sincronizacao')).body
   assert.equal(informe.pendentes, 1)
   assert.equal(informe.pendenteDesde, new Date(antiga).toISOString())

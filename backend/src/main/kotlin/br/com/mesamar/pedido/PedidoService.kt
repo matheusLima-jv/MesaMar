@@ -47,6 +47,8 @@ data class PedidoRequest(
      */
     val reenvio: Boolean = false,
     val criadoNoAparelhoEm: Instant? = null,
+    /** Relógio do aparelho no envio: com a criação, dá a idade da ação sem depender do acerto do relógio. */
+    val enviadoNoAparelhoEm: Instant? = null,
 )
 
 /** O pedido com as suas linhas. */
@@ -149,7 +151,7 @@ class PedidoService(
             return ResultadoPedido.Bloqueado(Bloqueio("link-revogado", "Esse link não vale mais. Peça o QR atual ao atendente."))
         }
 
-        if (equipe != null && !AcaoNoAparelho.noDiaAtual(req.criadoNoAparelhoEm, clock)) {
+        if (equipe != null && !AcaoNoAparelho.noDiaAtual(req.criadoNoAparelhoEm, req.enviadoNoAparelhoEm, clock)) {
             return ResultadoPedido.Invalido(AcaoNoAparelho.RECADO, mapOf("criadoNoAparelhoEm" to AcaoNoAparelho.RECADO))
         }
 

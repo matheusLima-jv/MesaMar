@@ -27,6 +27,8 @@ data class CheckinRequest(
     /** A versão do texto de consentimento que o app mostrou (ex.: "2026-10-v1"). Ver docs/consentimento.md. */
     val consentimentoVersao: String? = null,
     val criadoNoAparelhoEm: Instant? = null,
+    /** Relógio do aparelho no envio: com a criação, dá a idade da ação sem depender do acerto do relógio. */
+    val enviadoNoAparelhoEm: Instant? = null,
 )
 
 /** Quem está no quiosque fazendo o check-in: o dono ou um atendente (exatamente um dos dois). */
@@ -89,7 +91,10 @@ class CheckinService(
         }
 
         val campos = linkedMapOf<String, String>()
-        if (!AcaoNoAparelho.noDiaAtual(req.criadoNoAparelhoEm, clock)) campos["criadoNoAparelhoEm"] = AcaoNoAparelho.RECADO
+        if (!AcaoNoAparelho.noDiaAtual(req.criadoNoAparelhoEm, req.enviadoNoAparelhoEm, clock)) {
+            campos["criadoNoAparelhoEm"] =
+                AcaoNoAparelho.RECADO
+        }
         val nome = req.nome.trim().replace(Regex("\\s+"), " ")
         when {
             nome.isEmpty() -> campos["nome"] = "Digite o nome do cliente."

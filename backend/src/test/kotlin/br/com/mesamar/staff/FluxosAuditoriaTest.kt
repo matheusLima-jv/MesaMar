@@ -83,15 +83,52 @@ class FluxosAuditoriaTest(
     @Test
     fun `dia da acao usa Sao Paulo e rejeita relogio muito adiantado`() {
         val clock = Clock.fixed(Instant.parse("2026-10-04T02:59:59Z"), ZoneOffset.UTC)
-        assertTrue(AcaoNoAparelho.noDiaAtual(Instant.parse("2026-10-03T03:00:00Z"), clock))
-        assertFalse(AcaoNoAparelho.noDiaAtual(Instant.parse("2026-10-03T02:59:59Z"), clock))
-        assertFalse(AcaoNoAparelho.noDiaAtual(Instant.parse("2026-10-04T03:00:00Z"), clock))
+        assertTrue(AcaoNoAparelho.noDiaAtual(Instant.parse("2026-10-03T03:00:00Z"), null, clock))
+        assertFalse(AcaoNoAparelho.noDiaAtual(Instant.parse("2026-10-03T02:59:59Z"), null, clock))
+        assertFalse(AcaoNoAparelho.noDiaAtual(Instant.parse("2026-10-04T03:00:00Z"), null, clock))
         assertFalse(
             AcaoNoAparelho.noDiaAtual(
                 Instant.parse("2026-10-03T23:00:00Z"),
+                null,
                 Clock.fixed(Instant.parse("2026-10-03T12:00:00Z"), ZoneOffset.UTC),
             ),
         )
+    }
+
+    @Test
+    fun `com o envio do aparelho vale a idade da acao e nao o acerto do relogio`() {
+        // Servidor: 12h de 3/10 em São Paulo (15h UTC)
+        val clock = Clock.fixed(Instant.parse("2026-10-03T15:00:00Z"), ZoneOffset.UTC)
+        val adiantado = Instant.parse("2026-10-03T15:10:00Z")
+        assertTrue(AcaoNoAparelho.noDiaAtual(adiantado.minusSeconds(30), adiantado, clock), "celular 10 min adiantado")
+        val diaErrado = Instant.parse("2026-10-01T15:00:00Z")
+        assertTrue(AcaoNoAparelho.noDiaAtual(diaErrado.minusSeconds(60), diaErrado, clock), "celular com a data atrasada")
+        assertTrue(AcaoNoAparelho.noDiaAtual(adiantado, adiantado.minusSeconds(120), clock), "relógio acertado entre criar e enviar")
+        // Criada às 23h50 de ontem e enviada agora: 12h10 de idade, outro dia mesmo com o relógio certo
+        assertFalse(AcaoNoAparelho.noDiaAtual(Instant.parse("2026-10-03T02:50:00Z"), Instant.parse("2026-10-03T15:00:00Z"), clock))
+    }
+
+    @Test
+    fun `celular adiantado ou com a data errada continua lancando e o pedido de ontem segue recusado`() {
+        val q = apoio.quiosque("Relogio errado")
+        val app = dono(q)
+        val id = UUID.randomUUID()
+        val adiantado = Instant.now().plusSeconds(600)
+        val checkin =
+            """{"id":"$id","nome":"Ana","consentimento":true,""" +
+                """"criadoNoAparelhoEm":"$adiantado","enviadoNoAparelhoEm":"$adiantado"}"""
+        assertEquals(201, app.post("/api/staff/clientes", checkin).statusCode())
+        val diaErrado = Instant.now().minusSeconds(3 * 86400)
+        val pedido =
+            apoio.corpo(UUID.randomUUID(), Item(q.coco.id, 1)).dropLast(1) +
+                """, "criadoNoAparelhoEm":"$diaErrado","enviadoNoAparelhoEm":"${diaErrado.plusSeconds(5)}"}"""
+        assertEquals(201, app.post("/api/staff/comandas/$id/pedidos", pedido).statusCode())
+        val ontem = Instant.now().minusSeconds(86400 + 60)
+        val guardado =
+            apoio.corpo(UUID.randomUUID(), Item(q.coco.id, 1)).dropLast(1) +
+                """, "criadoNoAparelhoEm":"$ontem","enviadoNoAparelhoEm":"${Instant.now()}"}"""
+        assertEquals(400, app.post("/api/staff/comandas/$id/pedidos", guardado).statusCode())
+        assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM pedido WHERE comanda_id=?", Int::class.java, id))
     }
 
     @Test

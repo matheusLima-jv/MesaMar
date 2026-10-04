@@ -1,5 +1,6 @@
 package br.com.mesamar
 
+import br.com.mesamar.config.ProducaoValidation
 import br.com.mesamar.support.IntegrationTest
 import org.junit.jupiter.api.Test
 import org.springframework.jdbc.core.JdbcTemplate
@@ -19,6 +20,11 @@ class FlywayMigrationTest(
             )
 
         assertTrue("1" in applied, "V1 deveria estar aplicada, encontradas: $applied")
+    }
+
+    @Test
+    fun `banco migrado passa na conferencia de esquema do perfil prod`() {
+        ProducaoValidation.conferirEsquema(jdbcTemplate)
     }
 
     @Test
