@@ -6,9 +6,34 @@ updates:
   - package-ecosystem: gradle
     directory: /
     schedule: { interval: weekly }
+    ignore:
+      # Gradle 9 e Kotlin 2.3+ exigem migração própria (ktlint, plugins, wrapper).
+      - dependency-name: gradle-wrapper
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "org.jetbrains.kotlin*"
+        versions: [">=2.3"]
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
+    ignore:
+      # Node 22 LTS (igual ao CI) e JDK 21 LTS: só trocar para outro LTS, junto com o CI.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eclipse-temurin
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
-    directories: [/web-customer, /web-staff, /e2e]
+    directories: [/web-customer, /web-staff]
     schedule: { interval: weekly }
+    ignore:
+      # typescript-eslint ainda não aceita TypeScript 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: npm
+    directory: /e2e
+    schedule: { interval: weekly }
+    ignore:
+      # Tipos do Node acompanham o Node 22 do CI.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
