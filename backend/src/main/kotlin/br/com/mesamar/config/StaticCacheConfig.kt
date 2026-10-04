@@ -1,10 +1,16 @@
 package br.com.mesamar.config
 
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.io.Resource
 import org.springframework.http.CacheControl
+import org.springframework.http.HttpHeaders
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 import org.springframework.web.servlet.resource.CssLinkResourceTransformer
+import org.springframework.web.servlet.resource.HttpResource
+import org.springframework.web.servlet.resource.ResourceTransformer
+import org.springframework.web.servlet.resource.ResourceTransformerChain
 import org.springframework.web.servlet.resource.VersionResourceResolver
 import java.time.Duration
 
@@ -31,9 +37,11 @@ class StaticCacheConfig : WebMvcConfigurer {
             registry
                 .addResourceHandler("/$dir/**")
                 .addResourceLocations("classpath:/static/$dir/")
-                .setCacheControl(oneYear)
+                .setCacheControl(CacheControl.noCache())
                 .resourceChain(true)
                 .addResolver(VersionResourceResolver().addContentVersionStrategy("/**"))
+                // Envolve também o CSS já transformado, para conservar os headers da versão.
+                .addTransformer(CacheVersionado(oneYear))
                 // Reescreve os url(...) de dentro do CSS (ex.: a fonte) para as versões com hash.
                 .addTransformer(CssLinkResourceTransformer())
         }
@@ -43,6 +51,27 @@ class StaticCacheConfig : WebMvcConfigurer {
                 .addResourceHandler("/$route/assets/**")
                 .addResourceLocations("classpath:/static/$route/assets/")
                 .setCacheControl(oneYear)
+        }
+    }
+}
+
+/** O resolver só entrega uma URL com hash se ele conferir com o conteúdo; nomes sem hash revalidam. */
+private class CacheVersionado(
+    private val longo: CacheControl,
+) : ResourceTransformer {
+    override fun transform(
+        request: HttpServletRequest,
+        resource: Resource,
+        transformerChain: ResourceTransformerChain,
+    ): Resource {
+        val arquivo = transformerChain.transform(request, resource)
+        val versionado = Regex(".*-[a-f0-9]{32}\\.[^/]+$").matches(request.requestURI)
+        return object : HttpResource, Resource by arquivo {
+            override fun getResponseHeaders(): HttpHeaders =
+                HttpHeaders().apply {
+                    if (arquivo is HttpResource) putAll(arquivo.responseHeaders)
+                    cacheControl = (if (versionado) longo else CacheControl.noCache()).headerValue
+                }
         }
     }
 }

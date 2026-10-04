@@ -56,7 +56,30 @@ data class PedidoFilaView(
     val guardaSol: Int?,
     val cliente: String,
     val itens: List<ItemFilaView>,
-)
+) {
+    companion object {
+        fun of(p: PedidoFila) =
+            PedidoFilaView(
+                id = p.pedido.id,
+                numero = p.pedido.numeroPedido,
+                status = p.pedido.status.name,
+                criadoEm = (p.pedido.naFilaEm ?: p.pedido.criadoEm).toString(),
+                guardaSol = p.guardaSol,
+                cliente = p.cliente,
+                itens =
+                    p.itens.map {
+                        ItemFilaView(
+                            it.id,
+                            it.nomeSnapshot,
+                            it.quantidade,
+                            it.observacao,
+                            it.cancelado,
+                            it.motivoCancelamento,
+                        )
+                    },
+            )
+    }
+}
 
 data class FilaView(
     /** Horário do servidor agora: o app calcula a diferença para o relógio dele e a usa nos tempos de espera. */
@@ -184,14 +207,5 @@ class StaffFilaController(
         mensagem: String,
     ): ResponseEntity<Any> = ResponseEntity.status(status).body(ErroView(codigo, mensagem))
 
-    private fun view(p: PedidoFila) =
-        PedidoFilaView(
-            id = p.pedido.id,
-            numero = p.pedido.numeroPedido,
-            status = p.pedido.status.name,
-            criadoEm = (p.pedido.naFilaEm ?: p.pedido.criadoEm).toString(),
-            guardaSol = p.guardaSol,
-            cliente = p.cliente,
-            itens = p.itens.map { ItemFilaView(it.id, it.nomeSnapshot, it.quantidade, it.observacao, it.cancelado, it.motivoCancelamento) },
-        )
+    private fun view(p: PedidoFila) = PedidoFilaView.of(p)
 }

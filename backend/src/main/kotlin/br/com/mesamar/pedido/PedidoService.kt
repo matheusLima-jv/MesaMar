@@ -11,6 +11,7 @@ import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.comanda.ContadorDiario
 import br.com.mesamar.comanda.StatusComanda
 import br.com.mesamar.comanda.TipoContador
+import br.com.mesamar.common.AcaoNoAparelho
 import br.com.mesamar.common.AutorHistorico
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.Money
@@ -45,6 +46,7 @@ data class PedidoRequest(
      * criar um segundo (ver [PedidoService.lancadoPelaEquipe]).
      */
     val reenvio: Boolean = false,
+    val criadoNoAparelhoEm: Instant? = null,
 )
 
 /** O pedido com as suas linhas. */
@@ -125,6 +127,7 @@ class PedidoService(
         req: PedidoRequest,
         /** `null`: o cliente pediu pela página dele. Preenchido: a equipe lançou (origem ATENDENTE). */
         equipe: LancadoPor? = null,
+        tokenCliente: String = comandaLida.tokenAcesso,
     ): ResultadoPedido {
         autorHistorico.marcar()
         require(equipe == null || (equipe.usuarioId == null) != (equipe.atendenteId == null)) { "pedido sem autor ou com dois autores" }
@@ -140,6 +143,14 @@ class PedidoService(
         // Reenvio do mesmo pedido: devolve o que já existe, mesmo que a comanda tenha mudado desde então.
         pedidos.findById(id).orElse(null)?.let { existente ->
             return if (existente.comandaId == comanda.id) ResultadoPedido.Ok(detalhe(existente), nova = false) else ResultadoPedido.Conflito
+        }
+
+        if (equipe == null && comanda.tokenAcesso != tokenCliente) {
+            return ResultadoPedido.Bloqueado(Bloqueio("link-revogado", "Esse link não vale mais. Peça o QR atual ao atendente."))
+        }
+
+        if (equipe != null && !AcaoNoAparelho.noDiaAtual(req.criadoNoAparelhoEm, clock)) {
+            return ResultadoPedido.Invalido(AcaoNoAparelho.RECADO, mapOf("criadoNoAparelhoEm" to AcaoNoAparelho.RECADO))
         }
 
         // O cliente chamou um atendente enquanto a página reenviava: o pedido da equipe vale pelos dois
@@ -386,8 +397,15 @@ class PedidoService(
         if (recebidas.isEmpty()) return erro("itens", "Escolha pelo menos um item.")
         if (recebidas.size > MAX_LINHAS) return erro("itens", "São itens demais num pedido só. Envie em dois pedidos.")
         val validas = mutableListOf<Linha>()
+        val identificados = mutableSetOf<UUID>()
         for ((i, r) in recebidas.withIndex()) {
             val produtoId = r.produtoId ?: return erro("itens[$i]", "Item sem identificação. Atualize a página e tente de novo.")
+            if (!identificados.add(
+                    produtoId,
+                )
+            ) {
+                return erro("itens", "O mesmo produto só pode aparecer uma vez, com até $MAX_QUANTIDADE unidades.")
+            }
             if (r.quantidade !in
                 1..MAX_QUANTIDADE
             ) {

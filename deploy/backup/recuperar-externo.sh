@@ -15,4 +15,4 @@ registro=$(find "$alvo" -type f -name "$(basename "$MESAMAR_LGPD_REGISTRO")" -pr
 if [[ -n "$registro" ]]; then mkdir -p "$(dirname "$MESAMAR_LGPD_REGISTRO")"; touch "$MESAMAR_LGPD_REGISTRO"; cat "$MESAMAR_LGPD_REGISTRO" "$registro" | sort -u > "$alvo/exclusoes-unidas.txt"; cp "$alvo/exclusoes-unidas.txt" "$MESAMAR_LGPD_REGISTRO"; fi
 bash "$(dirname "$0")/testar-restauracao.sh" "${dumps[0]}"
 (( $(date +%s) - inicio <= RTO_SEGUNDOS )) || falha 'Ensaio externo excedeu a meta de RTO.'
-log "Recuperação externa verificada. Dump: ${dumps[0]}. Use restaurar.sh --producao após conferir."
+log "Recuperação externa verificada. Dump: ${dumps[0]}. Use restaurar.sh ARQUIVO.dump --producao após conferir."

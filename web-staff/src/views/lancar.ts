@@ -54,7 +54,10 @@ function enviar (
   aoRecusar: (e: ApiError) => void
 ): void {
   // Guardado ANTES de sair: se o app fechar no meio, o próximo envio usa o mesmo id
-  pendencias.guardar('lancamento', comanda.id, id, lancamento)
+  try { pendencias.guardar('lancamento', comanda.id, id, lancamento) } catch {
+    aoRecusar(new ApiError(400, 'validacao', 'Não deu para preparar o pedido. Use até 30 produtos diferentes e 60 unidades; divida em dois pedidos se necessário.'))
+    return
+  }
   lancarPedido(comanda.id, { id, itens: lancamento.itens })
     .then((p) => {
       pendencias.apagar('lancamento', comanda.id)
@@ -136,6 +139,16 @@ function desenhar (root: HTMLElement, aberta: () => boolean, comanda: Comanda, s
         const valor = h('output', { class: 'qtd-valor' }, String(quantidades.get(p.id) ?? 0))
         const mexer = (delta: number): void => {
           if (enviando) return
+          if (delta > 0 && ((quantidades.get(p.id) ?? 0) === 0 && quantidades.size >= 30)) {
+            erro.textContent = 'O pedido pode ter até 30 produtos diferentes. Envie este pedido e monte outro para os demais.'
+            erro.hidden = false
+            return
+          }
+          if (delta > 0 && unidades() >= 60) {
+            erro.textContent = 'O pedido pode ter até 60 unidades. Envie este pedido e monte outro para os demais.'
+            erro.hidden = false
+            return
+          }
           const nova = Math.min(20, Math.max(0, (quantidades.get(p.id) ?? 0) + delta))
           if (nova === 0) quantidades.delete(p.id)
           else quantidades.set(p.id, nova)

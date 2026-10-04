@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Valida integralmente em staging; só depois interrompe produção e troca os nomes.
 set -euo pipefail
+# Recusa opções fora do contrato antes de tocar no banco ou abrir o dump.
+if (( $# < 1 || $# > 2 )) || [[ "$1" == -* ]] || { (( $# == 2 )) && [[ "$2" != --producao ]]; }; then
+  printf 'Uso: restaurar.sh ARQUIVO.dump [--producao]\n' >&2
+  exit 1
+fi
 source "$(cd "$(dirname "$0")" && pwd)/comum.sh"
 conferir_banco
 arquivo="${1:-}"

@@ -84,8 +84,8 @@
   <section class="app-section" aria-labelledby="t-aparelhos">
     <h2 id="t-aparelhos" class="app-subtitle">Aparelhos da equipe</h2>
     <p class="app-lead">Quando cada celular do app falou com o servidor pela última vez e quantas ações ainda estão guardadas nele.
-      Sem sinal, o aparelho guarda check-ins e pedidos e envia sozinho quando o sinal volta. Hora parada com ações aguardando:
-      vá até esse celular, confira o sinal e abra o app.</p>
+      Cada operador mantém sua própria fila no mesmo aparelho. Ações aguardando há mais de 15 minutos pedem atenção,
+      mesmo com contato recente: vá até esse celular, entre com o operador indicado e confira as pendências.</p>
     <p class="app-lead" th:if="${aparelhos.isEmpty()}">Nenhum aparelho sincronizou ainda. Eles aparecem aqui depois de entrar no app do quiosque.</p>
     <ul class="team-list" th:unless="${aparelhos.isEmpty()}">
       <li th:each="d : ${aparelhos}" th:classappend="${d.atencao} ? 'is-blocked'">
@@ -93,6 +93,7 @@
           <div>
             <strong th:text="|${d.quem} · ${d.tipo}|">Carla · Android</strong>
             <span class="team-status" th:text="|Última sincronização: ${d.sincronizadoEm}|">Última sincronização: 03/10 às 14:02</span>
+            <span class="team-status" th:if="${d.pendenteDesde != null}" th:text="|Ação mais antiga aguardando desde: ${d.pendenteDesde}|"></span>
             <span class="team-status" th:text="${d.atencao} ? |Atenção: ${d.situacao}| : ${d.situacao}">Tudo enviado</span>
           </div>
         </div>

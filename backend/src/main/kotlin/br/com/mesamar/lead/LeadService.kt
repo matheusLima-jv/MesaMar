@@ -2,16 +2,20 @@ package br.com.mesamar.lead
 
 import br.com.mesamar.common.BrazilianPhone
 import org.slf4j.LoggerFactory
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.validation.Errors
+import java.sql.Timestamp
 import java.time.Clock
 import java.time.Instant
+import java.util.UUID
 
 @Service
 class LeadService(
     private val repository: LeadRepository,
     private val clock: Clock,
+    private val jdbc: JdbcTemplate,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -41,30 +45,26 @@ class LeadService(
         val praia = requireNotNull(form.praiaEnum) { "Praia não validada" }
         val now = Instant.now(clock)
 
-        val existing = repository.findByWhatsapp(whatsapp)
-        val lead =
-            if (existing != null) {
-                existing.apply {
-                    nome = form.nome.trim()
-                    nomeBarraca = form.nomeBarraca.trim()
-                    this.praia = praia
-                    consentimentoEm = now
-                    atualizadoEm = now
-                }
-            } else {
-                Lead(
-                    nome = form.nome.trim(),
-                    nomeBarraca = form.nomeBarraca.trim(),
-                    praia = praia,
-                    whatsapp = whatsapp,
-                    consentimentoEm = now,
-                    origem = origem,
-                    criadoEm = now,
-                    atualizadoEm = now,
-                )
-            }
-        val saved = repository.save(lead)
-        log.info("Lead {} na lista de espera (praia={}, novo={})", saved.id, praia, existing == null)
+        val id =
+            jdbc.queryForObject(
+                """INSERT INTO lead (id,nome,nome_barraca,praia,whatsapp,consentimento_em,origem,criado_em,atualizado_em)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                ON CONFLICT (whatsapp) DO UPDATE SET nome=EXCLUDED.nome, nome_barraca=EXCLUDED.nome_barraca,
+                    praia=EXCLUDED.praia, consentimento_em=EXCLUDED.consentimento_em, atualizado_em=EXCLUDED.atualizado_em
+                RETURNING id""",
+                UUID::class.java,
+                UUID.randomUUID(),
+                form.nome.trim(),
+                form.nomeBarraca.trim(),
+                praia.name,
+                whatsapp,
+                Timestamp.from(now),
+                origem,
+                Timestamp.from(now),
+                Timestamp.from(now),
+            )!!
+        val saved = repository.findById(id).orElseThrow()
+        log.info("Lead {} na lista de espera (praia={})", saved.id, praia)
         return saved
     }
 }

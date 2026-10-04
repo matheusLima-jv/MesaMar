@@ -1,5 +1,6 @@
 package br.com.mesamar.comanda
 
+import br.com.mesamar.common.AcaoNoAparelho
 import br.com.mesamar.common.BrazilianPhone
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.SecureTokens
@@ -25,6 +26,7 @@ data class CheckinRequest(
     val token: String? = null,
     /** A versão do texto de consentimento que o app mostrou (ex.: "2026-10-v1"). Ver docs/consentimento.md. */
     val consentimentoVersao: String? = null,
+    val criadoNoAparelhoEm: Instant? = null,
 )
 
 /** Quem está no quiosque fazendo o check-in: o dono ou um atendente (exatamente um dos dois). */
@@ -87,6 +89,7 @@ class CheckinService(
         }
 
         val campos = linkedMapOf<String, String>()
+        if (!AcaoNoAparelho.noDiaAtual(req.criadoNoAparelhoEm, clock)) campos["criadoNoAparelhoEm"] = AcaoNoAparelho.RECADO
         val nome = req.nome.trim().replace(Regex("\\s+"), " ")
         when {
             nome.isEmpty() -> campos["nome"] = "Digite o nome do cliente."

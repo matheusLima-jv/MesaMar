@@ -85,6 +85,20 @@ class FilaService(
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun listar(barracaId: UUID): List<PedidoFila> = montar(pedidos.findFila(barracaId, NA_FILA))
 
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    fun aguardando(
+        barracaId: UUID,
+        comandaId: UUID,
+    ): List<PedidoFila>? {
+        comandas.findByIdAndBarracaId(comandaId, barracaId) ?: return null
+        return montar(
+            pedidos.findAllByComandaIdOrderByCriadoEmAscNumeroPedidoAsc(comandaId).filter {
+                it.status ==
+                    StatusPedido.AGUARDANDO_PAGAMENTO
+            },
+        )
+    }
+
     /** Passa o pedido para "em preparo" ou "entregue". Repetir a mesma ação é inofensivo (idempotente). */
     @Transactional
     fun mudarStatus(

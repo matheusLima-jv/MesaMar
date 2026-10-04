@@ -116,7 +116,7 @@ class SincroniaAparelhoTest(
         assertEquals(204, informar(carla, parado, pendentes = 3).statusCode())
         assertFalse(aparelhos(q).contains("Atenção:"), "acabou de sincronizar: ainda não é atraso")
 
-        jdbc.update("UPDATE sincronizacao_aparelho SET sincronizado_em = now() - interval '40 minutes' WHERE aparelho_id = ?", parado)
+        jdbc.update("UPDATE sincronizacao_aparelho SET pendente_desde = now() - interval '40 minutes' WHERE aparelho_id = ?", parado)
         assertContains(aparelhos(q), "Atenção: 3 ações aguardando envio")
 
         assertEquals(204, informar(dono(q), UUID.randomUUID(), pendentes = 0, conflitos = 1).statusCode())

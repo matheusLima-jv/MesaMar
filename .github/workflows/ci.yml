@@ -53,6 +53,11 @@ jobs:
       - name: Testar sinais de alerta independentes
         run: python3 .github/scripts/testar-alertas.py
 
+      - name: Testar persistência da imagem e argumentos de recuperação
+        run: |
+          python3 .github/scripts/testar-imagem.py
+          MESAMAR_OPERACAO_TESTE=1 bash .github/scripts/testar-implantacao.sh
+
       - name: Resumo dos testes
         if: always()
         run: bash .github/scripts/test-summary.sh

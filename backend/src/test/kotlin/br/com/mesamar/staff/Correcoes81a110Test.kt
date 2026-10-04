@@ -295,6 +295,21 @@ class Correcoes81a110Test(
                     val filtro = if (tabela == "barraca") "id" else "barraca_id"
                     alvo.update("INSERT INTO $schema.$tabela ($colunas) SELECT $colunas FROM public.$tabela WHERE $filtro=?", q.barracaId)
                 }
+                Flyway
+                    .configure()
+                    .dataSource(dataSource)
+                    .schemas(schema)
+                    .defaultSchema(schema)
+                    .target("20")
+                    .load()
+                    .migrate()
+                alvo.update(
+                    """INSERT INTO $schema.sincronizacao_aparelho
+                        VALUES (?,?,?,null,'ANDROID',3,1,'2026-10-03T12:00:00Z')""",
+                    q.barracaId,
+                    UUID.randomUUID(),
+                    q.usuarioId,
+                )
                 val protegidas = listOf("usuario", "cliente", "comanda", "pedido", "item_pedido", "pagamento")
                 val antes =
                     protegidas.associateWith { t ->
@@ -315,7 +330,12 @@ class Correcoes81a110Test(
                     )
                 }
                 assertEquals(600L, alvo.queryForObject("SELECT sum(valor_centavos) FROM $schema.pagamento", Long::class.java))
-                assertEquals(20, alvo.queryForObject("SELECT max(version::int) FROM $schema.flyway_schema_history", Int::class.java))
+                assertEquals(21, alvo.queryForObject("SELECT max(version::int) FROM $schema.flyway_schema_history", Int::class.java))
+                val aparelho = alvo.queryForMap("SELECT * FROM $schema.sincronizacao_aparelho")
+                assertEquals(q.usuarioId, aparelho["autor_id"])
+                assertEquals(3, aparelho["pendentes"])
+                assertEquals(1, aparelho["conflitos"])
+                assertEquals(aparelho["sincronizado_em"], aparelho["pendente_desde"])
                 conn.schema = "public"
             }
         } finally {

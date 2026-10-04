@@ -95,9 +95,11 @@ class FechamentoService(
         comandaLida: Comanda,
         metodo: MetodoPagamento?,
         trocoParaCentavos: Long?,
+        tokenCliente: String = comandaLida.tokenAcesso,
     ): ResultadoConta {
         autorHistorico.marcar()
         val comanda = comandas.travar(comandaLida.id) ?: return ResultadoConta.Recusado("comanda", "Esse link não vale mais.")
+        if (comanda.tokenAcesso != tokenCliente) return linkRevogado()
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
         recusaPorEstado(barraca, comanda, aceitaAguardando = true)?.let { return it }
         if (metodo == null) return ResultadoConta.Invalido("metodo", "Escolha como vai pagar: Pix, dinheiro ou cartão.")
@@ -134,9 +136,13 @@ class FechamentoService(
 
     /** O cliente pagou o Pix no banco e avisa o quiosque. Repetir o aviso não muda a hora do primeiro. */
     @Transactional
-    fun jaPaguei(comandaLida: Comanda): ResultadoConta {
+    fun jaPaguei(
+        comandaLida: Comanda,
+        tokenCliente: String = comandaLida.tokenAcesso,
+    ): ResultadoConta {
         autorHistorico.marcar()
         val comanda = comandas.travar(comandaLida.id) ?: return ResultadoConta.Recusado("comanda", "Esse link não vale mais.")
+        if (comanda.tokenAcesso != tokenCliente) return linkRevogado()
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
         if (comanda.status != StatusComanda.AGUARDANDO_PAGAMENTO || comanda.metodoPagamentoPretendido != MetodoPagamento.PIX) {
             return ResultadoConta.Recusado("sem-pix", "Não há um Pix aguardando. Feche a conta e escolha Pix primeiro.")
@@ -153,9 +159,13 @@ class FechamentoService(
 
     /** "Voltar e pedir mais": só enquanto nenhum pagamento foi confirmado. Já aberta, não faz nada. */
     @Transactional
-    fun reabrir(comandaLida: Comanda): ResultadoConta {
+    fun reabrir(
+        comandaLida: Comanda,
+        tokenCliente: String = comandaLida.tokenAcesso,
+    ): ResultadoConta {
         autorHistorico.marcar()
         val comanda = comandas.travar(comandaLida.id) ?: return ResultadoConta.Recusado("comanda", "Esse link não vale mais.")
+        if (comanda.tokenAcesso != tokenCliente) return linkRevogado()
         val barraca = barracas.findById(comanda.barracaId).orElseThrow()
         when (comanda.status) {
             StatusComanda.ABERTA -> Unit
@@ -182,6 +192,8 @@ class FechamentoService(
         }
         return ResultadoConta.Ok(montar(comanda, barraca))
     }
+
+    private fun linkRevogado() = ResultadoConta.Recusado("link-revogado", "Esse link não vale mais. Peça o QR atual ao atendente.")
 
     /** `null` se a comanda pode seguir; senão, o motivo (a barraca desligada, comanda bloqueada, encerrada…). */
     private fun recusaPorEstado(

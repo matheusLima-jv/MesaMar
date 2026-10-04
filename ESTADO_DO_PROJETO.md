@@ -1,6 +1,6 @@
 # Estado atual do MesaMar
 
-Atualizado em 2026-10-03.
+Atualizado em 2026-10-04.
 
 ## 1. Regras de trabalho (valem sempre)
 
@@ -21,21 +21,21 @@ O escopo completo (problema, personas, domínio, fases e portões) está em [`do
 
 ## 2. Onde o trabalho está
 
-- **Na `main`:** Fases 0 a 5 e 7, Fase 6.1 (PR #7) e revisão 61–110, incluindo a fila offline 6.2 (PR #8).
-- **Branch `revisao-116`, aguardando aprovação:** revisão 111–115 (limite explicado, exceções da equipe auditadas, Continuar conta), correções da validação geral e **checkpoint 6.3** (última sincronização de cada aparelho visível para o dono e E2E offline obrigatórios). Relatório: [revisão 116](docs/relatorios/revisao-116.md). Banco passa para **V20**.
-- **Próximo passo:** aprovação do Matheus para o PR da `revisao-116`; depois, preparação do piloto ([lista de execução](docs/preparacao-piloto.md)).
+- **Na `main`:** Fases 0 a 5 e 7, Fase 6.1 (PR #7), revisão 61–110 com a fila offline 6.2 (PR #8) e revisão 111–116 com o checkpoint 6.3 e banco V20 (PR #22).
+- **Branch `correcoes-auditoria-geral`, aguardando aprovação:** [correções da auditoria geral](docs/relatorios/correcoes-auditoria-geral.md): dez bugs corrigidos, recusa de novas ações offline de outro dia e revisão/cancelamento de pedidos ainda não pagos. Banco passa para **V21**, com filas separadas por autor e idade da ação mais antiga. Decisões: [ADR 0022](docs/adr/0022-correcoes-auditoria-geral.md).
+- **Próximo passo:** aprovação do Matheus para o PR da `correcoes-auditoria-geral`; depois, preparação do piloto ([lista de execução](docs/preparacao-piloto.md)).
 
 | Área | Disponível |
 |---|---|
 | Cliente | Check-in por QR, cardápio, carrinho, pedidos, extrato, Pix e recuperação de envio com o mesmo identificador |
-| Equipe | Clientes, lançamento de pedidos (com aviso e registro de exceção), fila, pagamentos, Continuar conta após pagamento parcial, avisos, PIN e sessão por barraca |
+| Equipe | Clientes, lançamento de pedidos (com aviso e registro de exceção), fila, pagamentos, revisão/cancelamento de pedidos não pagos, Continuar conta após pagamento parcial, avisos, PIN e sessão por barraca |
 | Offline (6.2/6.3) | Check-ins e lançamentos guardados em IndexedDB antes do envio, ordem, reabertura, reenvio idempotente com espera crescente, interrupção em conflito, indicador de sincronização e última sincronização de cada aparelho no painel |
 | Painel | Contas por convite, barraca, equipe e aparelhos, guarda-sóis, cardápio, regras e relatório |
-| Banco | V18: integridade, concorrência, autoria/histórico e outbox; V19: medições e saúde operacional; V20: sincronização dos aparelhos; execução e migração com contas distintas |
+| Banco | V18: integridade, concorrência, autoria/histórico e outbox; V19: medições e saúde operacional; V20: sincronização dos aparelhos; V21: sincronia por autor e idade das pendências; execução e migração com contas distintas |
 | Operação | Backup consistente com hashes dos valores e totais financeiros, trava, cópia S3 criptografada, restauração em banco separado e resgate em falha |
 | Entrega | Imagem única testada/publicada, digest, manifesto de compatibilidade, inventário de dependências e checagens de segredos |
 
-Regras alteradas afetam os próximos pedidos das contas existentes; pedidos já gravados preservam seus preços. Ações offline não confirmam pagamento nem avanço da fila. QR criado offline só pode ser usado pelo cliente depois da sincronização.
+Regras alteradas afetam os próximos pedidos das contas existentes; pedidos já gravados preservam seus preços. Ações offline não confirmam pagamento nem avanço da fila. Novas ações criadas em outro dia são recusadas após atualizar o app; reenvios já confirmados permanecem idempotentes. QR criado offline só pode ser usado pelo cliente depois da sincronização.
 
 Metas aprovadas: perda máxima de 24 horas (RPO), retorno em até 2 horas (RTO), cópia externa em S3 compatível a cada backup. A rotina proposta é a cada 12 horas. A retenção padrão de snapshots locais/externos é 14 dias; dados offline da equipe expiram em 3 dias; a lista de aparelhos guarda 30 dias.
 

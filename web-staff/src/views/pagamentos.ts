@@ -5,6 +5,7 @@ import { estado as estadoDaFila } from '../fila-store'
 import { agoraDoServidor, estado, observar, recarregar, mudarPagina } from '../pagamentos-store'
 import { avisar } from '../toast'
 import { dialogoFecharSemReceber, dialogoReceber } from './receber'
+import { dialogoRevisarPedidos } from './revisar-pedidos'
 
 const ocupados = new Set<string>()
 let sairDaTela: (() => void) | null = null
@@ -120,6 +121,12 @@ function cartao (root: HTMLElement, sessao: Sessao, c: ContaAPagar, dono: boolea
   }
 
   const acoes: HTMLElement[] = []
+  if (c.pedidosAguardando > 0) {
+    acoes.push(h('button', {
+      type: 'button', class: 'btn btn-line', disabled: ocupado, 'aria-label': `Revisar pedidos não pagos de ${c.cliente}`,
+      onclick: () => { dialogoRevisarPedidos(c, () => { void recarregar() }) }
+    }, 'Revisar pedidos não pagos'))
+  }
   if (c.status === 'AGUARDANDO_PAGAMENTO' && c.pagoCentavos > 0 && c.saldoCentavos > 0) {
     acoes.push(h('button', {
       type: 'button', class: 'btn btn-line', disabled: ocupado, 'aria-label': `Continuar conta de ${c.cliente}`,

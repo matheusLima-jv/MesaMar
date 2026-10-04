@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Implantação/rollback manual com gate explícito de compatibilidade. Não modifica a .env.
+# Implantação/rollback manual; a imagem saudável passa a ser a configuração persistente.
 set -euo pipefail
 source "$(dirname "$0")/backup/comum.sh"
 imagem="${1:-}"
@@ -7,7 +7,8 @@ imagem="${1:-}"
 docker pull "$imagem"
 container=$(docker create "$imagem")
 dir=$(mktemp -d "$BACKUP_DIR/compatibilidade.XXXXXX")
-trap 'docker rm "$container" > /dev/null; rm -f "$dir/compatibilidade.json"; rmdir "$dir"' EXIT
+env_temporario=''
+trap 'docker rm "$container" > /dev/null; rm -f "$dir/compatibilidade.json"; rmdir "$dir"; [[ -z "$env_temporario" ]] || rm -f "$env_temporario"' EXIT
 docker cp "$container:/app/compatibilidade.json" "$dir/compatibilidade.json" || falha 'Imagem não declara compatibilidade; rollback bloqueado.'
 if [[ "$(psql_db "$DB_NAME" -c "SELECT to_regclass('public.flyway_schema_history') IS NOT NULL")" == t ]]; then
   atual=$(psql_db "$DB_NAME" -c 'SELECT coalesce(max(version::int),0) FROM flyway_schema_history WHERE success')
@@ -22,6 +23,8 @@ if c.get('versao') != 1 or not ((atual == 0 and c.get('permiteBancoVazio') is Tr
     raise SystemExit('Esquema incompatível. Use recuperação com backup anterior validado; não altere Flyway manualmente.')
 PY
 # Só a migração usa a credencial administrativa de DDL. O app usa a conta de execução.
+env_arquivo=$(realpath "${MESAMAR_ENV_FILE:-.env}")
+env_temporario=$(python3 "$(dirname "$0")/atualizar-imagem.py" "$env_arquivo" "$imagem")
 export MESAMAR_IMAGE="$imagem"
 "${COMPOSE[@]}" stop app
 "${COMPOSE[@]}" run --rm migrate
@@ -32,5 +35,7 @@ c=json.load(open(sys.argv[1])); v=int(sys.argv[2])
 if not c['schemaMinimo'] <= v <= c['schemaMaximo']: raise SystemExit('Esquema resultante incompatível; mantenha o app parado e execute o plano de recuperação.')
 PY
 "${COMPOSE[@]}" up -d --no-deps --wait --wait-timeout 180 app
+mv -f "$env_temporario" "$env_arquivo"
+env_temporario=''
 printf '%s\n' "$imagem" > "$BACKUP_DIR/imagem-implantada.txt"
-log 'Imagem validada implantada; confira os fluxos e /actuator/info.'
+log 'Imagem validada implantada e persistida na .env; confira os fluxos e /actuator/info.'
