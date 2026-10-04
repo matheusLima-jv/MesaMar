@@ -25,7 +25,7 @@ jobs:
       - name: Inventário das dependências Kotlin de execução
         run: ./gradlew :backend:inventarioDependencias -PskipFrontendBuild
       - name: Auditar bibliotecas realmente entregues
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           version: v0.70.0
           scan-type: sbom
@@ -34,7 +34,7 @@ jobs:
           exit-code: '1'
       - name: Auditar a imagem e seus pacotes do sistema regularmente
         run: docker build --tag mesamar-auditoria:${{ github.sha }} .
-      - uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:
           version: v0.70.0
           image-ref: mesamar-auditoria:${{ github.sha }}
