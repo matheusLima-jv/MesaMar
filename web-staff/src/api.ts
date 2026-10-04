@@ -162,6 +162,15 @@ export class ApiError extends Error {
   get temporario (): boolean { return !this.descartada && (this.status === 0 || this.status >= 500 || this.status === 408 || this.status === 429) }
 
   /**
+   * O servidor conferiu o pedido e recusou (validação, conflito, não encontrado): nada foi gravado com esse id.
+   * Sessão vencida, CSRF, limite e falha de rede não contam: o pedido nem chegou a ser avaliado.
+   */
+  get recusaDefinitiva (): boolean {
+    return !this.temporario && !this.descartada && this.status >= 400 && this.status < 500 &&
+      this.status !== 401 && !(this.status === 403 && this.codigo === 'csrf')
+  }
+
+  /**
    * A chamada foi descartada porque a sessão local acabou (saiu, trocou de pessoa) enquanto ela estava em andamento.
    * Ninguém mostra este erro: a tela que pediu já não existe.
    */
@@ -383,7 +392,12 @@ async function exclusaoMutua<T> (executar: () => Promise<T>): Promise<T> {
 }
 async function enviarOperacao (op: Operacao): Promise<unknown> {
   const path = op.tipo === 'checkin' ? '/clientes' : `/comandas/${op.comandaId ?? ''}/pedidos`
-  const resultado = await chamarRede<unknown>('POST', path, { ...(op.dados as Record<string, unknown>), criadoNoAparelhoEm: new Date(op.criadaEm).toISOString() })
+  // Criação e envio pelo mesmo relógio: o servidor usa a diferença (idade), então um relógio errado não recusa a ação
+  const resultado = await chamarRede<unknown>('POST', path, {
+    ...(op.dados as Record<string, unknown>),
+    criadoNoAparelhoEm: new Date(op.criadaEm).toISOString(),
+    enviadoNoAparelhoEm: new Date().toISOString()
+  })
   // Guarda confirmação no contexto do autor, nunca no contexto que eventualmente abriu depois.
   await guardarCache(op.contexto, `confirmacao:${op.id}`, resultado)
   if (op.tipo === 'checkin') {

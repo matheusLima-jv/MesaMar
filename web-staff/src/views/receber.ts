@@ -157,8 +157,9 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
             aoConcluir()
           })
           .catch((e: unknown) => {
-            // Recusa do servidor (4xx): nada foi gravado, o próximo pagamento pode ser outro. Sem resposta: continua incerto.
-            if (e instanceof ApiError && e.status >= 400 && e.status < 500) pagamentoIncerto.apagar(c.comandaId)
+            // Recusa avaliada pelo servidor: nada foi gravado, o próximo pagamento pode ser outro. Sem resposta, sessão
+            // vencida ou limite (401, 408, 429): o envio anterior pode ter sido gravado, então continua incerto e repete o id.
+            if (e instanceof ApiError && e.recusaDefinitiva) pagamentoIncerto.apagar(c.comandaId)
             confirmar.disabled = false
             atualizar()
             mostrarErro(e instanceof ApiError ? e.message : 'Não deu para registrar. Tente de novo (o pagamento não será cobrado duas vezes).')

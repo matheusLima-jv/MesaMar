@@ -4,6 +4,9 @@ import br.com.mesamar.common.MailProperties
 import br.com.mesamar.push.PushProperties
 import org.junit.jupiter.api.Test
 import org.springframework.mock.env.MockEnvironment
+import tools.jackson.databind.ObjectMapper
+import java.io.File
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class ProducaoValidationTest {
@@ -82,5 +85,25 @@ class ProducaoValidationTest {
         validar()
         assertFailsWith<IllegalArgumentException> { validar(push = PushProperties(publicKey = "invalida")) }
         assertFailsWith<IllegalArgumentException> { validar(push = PushProperties(publicKey = "invalida", privateKey = "invalida")) }
+    }
+
+    @Test
+    fun `esquema exigido acompanha a ultima migracao e o manifesto da imagem`() {
+        val migracoes =
+            File("src/main/resources/db/migration")
+                .listFiles()
+                .orEmpty()
+                .mapNotNull {
+                    Regex("^V(\\d+)__")
+                        .find(it.name)
+                        ?.groupValues
+                        ?.get(1)
+                        ?.toInt()
+                }
+        val manifesto = ObjectMapper().readTree(File("../deploy/compatibilidade.json"))
+        val esquema = ProducaoValidation.esquemaDaImagem()
+        assertEquals(migracoes.max(), esquema)
+        assertEquals(manifesto.get("schemaDestino").asInt(), esquema)
+        assertEquals(manifesto.get("schemaMaximo").asInt(), esquema)
     }
 }

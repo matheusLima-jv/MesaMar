@@ -476,6 +476,14 @@ O perfil `prod` exige credenciais de execução sem DDL, migração separada, SM
 8. **Operação isolada:** executar os testes de imagem/implantação indicados no relatório. Subida saudável persiste digest; falha preserva `.env`; Compose independente usa o novo digest. Ensaio de restauração usa `ARQUIVO.dump --producao`, preserva o banco anterior e retorna a ele se a ativação falhar.
 9. **Concorrência de cadastro:** dois envios simultâneos do mesmo WhatsApp devem manter um lead e atualizar os campos sem erro 500, preservando criação, origem e identificador originais.
 
+## Correções da revisão externa
+
+1. **Perfil de produção:** num ambiente de ensaio com banco descartável, rode a migração e suba o app com `SPRING_PROFILES_ACTIVE=prod`. O app inicia com o banco em V21. Antes da correção, ele recusava iniciar com "Esta imagem exige esquema V19".
+2. **Relógio errado:** adiante em 10 minutos o relógio de um celular da equipe (ou mude a data para anteontem). Faça um check-in e lance um pedido. Os dois chegam normalmente, sem "criada em outro dia". Volte o relógio ao automático.
+3. **Ação de ontem continua recusada:** guarde um lançamento sem sinal antes da meia-noite e sincronize no dia seguinte. Ele vira conflito com a orientação de conferir a conta, como no item 5 da seção anterior.
+4. **Trocar PIN e desativar ao mesmo tempo:** com o painel aberto em duas abas, desative a atendente numa e troque o PIN na outra quase juntas. Ao final, a atendente continua **Desativada** e não entra com o PIN novo.
+5. **Pagamento sem resposta e sessão vencida:** em Pagamentos, registre um pagamento parcial com o celular perdendo o sinal no envio. Deixe a sessão vencer (ou saia), entre de novo e reabra Receber dessa conta: o diálogo repete o **mesmo** valor e forma, sem deixar mudar, e a conta recebe o valor uma única vez.
+
 ## Limpar tudo
 
 ```bash

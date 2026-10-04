@@ -108,7 +108,8 @@ class AtendenteService(
         errors: Errors,
     ): Boolean {
         autorHistorico.marcar()
-        val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return false
+        // Travado: uma desativação ou revogação simultânea não é desfeita por esta gravação
+        val atendente = repository.findForUpdate(id, barraca.id) ?: return false
         PinRules.problema(pin)?.let { errors.rejectValue("pin", "pin", it) }
         if (errors.hasErrors()) return false
         atendente.pinHash = requireNotNull(encoder.encode(pin.trim()))
@@ -124,7 +125,7 @@ class AtendenteService(
         ativo: Boolean,
     ): Atendente? {
         autorHistorico.marcar()
-        val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return null
+        val atendente = repository.findForUpdate(id, barraca.id) ?: return null
         atendente.ativo = ativo
         // Desativar mata as sessões abertas para sempre: reativar depois não as faz voltar a valer (o atendente entra de novo)
         if (!ativo) revogar(atendente)
@@ -144,7 +145,7 @@ class AtendenteService(
         id: UUID,
     ): Atendente? {
         autorHistorico.marcar()
-        val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return null
+        val atendente = repository.findForUpdate(id, barraca.id) ?: return null
         revogar(atendente)
         salvar(atendente)
         revogarPush(atendente, ativo = false)
@@ -170,7 +171,7 @@ class AtendenteService(
         id: UUID,
     ): Atendente? {
         autorHistorico.marcar()
-        val atendente = repository.findByIdAndBarracaId(id, barraca.id) ?: return null
+        val atendente = repository.findForUpdate(id, barraca.id) ?: return null
         liberar(atendente)
         salvar(atendente)
         return atendente
