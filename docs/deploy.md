@@ -78,7 +78,7 @@ Após recuperação bem-sucedida, confira acesso, pedidos abertos, pagamentos e 
 
 ## Alertas e diagnóstico
 
-Use dois checks externos distintos, com avisos habilitados: disponibilidade e ausência de backup. O monitor roda na VPS e envia heartbeat ou `/fail`; o monitor externo também precisa alertar se o heartbeat da VPS parar. Configure `MESAMAR_DISPONIBILIDADE_PING_URL` e `MESAMAR_BACKUP_MONITOR_PING_URL` com endpoints compatíveis com Healthchecks (resposta `OK`). `MESAMAR_BACKUP_PING_URL` registra sucesso somente depois da cópia. O prazo do backup é 24 horas, sem tolerância adicional por padrão. Testes locais comprovam sinais separados; a recepção de e-mail/push de alerta no provedor deve ser ensaiada na conta real.
+Use dois checks externos distintos, com avisos habilitados: disponibilidade e ausência de backup. O monitor roda na VPS e envia heartbeat ou `/fail`; o monitor externo também precisa alertar se o heartbeat da VPS parar. Configure `MESAMAR_DISPONIBILIDADE_PING_URL` e `MESAMAR_BACKUP_MONITOR_PING_URL` com endpoints compatíveis com Healthchecks (resposta `OK`). `MESAMAR_BACKUP_PING_URL` registra sucesso somente depois da cópia. O prazo do backup é 24 horas, sem tolerância adicional por padrão. O marcador `ultima-copia-externa.txt` guarda o instante dos dados copiados (logo antes do dump), não o fim da verificação e do envio: o monitor mede a idade dos dados, e um backup demorado não estica o RPO. Testes locais comprovam sinais separados; a recepção de e-mail/push de alerta no provedor deve ser ensaiada na conta real.
 
 Teste operacional separado: indisponibilidade mantendo backup recente deve disparar só disponibilidade; depois simule marcador de backup antigo com serviço saudável e verifique só backup. Restaure o marcador e confirme recuperação dos alertas. Não exponha URLs secretas dos checks.
 
@@ -87,3 +87,17 @@ Teste operacional separado: indisponibilidade mantendo backup recente deve dispa
 `/admin/operacao` informa última execução e falhas de anonimização, encerramento, listener/eventos e notificações. `/actuator/metrics/**` exige administrador e apresenta erros, latência, requests/conexões e pool Hikari. Erros carregam `X-Request-ID` correlacionável; não registrar tokens, corpos ou dados pessoais. Notificações têm outbox e reenvio; observe atraso e falhas de entrega, não apenas processo vivo. O ensaio de consultas em `deploy/db/medir-consultas.sql` usa intervalos de timestamps, barraca e EXPLAIN ANALYZE numa cópia; SQL 15 s, lock 3 s e aquisição de conexão 5 s.
 
 Referências: [Restic/S3](https://restic.readthedocs.io/en/stable/030_preparing_a_new_repo.html), [verificação e retenção Restic](https://restic.readthedocs.io/en/stable/045_working_with_repos.html), [sinais Healthchecks](https://healthchecks.io/docs/http_api/).
+
+## Nginx: log de acesso sem credenciais
+
+`deploy/nginx-mesamar.conf` grava no log só o caminho de cada acesso. O token de `/c/` e `/api/c/` sai como `***`, e qualquer query string (convite, troca de senha) vira `?***`. Os servidores das portas 80 e 443 usam o mesmo formato. Para aplicar uma versão nova do arquivo no proxy existente, sem mexer em firewall, DNS ou Cloudflare:
+
+```bash
+# copie o arquivo para a pasta conf.d do container do Nginx (o caminho depende da sua instalação)
+docker exec <container-do-nginx> nginx -t          # confere a sintaxe antes
+docker exec <container-do-nginx> nginx -s reload   # aplica sem derrubar conexões
+# confira: abra um link de comanda e veja que o log mostra /c/*** e nada depois de ?
+docker exec <container-do-nginx> tail -n 3 /var/log/nginx/mesamar.access.log
+```
+
+O log de erros do Nginx não aceita formato. Se precisar compartilhá-lo, procure `/c/` antes e mascare à mão.

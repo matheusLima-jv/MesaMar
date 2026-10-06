@@ -484,6 +484,16 @@ O perfil `prod` exige credenciais de execução sem DDL, migração separada, SM
 4. **Trocar PIN e desativar ao mesmo tempo:** com o painel aberto em duas abas, desative a atendente numa e troque o PIN na outra quase juntas. Ao final, a atendente continua **Desativada** e não entra com o PIN novo.
 5. **Pagamento sem resposta e sessão vencida:** em Pagamentos, registre um pagamento parcial com o celular perdendo o sinal no envio. Deixe a sessão vencer (ou saia), entre de novo e reabra Receber dessa conta: o diálogo repete o **mesmo** valor e forma, sem deixar mudar, e a conta recebe o valor uma única vez.
 
+## Correções da terceira revisão
+
+1. **Pagamento sem resposta, no mesmo diálogo:** em Pagamentos, abra Receber, digite R$ 20 e ative o modo avião logo depois de tocar em Confirmar. Com o erro na tela, o valor e a forma ficam travados. Volte o sinal e confirme de novo: o aviso diz "Recebido R$ 20,00" e a conta desconta R$ 20 uma vez só.
+2. **Recusa no check-in:** em Clientes → Novo cliente, preencha o WhatsApp `123` e toque em Gerar QR. O erro aparece no campo. Corrija para `(13) 99999-8888` e toque de novo: o QR sai com o número corrigido. O indicador de sincronização não mostra nenhuma ação recusada.
+3. **WhatsApp longo:** tente colar um texto de mais de 25 caracteres no WhatsApp. O campo corta no limite e o botão Gerar QR continua funcionando.
+4. **Recusa no lançamento não trava a fila:** lance um pedido numa comanda já encerrada (abra Pedir antes de encerrar a conta em outro aparelho). A recusa aparece na tela. Em seguida, lance um pedido para outra comanda aberta: ele entra na hora, sem ficar "preservado neste aparelho".
+5. **Troca de senha continua derrubando as sessões:** repita o item 145. O resultado esperado não mudou. A corrida corrigida (troca confirmada durante o login) só se reproduz nos testes automáticos.
+6. **Portão A:** com uma praia escolhida em `/teste-sinal`, abra o app do cliente e faça um pedido. Em `/admin`, a linha da praia conta só as aberturas, e a coluna Servidor mostra "—" quando não houver teste de sinal. A lista "Últimas medições" mostra o tipo de cada linha.
+7. **Log do Nginx (só no ensaio de produção):** siga a seção "Nginx" de [deploy.md](deploy.md). Abra um link de comanda com `http://` e outro com `?token=a&convite=b`: o log mostra `/c/***` e `?***`, sem nenhum dos valores.
+
 ## Limpar tudo
 
 ```bash
