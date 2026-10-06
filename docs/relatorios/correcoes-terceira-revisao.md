@@ -51,6 +51,7 @@ No diretório `web-staff`: `npm run build` (lint, testes, TypeScript e bundle).
 - Conferência ao contrário: com o código de produção anterior e os testes novos, **8 dos 10 testes de backend falham** (A01, os três do A02, A05, A06, A07 e A13). Os dois que passam são o prazo do Turnstile (testa o cliente novo, que não existia) e a guarda de que a sessão continua valendo sem troca de senha. No `web-staff`, os 5 testes do check-in falham com o formulário antigo, assim como 2 do pagamento, 2 do lançamento e o da recusa alheia na fila.
 - Nginx: o mapa novo foi testado num `nginx:1.27-alpine` com 12 URLs (token no caminho, `?token=`, `?convite=`, parâmetros repetidos). Nenhum valor chegou ao log. O mapa antigo, com as mesmas URLs, vazava `convite=…` e o `?token=` depois de `/c/***`.
 - `backup.sh` e `excluir-cliente.sh`: `bash -n` e ShellCheck sem avisos; o teste do monitor (`.github/scripts/testar-alertas.py`) passa.
+- O workflow de segurança passou a reprovar por um alerta novo e alto no `source-map-js` 1.2.1 (GHSA-68fv-2mgg-jv7q), que é dependência indireta de build (`vite → postcss`) do `web-customer` e do `web-staff`. Não tem relação com estas correções e reprovaria qualquer PR. Os dois lockfiles passaram para 1.2.2 (`npm audit fix`, nenhuma outra mudança); `web-customer` segue com 16 testes e o bundle, aprovados.
 
 Testes novos:
 
