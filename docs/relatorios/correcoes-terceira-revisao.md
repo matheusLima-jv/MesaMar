@@ -1,6 +1,6 @@
 # Correções da terceira revisão externa
 
-Data: 2026-10-06. Branch `correcoes-terceira-revisao`, a partir de `correcoes-revisao-externa`. Banco continua em V21.
+Data: 2026-10-06. Branch `correcoes-terceira-revisao` ([PR #29](https://github.com/matheusLima-jv/MesaMar/pull/29)), a partir de `correcoes-revisao-externa`. Banco continua em V21. **Aprovado pelo Matheus em 2026-10-06.**
 
 ## 1. O que foi feito
 
@@ -76,4 +76,4 @@ CI do [PR #29](https://github.com/matheusLima-jv/MesaMar/pull/29): lint, testes 
 
 Validar este checkpoint. O PR #27 já está na `main`, mas o PR #28 (`correcoes-revisao-externa`) foi mergeado na `correcoes-auditoria-geral` depois disso e não chegou à `main`. Esta branch parte dele, então levá-la à `main` leva as duas entregas. Depois, preparação do piloto.
 
-⏸️ Aguardando validação. Responda "APROVADO CORREÇÕES DA TERCEIRA REVISÃO" ou "AJUSTAR CORREÇÕES DA TERCEIRA REVISÃO: ...".
+✅ Aprovado em 2026-10-06 ("APROVADO CORREÇÕES DA TERCEIRA REVISÃO"). O merge do PR #29 na `main` fica com o Matheus.
