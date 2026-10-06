@@ -58,7 +58,7 @@ Testes novos:
 - `CorrecoesTerceiraRevisaoTest` (backend): corrida do último login com troca de senha; troca de senha durante o BCrypt do login do dono no app; sessão do painel e do atendente depois de troca ou revogação não vistas pelo login; link antigo depois de 7 dias; resumo do Portão A com métricas misturadas; teto de aparelhos na transferência; Turnstile mudo; problema reportado com quebras de linha.
 - `web-staff/tests`: `fila-recusa.test.cjs` (fila real em IndexedDB de memória), `checkin.test.cjs`, `receber.test.cjs` e dois casos novos em `lancar.test.cjs`.
 
-Playwright e os ensaios Bash completos de backup não foram repetidos nesta branch.
+CI do [PR #29](https://github.com/matheusLima-jv/MesaMar/pull/29): lint, testes e build, segurança e imagem Docker com E2E aprovados. No E2E, os **59 testes Playwright** passaram, inclusive os de fila offline e reabertura. Os ensaios Bash completos de backup com S3 não foram repetidos.
 
 ## 5. Validação manual
 
