@@ -25,12 +25,26 @@ data class LeadRow(
 
 data class MedicaoRow(
     val praia: String,
+    /** TESTE_SINAL, ABERTURA_FRIA, REABERTURA, PEDIDO, FILA ou PAGAMENTO. */
+    val metrica: String,
     val carregamentoMs: Int?,
     val pingMs: Int?,
     val tipoConexao: String?,
     val criadaEm: Instant,
 ) {
     val criadaEmLocal: String get() = AdminQueries.format(criadaEm)
+
+    val metricaLabel: String
+        get() =
+            when (metrica) {
+                "TESTE_SINAL" -> "Teste de sinal"
+                "ABERTURA_FRIA" -> "Primeira abertura"
+                "REABERTURA" -> "Reabertura"
+                "PEDIDO" -> "Pedido"
+                "FILA" -> "Fila"
+                "PAGAMENTO" -> "Pagamento"
+                else -> metrica
+            }
 }
 
 enum class StatusConvite(
@@ -56,12 +70,16 @@ data class ConviteRow(
     val expiraEmLocal: String get() = AdminQueries.format(expiraEm)
 }
 
-/** Resumo do sinal por praia: é o dado que decide o Portão A (meta: abrir em até 5 s). */
+/**
+ * Resumo do sinal por praia: é o dado que decide o Portão A (meta: abrir em até 5 s). Olha só as aberturas medidas: o
+ * teste de sinal e a primeira abertura dos apps. Pedido, fila e pagamento não têm tempo de abertura, e a reabertura vem
+ * do cache do celular (não mede o sinal). Mediana `null` é falta de amostra, não zero.
+ */
 data class ResumoSinal(
     val praia: String,
     val medicoes: Int,
     val medianaCarregamentoMs: Int,
-    val medianaPingMs: Int,
+    val medianaPingMs: Int?,
     val percentualAte5s: Int,
 ) {
     val atingeMeta: Boolean get() = percentualAte5s >= 50
@@ -91,10 +109,11 @@ class AdminQueries(
 
     fun medicoes(limit: Int = Int.MAX_VALUE): List<MedicaoRow> =
         jdbc.query(
-            "SELECT praia, carregamento_ms, ping_ms, tipo_conexao, criada_em FROM medicao_sinal ORDER BY criada_em DESC LIMIT ?",
+            "SELECT praia, metrica, carregamento_ms, ping_ms, tipo_conexao, criada_em FROM medicao_sinal ORDER BY criada_em DESC LIMIT ?",
             RowMapper { rs, _ ->
                 MedicaoRow(
                     praia = praiaLabel(rs.getString("praia")),
+                    metrica = rs.getString("metrica"),
                     carregamentoMs = rs.getObject("carregamento_ms", Int::class.javaObjectType),
                     pingMs = rs.getObject("ping_ms", Int::class.javaObjectType),
                     tipoConexao = rs.getString("tipo_conexao"),
@@ -113,6 +132,7 @@ class AdminQueries(
                    percentile_cont(0.5) WITHIN GROUP (ORDER BY ping_ms) AS mediana_ping,
                    round(100.0 * avg(CASE WHEN carregamento_ms <= 5000 THEN 1 ELSE 0 END)) AS pct_ate_5s
             FROM medicao_sinal
+            WHERE metrica IN ('TESTE_SINAL', 'ABERTURA_FRIA') AND carregamento_ms IS NOT NULL
             GROUP BY praia
             ORDER BY praia
             """.trimIndent(),
@@ -121,7 +141,7 @@ class AdminQueries(
                     praia = praiaLabel(rs.getString("praia")),
                     medicoes = rs.getInt("medicoes"),
                     medianaCarregamentoMs = rs.getDouble("mediana_carregamento").toInt(),
-                    medianaPingMs = rs.getDouble("mediana_ping").toInt(),
+                    medianaPingMs = rs.getObject("mediana_ping", Double::class.javaObjectType)?.toInt(),
                     percentualAte5s = rs.getInt("pct_ate_5s"),
                 )
             },

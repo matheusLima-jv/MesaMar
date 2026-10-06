@@ -30,13 +30,14 @@ class ConsultaCliente(
     private val fechamento: FechamentoService,
     private val clock: Clock,
 ) {
-    fun vigente(token: String): Comanda? {
-        val c = comandas.findByTokenAcesso(token) ?: return null
-        return c.takeUnless {
-            it.status == StatusComanda.FECHADA &&
-                it.fechadaEm?.plus(Duration.ofDays(ClienteController.EXTRATO_DIAS))?.isBefore(Instant.now(clock)) == true
-        }
-    }
+    fun vigente(token: String): Comanda? = comandas.findByTokenAcesso(token)?.takeUnless(::extratoVencido)
+
+    /** A comanda cujo QR foi trocado, pelo link antigo, com o mesmo prazo do extrato: depois dele, nem o link antigo abre. */
+    fun vigentePeloLinkAntigo(token: String): Comanda? = comandas.findByTokenAnterior(token)?.takeUnless(::extratoVencido)
+
+    private fun extratoVencido(c: Comanda): Boolean =
+        c.status == StatusComanda.FECHADA &&
+            c.fechadaEm?.plus(Duration.ofDays(ClienteController.EXTRATO_DIAS))?.isBefore(Instant.now(clock)) == true
 
     fun comanda(token: String): ComandaClienteView? {
         val comanda = vigente(token) ?: return null

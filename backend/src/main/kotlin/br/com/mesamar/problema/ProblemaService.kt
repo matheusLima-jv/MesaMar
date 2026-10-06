@@ -69,8 +69,9 @@ class ProblemaService(
     ): ResultadoProblema {
         val mensagem = limpar(req.mensagem, MENSAGEM_MAX)
         if (mensagem.length < MENSAGEM_MIN) return ResultadoProblema.Invalido("Conte o que aconteceu, com pelo menos $MENSAGEM_MIN letras.")
-        val tela = limpar(req.tela, 40).ifEmpty { "desconhecida" }
-        val conexao = limpar(req.conexao, 60).ifEmpty { "desconhecida" }
+        // Tela e conexão vão para o log: numa linha só, para ninguém forjar uma linha de log falsa
+        val tela = limpar(req.tela, 40, umaLinha = true).ifEmpty { "desconhecida" }
+        val conexao = limpar(req.conexao, 60, umaLinha = true).ifEmpty { "desconhecida" }
         jdbc.update(
             """
             INSERT INTO problema_reportado (id, barraca_id, origem, usuario_id, atendente_id, comanda_id, tela, mensagem, conexao, agente, criado_em)
@@ -85,7 +86,7 @@ class ProblemaService(
             tela,
             mensagem,
             conexao,
-            agente?.let { limpar(it, 200) }?.ifEmpty { null },
+            agente?.let { limpar(it, 200, umaLinha = true) }?.ifEmpty { null },
             Timestamp.from(Instant.now(clock)),
         )
         log.warn("Problema reportado: origem={} barraca={} tela={} conexao={}", origem, barracaId, tela, conexao)
@@ -141,13 +142,18 @@ class ProblemaService(
             limit,
         )
 
-    /** Sem caractere de controle, espaços repetidos viram um, e cabe no tamanho do banco. */
+    /**
+     * Sem caractere de controle, espaços repetidos viram um, e cabe no tamanho do banco. Só a mensagem guarda as quebras
+     * de linha (`umaLinha = false`); os outros campos viram uma linha só.
+     */
     private fun limpar(
         texto: String?,
         max: Int,
+        umaLinha: Boolean = false,
     ): String =
         (texto ?: "")
-            .replace(Regex("[\\p{Cntrl}&&[^\\n]]"), " ")
+            // Uma linha: também os separadores de linha do Unicode (U+0085, U+2028, U+2029), que alguns leitores de log quebram
+            .replace(if (umaLinha) Regex("[\\p{Cc}\\p{Zl}\\p{Zp}]") else Regex("[\\p{Cntrl}&&[^\\n]]"), " ")
             .replace(Regex("[ \\t]+"), " ")
             .trim()
             .take(max)

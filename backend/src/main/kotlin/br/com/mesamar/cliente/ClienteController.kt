@@ -2,7 +2,6 @@ package br.com.mesamar.cliente
 
 import br.com.mesamar.barraca.BarracaRepository
 import br.com.mesamar.comanda.Comanda
-import br.com.mesamar.comanda.ComandaRepository
 import br.com.mesamar.common.Fuso
 import br.com.mesamar.common.RateLimiter
 import br.com.mesamar.eventos.HubEventos
@@ -220,7 +219,6 @@ data class ErroIndisponivelView(
 @RequestMapping("/api/c/{token}")
 class ClienteController(
     private val consultas: ConsultaCliente,
-    private val comandas: ComandaRepository,
     private val barracas: BarracaRepository,
     private val pedidos: PedidoService,
     private val conta: FechamentoService,
@@ -406,16 +404,20 @@ class ClienteController(
     /**
      * O atendente trocou o QR desta comanda (ver `CheckinService.novoQr`) enquanto a página antiga ainda reenviava um
      * pedido. O link antigo não abre mais nada, **menos** isto: se o pedido que ela reenvia já existe nesta comanda, devolve
-     * o pedido (200), e a página para de reenviar. Qualquer outra coisa é 404, como um link que nunca existiu.
+     * o pedido (200), e a página para de reenviar. Qualquer outra coisa é 404, como um link que nunca existiu. Vale o
+     * mesmo prazo e o mesmo limite de envios do link atual, numa conta separada: a página antiga reenviando não gasta os
+     * pedidos que o cliente faz pelo link novo.
      */
     private fun pedidoDoLinkAntigo(
         token: String,
         body: PedidoRequest,
         request: HttpServletRequest,
     ): ResponseEntity<Any> {
-        val comanda = comandas.findByTokenAnterior(token)
+        val comanda = consultas.vigentePeloLinkAntigo(token)
         val id = body.id
-        val existente = if (comanda != null && id != null) pedidos.pedidoDaComanda(comanda.id, id) else null
+        if (comanda == null || id == null) return recusado(request)
+        if (!rateLimiter.tryAcquire("c-link-antigo:${comanda.id}", LIMITE_PEDIDOS, JANELA_COMANDA)) return muitas()
+        val existente = pedidos.pedidoDaComanda(comanda.id, id)
         return if (existente != null) ResponseEntity.ok(PedidoView.of(existente)) else recusado(request)
     }
 
