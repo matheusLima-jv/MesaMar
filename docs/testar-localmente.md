@@ -476,6 +476,24 @@ O perfil `prod` exige credenciais de execução sem DDL, migração separada, SM
 8. **Operação isolada:** executar os testes de imagem/implantação indicados no relatório. Subida saudável persiste digest; falha preserva `.env`; Compose independente usa o novo digest. Ensaio de restauração usa `ARQUIVO.dump --producao`, preserva o banco anterior e retorna a ele se a ativação falhar.
 9. **Concorrência de cadastro:** dois envios simultâneos do mesmo WhatsApp devem manter um lead e atualizar os campos sem erro 500, preservando criação, origem e identificador originais.
 
+## Correções da revisão externa
+
+1. **Perfil de produção:** num ambiente de ensaio com banco descartável, rode a migração e suba o app com `SPRING_PROFILES_ACTIVE=prod`. O app inicia com o banco em V21. Antes da correção, ele recusava iniciar com "Esta imagem exige esquema V19".
+2. **Relógio errado:** adiante em 10 minutos o relógio de um celular da equipe (ou mude a data para anteontem). Faça um check-in e lance um pedido. Os dois chegam normalmente, sem "criada em outro dia". Volte o relógio ao automático.
+3. **Ação de ontem continua recusada:** guarde um lançamento sem sinal antes da meia-noite e sincronize no dia seguinte. Ele vira conflito com a orientação de conferir a conta, como no item 5 da seção anterior.
+4. **Trocar PIN e desativar ao mesmo tempo:** com o painel aberto em duas abas, desative a atendente numa e troque o PIN na outra quase juntas. Ao final, a atendente continua **Desativada** e não entra com o PIN novo.
+5. **Pagamento sem resposta e sessão vencida:** em Pagamentos, registre um pagamento parcial com o celular perdendo o sinal no envio. Deixe a sessão vencer (ou saia), entre de novo e reabra Receber dessa conta: o diálogo repete o **mesmo** valor e forma, sem deixar mudar, e a conta recebe o valor uma única vez.
+
+## Correções da terceira revisão
+
+1. **Pagamento sem resposta, no mesmo diálogo:** em Pagamentos, abra Receber, digite R$ 20 e ative o modo avião logo depois de tocar em Confirmar. Com o erro na tela, o valor e a forma ficam travados. Volte o sinal e confirme de novo: o aviso diz "Recebido R$ 20,00" e a conta desconta R$ 20 uma vez só.
+2. **Recusa no check-in:** em Clientes → Novo cliente, preencha o WhatsApp `123` e toque em Gerar QR. O erro aparece no campo. Corrija para `(13) 99999-8888` e toque de novo: o QR sai com o número corrigido. O indicador de sincronização não mostra nenhuma ação recusada.
+3. **WhatsApp longo:** tente colar um texto de mais de 25 caracteres no WhatsApp. O campo corta no limite e o botão Gerar QR continua funcionando.
+4. **Recusa no lançamento não trava a fila:** lance um pedido numa comanda já encerrada (abra Pedir antes de encerrar a conta em outro aparelho). A recusa aparece na tela. Em seguida, lance um pedido para outra comanda aberta: ele entra na hora, sem ficar "preservado neste aparelho".
+5. **Troca de senha continua derrubando as sessões:** repita o item 145. O resultado esperado não mudou. A corrida corrigida (troca confirmada durante o login) só se reproduz nos testes automáticos.
+6. **Portão A:** com uma praia escolhida em `/teste-sinal`, abra o app do cliente e faça um pedido. Em `/admin`, a linha da praia conta só as aberturas, e a coluna Servidor mostra "—" quando não houver teste de sinal. A lista "Últimas medições" mostra o tipo de cada linha.
+7. **Log do Nginx (só no ensaio de produção):** siga a seção "Nginx" de [deploy.md](deploy.md). Abra um link de comanda com `http://` e outro com `?token=a&convite=b`: o log mostra `/c/***` e `?***`, sem nenhum dos valores.
+
 ## Limpar tudo
 
 ```bash

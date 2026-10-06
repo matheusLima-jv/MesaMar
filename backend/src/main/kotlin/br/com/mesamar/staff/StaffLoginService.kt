@@ -1,6 +1,7 @@
 package br.com.mesamar.staff
 
 import br.com.mesamar.barraca.BarracaRepository
+import br.com.mesamar.conta.OwnerPrincipal
 import br.com.mesamar.conta.OwnerUserDetailsService
 import br.com.mesamar.conta.UsuarioRepository
 import br.com.mesamar.equipe.AtendenteRepository
@@ -63,14 +64,19 @@ class StaffLoginService(
         email: String,
         senha: String,
     ): ResultadoLogin {
-        try {
-            ownerAuth.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(email.trim(), senha))
-        } catch (e: AuthenticationException) {
-            return ResultadoLogin.Recusado()
-        }
-        val usuario = usuarios.findByEmailIgnoreCase(email.trim()) ?: throw BadCredentialsException("conta sumiu")
+        val autenticado =
+            try {
+                ownerAuth
+                    .authenticate(
+                        UsernamePasswordAuthenticationToken.unauthenticated(email.trim(), senha),
+                    ).principal as? OwnerPrincipal
+            } catch (e: AuthenticationException) {
+                return ResultadoLogin.Recusado()
+            } ?: return ResultadoLogin.Recusado()
+        val usuario = usuarios.findById(autenticado.usuarioId).orElse(null) ?: throw BadCredentialsException("conta sumiu")
         val barraca = usuario.barracaId?.let { barracas.findById(it).orElse(null) }?.takeIf { it.ativa } ?: return ResultadoLogin.SemBarraca
-        return ResultadoLogin.Ok(StaffPrincipal(barraca.id, PapelStaff.DONO, usuario.id, null, usuario.nome))
+        // O marcador vem do mesmo registro do hash conferido: uma troca de senha durante a conferência derruba esta sessão
+        return ResultadoLogin.Ok(StaffPrincipal(barraca.id, PapelStaff.DONO, usuario.id, null, usuario.nome, autenticado.versaoCredencial))
     }
 
     fun entrarAtendente(
@@ -81,9 +87,17 @@ class StaffLoginService(
     ): ResultadoLogin {
         val barraca = barracas.findBySlugAndAtivaTrue(codigo.trim().lowercase()) ?: return ResultadoLogin.NaoEncontrado
         return when (val r = atendenteService.autenticar(barraca.id, atendenteId, pin, origem)) {
+            // A revogação lida com a linha travada, junto com o PIN: uma revogação logo depois do login derruba esta sessão
             is ResultadoPin.Ok ->
                 ResultadoLogin.Ok(
-                    StaffPrincipal(barraca.id, PapelStaff.ATENDENTE, null, r.atendente.id, r.atendente.nome),
+                    StaffPrincipal(
+                        barraca.id,
+                        PapelStaff.ATENDENTE,
+                        null,
+                        r.atendente.id,
+                        r.atendente.nome,
+                        r.atendente.sessoesRevogadasEm,
+                    ),
                 )
             is ResultadoPin.PinErrado -> ResultadoLogin.Recusado(r.tentativasRestantes)
             is ResultadoPin.Bloqueado -> ResultadoLogin.Bloqueado(r.ate)

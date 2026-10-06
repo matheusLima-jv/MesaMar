@@ -7,8 +7,10 @@ import jakarta.persistence.LockModeType
 import jakarta.persistence.Table
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -47,6 +49,18 @@ interface UsuarioRepository : JpaRepository<Usuario, UUID> {
     fun travar(
         @Param("id") id: UUID,
     ): Usuario?
+
+    /**
+     * Grava só o último acesso. Ler o usuário e salvá-lo inteiro regravaria a senha e a barraca lidas antes: uma troca de
+     * senha (ou a criação da barraca) confirmada nesse meio-tempo seria desfeita.
+     */
+    @Modifying
+    @Transactional
+    @Query("update Usuario u set u.ultimoLoginEm = :em where u.id = :id")
+    fun registrarLogin(
+        @Param("id") id: UUID,
+        @Param("em") em: Instant,
+    ): Int
 }
 
 @Entity

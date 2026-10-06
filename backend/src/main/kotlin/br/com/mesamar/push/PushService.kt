@@ -193,12 +193,13 @@ class PushService(
         barracas.travar(barracaId)
         val existente = subs.findByEndpoint(endpoint)
         val agora = Instant.now(clock)
+        // Aparelho novo nesta barraca (inclusive o que vem de outra barraca): entra no teto dela
+        if (existente?.barracaId != barracaId && subs.countByBarracaId(barracaId) >= MAX_POR_BARRACA) {
+            return ResultadoInscricao.Invalido(
+                "Esta barraca já tem $MAX_POR_BARRACA aparelhos com avisos. Desative os que não usa mais.",
+            )
+        }
         if (existente == null) {
-            if (subs.countByBarracaId(barracaId) >= MAX_POR_BARRACA) {
-                return ResultadoInscricao.Invalido(
-                    "Esta barraca já tem $MAX_POR_BARRACA aparelhos com avisos. Desative os que não usa mais.",
-                )
-            }
             subs.save(
                 PushSubscription(
                     barracaId = barracaId,

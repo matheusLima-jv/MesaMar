@@ -13,6 +13,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.io.Serializable
+import java.time.Instant
 import java.util.UUID
 
 enum class PapelStaff { DONO, ATENDENTE }
@@ -27,8 +28,12 @@ data class StaffPrincipal(
     val usuarioId: UUID?,
     val atendenteId: UUID?,
     val nome: String,
-    /** Quando o login aconteceu: se a senha do dono mudou depois, a sessão deixa de valer. */
-    val logadoEm: java.time.Instant = java.time.Instant.now(),
+    /**
+     * O marcador lido junto com a credencial que o login conferiu: a última troca de senha do dono (`credenciais_em`) ou
+     * a última revogação das sessões do atendente (`sessoes_revogadas_em`). A sessão vale enquanto o banco tiver este
+     * mesmo valor. Comparar com a hora do login deixava passar uma troca confirmada durante a conferência da senha.
+     */
+    val versaoCredencial: Instant? = null,
 ) : Serializable {
     val authorities: List<GrantedAuthority>
         get() = listOf(SimpleGrantedAuthority("ROLE_STAFF"), SimpleGrantedAuthority("ROLE_STAFF_$papel"))
@@ -88,14 +93,12 @@ class StaffAcesso(
         return when (p.papel) {
             PapelStaff.DONO -> {
                 val usuario = p.usuarioId?.let { usuarios.findById(it).orElse(null) }
-                val credenciais = usuario?.credenciaisEm
-                usuario?.barracaId == p.barracaId && (credenciais == null || !credenciais.isAfter(p.logadoEm))
+                usuario != null && usuario.barracaId == p.barracaId && usuario.credenciaisEm == p.versaoCredencial
             }
             PapelStaff.ATENDENTE -> {
                 val atendente = p.atendenteId?.let { atendentes.findByIdAndBarracaId(it, p.barracaId) }
-                val revogadas = atendente?.sessoesRevogadasEm
                 // Desativar ou "sair de todos os aparelhos" mata as sessões de antes, mesmo que o atendente volte depois
-                atendente?.ativo == true && (revogadas == null || !revogadas.isAfter(p.logadoEm))
+                atendente != null && atendente.ativo && atendente.sessoesRevogadasEm == p.versaoCredencial
             }
         }
     }

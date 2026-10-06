@@ -25,8 +25,12 @@ class OwnerPrincipal(
     val usuarioId: UUID,
     private val email: String,
     private var senhaHash: String,
-    /** Quando o login aconteceu (o UserDetailsService só é chamado no login). */
-    val logadoEm: Instant = Instant.now(),
+    /**
+     * A última troca de senha (`credenciais_em`) lida junto com o hash que o login conferiu. A sessão vale enquanto o
+     * banco tiver este mesmo valor: uma troca confirmada durante o login (depois de ler o hash antigo) também derruba a
+     * sessão, o que uma comparação com a hora do login não garante.
+     */
+    val versaoCredencial: Instant? = null,
 ) : UserDetails,
     CredentialsContainer,
     Serializable {
@@ -50,12 +54,12 @@ class OwnerUserDetailsService(
         val usuario =
             usuarios.findByEmailIgnoreCase(username.trim())
                 ?: throw UsernameNotFoundException("conta não encontrada")
-        return OwnerPrincipal(usuario.id, usuario.email, usuario.senhaHash)
+        return OwnerPrincipal(usuario.id, usuario.email, usuario.senhaHash, usuario.credenciaisEm)
     }
 }
 
 /**
- * A cada requisição do painel, confere se a sessão ainda vale: a conta existe e a senha não mudou depois do login.
+ * A cada requisição do painel, confere se a sessão ainda vale: a conta existe e a senha é a mesma que o login conferiu.
  * NÃO é um @Component de propósito (ver StaffPrincipalCheckFilter).
  */
 class OwnerPrincipalCheckFilter(
@@ -73,8 +77,7 @@ class OwnerPrincipalCheckFilter(
                 ?.principal as? OwnerPrincipal
         if (principal != null) {
             val usuario = usuarios.findById(principal.usuarioId).orElse(null)
-            val credenciais = usuario?.credenciaisEm
-            if (usuario == null || (credenciais != null && credenciais.isAfter(principal.logadoEm))) {
+            if (usuario == null || usuario.credenciaisEm != principal.versaoCredencial) {
                 org.springframework.security.core.context.SecurityContextHolder
                     .clearContext()
                 request.getSession(false)?.removeAttribute(CHAVE_SESSAO_PAINEL)
@@ -104,12 +107,7 @@ class OwnerLoginSuccessHandler(
         authentication: Authentication,
     ) {
         val principal = authentication.principal as? OwnerPrincipal
-        if (principal != null) {
-            usuarios.findById(principal.usuarioId).ifPresent {
-                it.ultimoLoginEm = Instant.now(clock)
-                usuarios.save(it)
-            }
-        }
+        if (principal != null) usuarios.registrarLogin(principal.usuarioId, Instant.now(clock))
         super.onAuthenticationSuccess(request, response, authentication)
     }
 }

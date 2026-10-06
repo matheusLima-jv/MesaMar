@@ -162,6 +162,15 @@ export class ApiError extends Error {
   get temporario (): boolean { return !this.descartada && (this.status === 0 || this.status >= 500 || this.status === 408 || this.status === 429) }
 
   /**
+   * O servidor conferiu o pedido e recusou (validação, conflito, não encontrado): nada foi gravado com esse id.
+   * Sessão vencida, CSRF, limite e falha de rede não contam: o pedido nem chegou a ser avaliado.
+   */
+  get recusaDefinitiva (): boolean {
+    return !this.temporario && !this.descartada && this.status >= 400 && this.status < 500 &&
+      this.status !== 401 && !(this.status === 403 && this.codigo === 'csrf')
+  }
+
+  /**
    * A chamada foi descartada porque a sessão local acabou (saiu, trocou de pessoa) enquanto ela estava em andamento.
    * Ninguém mostra este erro: a tela que pediu já não existe.
    */
@@ -383,7 +392,12 @@ async function exclusaoMutua<T> (executar: () => Promise<T>): Promise<T> {
 }
 async function enviarOperacao (op: Operacao): Promise<unknown> {
   const path = op.tipo === 'checkin' ? '/clientes' : `/comandas/${op.comandaId ?? ''}/pedidos`
-  const resultado = await chamarRede<unknown>('POST', path, { ...(op.dados as Record<string, unknown>), criadoNoAparelhoEm: new Date(op.criadaEm).toISOString() })
+  // Criação e envio pelo mesmo relógio: o servidor usa a diferença (idade), então um relógio errado não recusa a ação
+  const resultado = await chamarRede<unknown>('POST', path, {
+    ...(op.dados as Record<string, unknown>),
+    criadoNoAparelhoEm: new Date(op.criadaEm).toISOString(),
+    enviadoNoAparelhoEm: new Date().toISOString()
+  })
   // Guarda confirmação no contexto do autor, nunca no contexto que eventualmente abriu depois.
   await guardarCache(op.contexto, `confirmacao:${op.id}`, resultado)
   if (op.tipo === 'checkin') {
@@ -424,6 +438,21 @@ export async function descartarConflito (id: string): Promise<void> {
   await removerOperacao(op.chave)
   await sincronizar()
 }
+/**
+ * A tela que enviou a ação mostrou a recusa do servidor a quem está nela (ex.: WhatsApp inválido, o preço mudou): isso
+ * já é a conferência. Tira a ação recusada da fila, para ela não travar as próximas nem voltar com os dados antigos
+ * quando a pessoa corrigir e enviar de novo. Recusa que ninguém viu continua no indicador, para descarte explícito.
+ */
+export async function recusaVista (id: string): Promise<void> {
+  try {
+    if (contexto === '') return
+    const op = (await listarOperacoes(contexto)).find(o => o.id === id)
+    if (op?.estado !== 'conflito') return
+    await removerOperacao(op.chave)
+    // O que estava atrás dela segue agora, sem esperar a próxima rodada
+    void sincronizar().catch(() => undefined)
+  } catch { /* sem armazenamento: o indicador continua oferecendo o descarte */ }
+}
 async function enviarPreservado<T> (tipo: Operacao['tipo'], id: string, dados: unknown, comandaId?: string): Promise<T> {
   if (contexto === '') throw new ApiError(401, 'sessao', 'Entre novamente para preservar esta ação.')
   const ctx = contexto
@@ -438,7 +467,11 @@ async function enviarPreservado<T> (tipo: Operacao['tipo'], id: string, dados: u
     if (s === null) return
     if (!s.logado || s.usuario === undefined || s.barraca === undefined || `${s.barraca.codigo}:${s.usuario.id}` !== ctx) { falha = new ApiError(401, 'sessao', 'A sessão mudou. Entre novamente com o autor desta ação.'); eventos.dispatchEvent(new Event('sessao-expirada')); return }
     await drenar(ctx, async pendente => {
-      try { const r = await enviarOperacao(pendente); if (pendente.id === id) resultado = r } catch (e) { falha = e; throw e }
+      try { const r = await enviarOperacao(pendente); if (pendente.id === id) resultado = r } catch (e) {
+        // A recusa de OUTRA ação da fila não é a resposta desta: esta continua guardada, atrás do conflito
+        if (pendente.id === id || !(e instanceof ApiError && e.recusaDefinitiva)) falha = e
+        throw e
+      }
     }, () => !sinal.aborted && ctx === contexto)
   })
   if (sinal.aborted || ctx !== contexto) throw new ApiError(0, 'descartada', 'Ação descartada.')

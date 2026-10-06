@@ -8,6 +8,7 @@ import br.com.mesamar.push.WebPushCripto
 import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.context.annotation.Profile
 import org.springframework.core.env.Environment
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Component
 import java.net.URI
@@ -24,8 +25,7 @@ class ProducaoValidation(
 ) : SmartInitializingSingleton {
     override fun afterSingletonsInstantiated() {
         validar(env, site, mail, push)
-        val esquema = jdbc.queryForObject("SELECT max(version::int) FROM flyway_schema_history WHERE success", Int::class.java)
-        require(esquema == 19) { "Esta imagem exige esquema V19; implantação/rollback deve validar compatibilidade" }
+        conferirEsquema(jdbc)
         val privilegios = jdbc.queryForMap("SELECT rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = current_user")
         require(privilegios.values.none { it == true }) { "DB_USER deve ser uma conta de execução sem poderes administrativos" }
         val dono =
@@ -48,6 +48,24 @@ class ProducaoValidation(
     }
 
     companion object {
+        /** A maior migração embutida nesta imagem: a mesma que a conta de migração aplica antes de subir o app. */
+        fun esquemaDaImagem(): Int =
+            PathMatchingResourcePatternResolver()
+                .getResources("classpath*:db/migration/V*__*.sql")
+                .mapNotNull {
+                    Regex("^V(\\d+)__")
+                        .find(it.filename.orEmpty())
+                        ?.groupValues
+                        ?.get(1)
+                        ?.toInt()
+                }.max()
+
+        fun conferirEsquema(jdbc: JdbcTemplate) {
+            val esperado = esquemaDaImagem()
+            val esquema = jdbc.queryForObject("SELECT max(version::int) FROM flyway_schema_history WHERE success", Int::class.java)
+            require(esquema == esperado) { "Esta imagem exige esquema V$esperado; implantação/rollback deve validar compatibilidade" }
+        }
+
         fun placeholder(valor: String): Boolean =
             valor.isBlank() ||
                 valor.lowercase() in setOf("mesamar", "admin", "senha", "password", "123456", "...", "xxx", "todo") ||

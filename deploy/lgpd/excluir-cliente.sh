@@ -56,9 +56,12 @@ chmod 600 "$LGPD_REGISTRO"
 while IFS= read -r linha; do
   cliente="${linha%% *}"
   uuid_valido "$cliente" || continue
-  anonimizar_cliente "$cliente"
+  # Registra ANTES de anonimizar, gravado no disco: se algo falhar no meio, o pedido já está no registro e uma cópia
+  # antiga restaurada é anonimizada de novo. Anonimizar duas vezes não faz mal; o contrário traria os dados de volta.
   printf '%s\t%s\n' "$cliente" "$(date '+%F')" >> "$LGPD_REGISTRO"
-  log "cliente $cliente anonimizado e registrado em $LGPD_REGISTRO"
+  sync "$LGPD_REGISTRO"
+  anonimizar_cliente "$cliente"
+  log "cliente $cliente registrado em $LGPD_REGISTRO e anonimizado"
 done <<< "$encontrados"
 
 cat <<'FIM'

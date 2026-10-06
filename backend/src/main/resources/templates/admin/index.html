@@ -160,11 +160,12 @@
       <div>
         <p class="kicker">Portão A · meta: abrir em até 5 s</p>
         <h2 id="t-sinal" class="admin-title">Sinal por praia</h2>
+        <p class="form-hint">Conta o teste de sinal e a primeira abertura dos apps. Pedido, fila, pagamento e reabertura ficam só na lista abaixo.</p>
       </div>
       <a class="btn btn-line" href="/admin/medicoes.csv" th:href="@{/admin/medicoes.csv}">Baixar CSV</a>
     </div>
 
-    <p class="admin-empty" th:if="${resumoSinal.isEmpty()}">Nenhuma medição ainda. Abra /teste-sinal no celular, na praia, entre 12h e 15h.</p>
+    <p class="admin-empty" th:if="${resumoSinal.isEmpty()}">Nenhuma abertura medida ainda. Abra /teste-sinal no celular, na praia, entre 12h e 15h.</p>
 
     <div class="table-wrap" th:unless="${resumoSinal.isEmpty()}">
       <table>
@@ -176,7 +177,7 @@
             <td th:text="${r.praia}">Enseada</td>
             <td th:text="${r.medicoes}">3</td>
             <td th:text="|${#numbers.formatDecimal(r.medianaCarregamentoMs / 1000.0, 1, 1, 'COMMA')} s|">2,3 s</td>
-            <td th:text="|${r.medianaPingMs} ms|">180 ms</td>
+            <td th:text="${r.medianaPingMs != null} ? |${r.medianaPingMs} ms| : '—'">180 ms</td>
             <td><span class="pill-status" th:classappend="${r.atingeMeta} ? 'ok' : 'bad'" th:text="|${r.percentualAte5s}%|">100%</span></td>
           </tr>
         </tbody>
@@ -188,14 +189,15 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Data</th><th>Praia</th><th>Abertura</th><th>Servidor</th><th>Conexão</th></tr>
+            <tr><th>Data</th><th>Praia</th><th>Tipo</th><th>Abertura</th><th>Servidor</th><th>Conexão</th></tr>
           </thead>
           <tbody>
             <tr th:each="m : ${medicoes}">
               <td th:text="${m.criadaEmLocal}">27/09/2026 14:00</td>
               <td th:text="${m.praia}">Enseada</td>
-              <td th:text="|${m.carregamentoMs} ms|">2300 ms</td>
-              <td th:text="|${m.pingMs} ms|">180 ms</td>
+              <td th:text="${m.metricaLabel}">Teste de sinal</td>
+              <td th:text="${m.carregamentoMs != null} ? |${m.carregamentoMs} ms| : '—'">2300 ms</td>
+              <td th:text="${m.pingMs != null} ? |${m.pingMs} ms| : '—'">180 ms</td>
               <td th:text="${m.tipoConexao} ?: '—'">4g</td>
             </tr>
           </tbody>

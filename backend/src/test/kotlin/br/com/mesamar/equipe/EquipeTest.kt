@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.validation.MapBindingResult
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -18,6 +19,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.Callable
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -234,6 +236,45 @@ class EquipeTest(
         painel.post(http, "/painel/equipe", "/painel/equipe/${hugo.id}/pin", mapOf("pin" to "864213"))
         assertIs<ResultadoPin.PinErrado>(service.autenticar(barraca, hugo.id, "258014"))
         assertIs<ResultadoPin.Ok>(service.autenticar(barraca, hugo.id, "864213"))
+    }
+
+    @Test
+    fun `trocar o PIN durante uma desativacao nao reativa o atendente`() {
+        val email = painel.novoEmail()
+        adicionar(painel.donoComBarraca(email = email), "Lia", pin = "258014")
+        val lia = atendente(email, "Lia")
+        val barraca = barracas.findById(barracaId(email)).orElseThrow()
+        val travado = CountDownLatch(1)
+        val liberar = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(2)
+        // Outra aba do dono desativa a Lia e ainda não confirmou a transação
+        val desativacao =
+            pool.submit {
+                TransactionTemplate(transacoes).executeWithoutResult {
+                    val a = assertNotNull(atendentes.findForUpdate(lia.id, barraca.id))
+                    a.ativo = false
+                    a.sessoesRevogadasEm = Instant.now()
+                    atendentes.saveAndFlush(a)
+                    travado.countDown()
+                    liberar.await()
+                }
+            }
+        travado.await()
+        val troca =
+            pool.submit(
+                Callable { service.trocarPin(barraca, lia.id, "864213", MapBindingResult(mutableMapOf<String, Any>(), "form")) },
+            )
+        Thread.sleep(500)
+        assertTrue(!troca.isDone, "a troca de PIN deve esperar a desativação em andamento")
+        liberar.countDown()
+        desativacao.get()
+        assertTrue(troca.get())
+        pool.shutdown()
+
+        val depois = atendentes.findById(lia.id).orElseThrow()
+        assertEquals(false, depois.ativo)
+        assertNotNull(depois.sessoesRevogadasEm)
+        assertEquals(ResultadoPin.Indisponivel, service.autenticar(barraca.id, lia.id, "864213"))
     }
 
     @Test
