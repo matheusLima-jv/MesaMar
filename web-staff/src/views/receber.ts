@@ -63,8 +63,9 @@ export const pagamentoIncerto = {
  * nunca cobra duas vezes. Pix lembra de conferir no app do banco antes de confirmar.
  */
 export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
-  // Um envio anterior ficou sem resposta: repete o MESMO pagamento (mesmo id e valores), sem deixar mudar nada
-  const incerto = pagamentoIncerto.ler(c.comandaId)
+  // Um envio anterior ficou sem resposta: repete o MESMO pagamento (mesmo id e valores), sem deixar mudar nada.
+  // Vale também para um envio feito agora, neste diálogo: depois do primeiro toque, os campos ficam travados.
+  let incerto = pagamentoIncerto.ler(c.comandaId)
   const idDoPagamento = incerto?.id ?? novoId()
   const saldo = c.saldoCentavos
   let forma: Metodo = incerto?.metodo ?? c.metodo ?? 'DINHEIRO'
@@ -109,12 +110,21 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
     confirmar.textContent = v === null || v <= 0 ? 'Confirmar' : `Confirmar ${reais(v)} recebido`
   }
 
+  const radios: HTMLInputElement[] = []
   const opcao = (m: { valor: Metodo, rotulo: string }): HTMLLabelElement => {
     const radio = h('input', {
       type: 'radio', name: 'forma', value: m.valor, checked: m.valor === forma, disabled: incerto !== null && m.valor !== forma,
       onchange: () => { forma = m.valor; ligarErro(valor, erro, null); atualizar() }
     })
+    radios.push(radio)
     return h('label', { class: 'opcao' }, radio, h('span', {}, m.rotulo))
+  }
+
+  /** Com um envio sem resposta, nada muda: o mesmo id nunca vai com outro valor ou outra forma. */
+  const travar = (sim: boolean): void => {
+    valor.readOnly = sim
+    entregue.readOnly = sim
+    radios.forEach((r) => { r.disabled = sim && r.value !== forma })
   }
 
   const fechar = abrirDialogo(`Receber de ${c.cliente}`, 'receber-titulo', [
@@ -127,6 +137,7 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
       novalidate: true,
       onsubmit: (ev: Event) => {
         ev.preventDefault()
+        if (confirmar.disabled) return
         let envio: PagamentoIncerto
         if (incerto !== null) {
           // O saldo mostrado pode já descontar o envio anterior: não confere de novo aqui, o servidor decide
@@ -142,27 +153,36 @@ export function dialogoReceber (c: ContaAPagar, aoConcluir: () => void): void {
           }
           envio = { id: idDoPagamento, metodo: forma, valorCentavos: digitado, valorRecebidoCentavos: recebido }
         }
-        const v = envio.valorCentavos
         ligarErro(valor, erro, null)
         confirmar.disabled = true
         confirmar.textContent = 'Registrando…'
         // Guardado antes de sair: se a resposta se perder (ou o app fechar no meio), o próximo envio usa o mesmo id
         pagamentoIncerto.guardar(c.comandaId, envio)
+        incerto = envio
+        travar(true)
         receberPagamento(c.comandaId, envio)
           .then((r) => {
             pagamentoIncerto.apagar(c.comandaId)
             fechar()
+            // Vale o que o servidor registrou: num reenvio, é o pagamento que já existia com este id
             const sobra = r.pagamento.trocoCentavos > 0 ? ` Troco: ${reais(r.pagamento.trocoCentavos)}.` : ''
-            avisar(r.fechada ? `Conta de ${c.cliente} paga e encerrada.${sobra}` : `Recebido ${reais(v)} de ${c.cliente}. Ainda falta ${reais(r.conta.saldoCentavos)}.${sobra}`)
+            avisar(r.fechada ? `Conta de ${c.cliente} paga e encerrada.${sobra}` : `Recebido ${reais(r.pagamento.valorCentavos)} de ${c.cliente}. Ainda falta ${reais(r.conta.saldoCentavos)}.${sobra}`)
             aoConcluir()
           })
           .catch((e: unknown) => {
-            // Recusa avaliada pelo servidor: nada foi gravado, o próximo pagamento pode ser outro. Sem resposta, sessão
-            // vencida ou limite (401, 408, 429): o envio anterior pode ter sido gravado, então continua incerto e repete o id.
-            if (e instanceof ApiError && e.recusaDefinitiva) pagamentoIncerto.apagar(c.comandaId)
+            // Recusa avaliada pelo servidor: nada foi gravado, dá para corrigir e enviar. Sem resposta, sessão vencida ou
+            // limite (401, 408, 429): o envio pode ter sido gravado, então continua incerto, travado, e repete o id.
+            const definitiva = e instanceof ApiError && e.recusaDefinitiva
+            if (definitiva) {
+              pagamentoIncerto.apagar(c.comandaId)
+              incerto = null
+              travar(false)
+              if (avisoIncerto !== null) avisoIncerto.hidden = true
+            }
             confirmar.disabled = false
             atualizar()
-            mostrarErro(e instanceof ApiError ? e.message : 'Não deu para registrar. Tente de novo (o pagamento não será cobrado duas vezes).')
+            const texto = e instanceof ApiError ? e.message : 'Não deu para registrar. Tente de novo (o pagamento não será cobrado duas vezes).'
+            mostrarErro(definitiva ? texto : `${texto} O valor fica como foi enviado até o servidor responder.`)
           })
       }
     },

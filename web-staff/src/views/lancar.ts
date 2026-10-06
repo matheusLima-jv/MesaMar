@@ -1,4 +1,4 @@
-import { ApiError, cardapio, descartada, lancarPedido, novoId, reais, type Comanda, type ItemLancado, type Secao } from '../api'
+import { ApiError, cardapio, descartada, lancarPedido, novoId, reais, recusaVista, type Comanda, type ItemLancado, type Secao } from '../api'
 import { abrirTela, h, mount } from '../dom'
 import { cardapioMudou } from '../fila-store'
 import { pendencias } from '../pendencias'
@@ -65,13 +65,15 @@ function enviar (
       avisar(`Pedido ${p.numero} lançado para ${comanda.nome}.${excecao}`)
       if (aberta()) voltar()
     })
-    .catch((e: unknown) => {
+    .catch(async (e: unknown) => {
       if (descartada(e)) return
-      if (e instanceof ApiError && e.status >= 400 && e.status < 500 && !e.temporario) {
+      if (e instanceof ApiError && e.recusaDefinitiva) {
         // O servidor recusou: nada foi gravado, dá para corrigir e enviar outro
         pendencias.apagar('lancamento', comanda.id)
+        if (!aberta()) { avisar(e.message, true); return }
+        // Recusa mostrada nesta tela: sai da fila, para não travar o próximo pedido atrás dela
+        await recusaVista(id)
         if (aberta()) aoRecusar(e)
-        else avisar(e.message, true)
         return
       }
       // Sem resposta: o pedido pode ter chegado. Fica pendente, com os itens travados

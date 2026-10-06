@@ -1,5 +1,5 @@
 import { tokenLocal } from '../fila-offline'
-import { ApiError, clientes, descartada, guardaSois, novoCliente, novoId, novoQr, type Comanda, type GuardaSolOpcao, type NovoCliente, type Sessao } from '../api'
+import { ApiError, clientes, descartada, guardaSois, novoCliente, novoId, novoQr, recusaVista, type Comanda, type GuardaSolOpcao, type NovoCliente, type Sessao } from '../api'
 import { ativarModal, ligarErro, tecladoDoGrupo } from '../a11y'
 import { CONSENTIMENTO_TEXTO, CONSENTIMENTO_VERSAO } from '../consentimento'
 import { abrirTela, h, mount, registrarSobreposicao } from '../dom'
@@ -147,11 +147,12 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
   const aberta = abrirTela(root)
   // Um check-in anterior ficou sem resposta: o formulário volta com os mesmos dados e o mesmo id, travado, para
   // reenviar. Se ele já tinha chegado, o servidor devolve a mesma comanda (não cria outra).
-  const pendente = pendencias.ler<NovoCliente>('checkin', escopoCheckin(sessao))
+  let pendente = pendencias.ler<NovoCliente>('checkin', escopoCheckin(sessao))
   // O id nasce aqui e vale para todas as tentativas deste formulário: reenviar não duplica o cliente.
   const id = pendente?.id ?? novoId()
   let escolhido: string | null = pendente?.dados.guardaSolId ?? null
-  const travado = pendente !== null
+  let travado = pendente !== null
+  let opcoesAtuais: GuardaSolOpcao[] = []
 
   const erroGeral = h('p', { class: 'alert', role: 'alert', hidden: true })
   const erros: Record<string, HTMLParagraphElement> = {}
@@ -165,7 +166,8 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
     value: pendente?.dados.nome, readonly: travado
   })
   const whatsapp = h('input', {
-    id: 'whatsapp', type: 'tel', inputmode: 'tel', autocomplete: 'off', placeholder: '(13) 99999-8888', value: pendente?.dados.whatsapp, readonly: travado
+    id: 'whatsapp', type: 'tel', inputmode: 'tel', autocomplete: 'off', placeholder: '(13) 99999-8888', value: pendente?.dados.whatsapp, readonly: travado,
+    maxlength: WHATSAPP_MAX
   })
   const consentimento = h('input', { id: 'consentimento', type: 'checkbox', checked: pendente?.dados.consentimento === true, disabled: travado })
   // Escolha única entre vários botões: é um grupo de radios (setas movem e escolhem; o Tab entra e sai do grupo)
@@ -175,6 +177,7 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
   const campoDe: Record<string, HTMLElement> = { nome, whatsapp, consentimento, guardaSolId: grade }
 
   const desenharGrade = (opcoes: GuardaSolOpcao[]): void => {
+    opcoesAtuais = opcoes
     const opcao = (valor: string | null, texto: string, rotulo: string, ocupado: boolean): HTMLButtonElement =>
       h('button', {
         type: 'button',
@@ -227,31 +230,42 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
       // O básico é conferido aqui mesmo (resposta na hora, sem depender do sinal); o servidor confere tudo de novo.
       const locais: Record<string, string> = {}
       if (nome.value.trim() === '') locais.nome = 'Digite o nome do cliente.'
+      if (whatsapp.value.length > WHATSAPP_MAX) locais.whatsapp = 'WhatsApp longo demais. Exemplo: (13) 99999-8888.'
       if (!consentimento.checked) locais.consentimento = 'Confirme que o cliente concordou.'
       if (Object.keys(locais).length > 0) {
         mostrarErros(locais)
         return
       }
-      botao.disabled = true
-      botao.textContent = 'Gerando…'
       const envio: NovoCliente = pendente?.dados ?? {
         id, token: tokenLocal(), nome: nome.value, guardaSolId: escolhido, whatsapp: whatsapp.value, consentimento: consentimento.checked,
         // A versão do texto que estava na tela: fica gravada no cadastro (docs/consentimento.md)
         consentimentoVersao: CONSENTIMENTO_VERSAO
       }
       // Guardado antes de sair: trocar de aba ou recarregar o app no meio não perde o id deste check-in
-      pendencias.guardar('checkin', escopoCheckin(sessao), id, envio)
+      try { pendencias.guardar('checkin', escopoCheckin(sessao), id, envio) } catch {
+        erroGeral.textContent = 'Não deu para preparar o check-in. Confira os dados e tente de novo.'
+        erroGeral.hidden = false
+        return
+      }
+      botao.disabled = true
+      botao.textContent = 'Gerando…'
       novoCliente(envio)
         .then((c) => {
           pendencias.apagar('checkin', escopoCheckin(sessao))
           if (aberta()) telaQr(sessao, c, () => abaClientes(root, sessao))
         })
-        .catch((e: unknown) => {
+        .catch(async (e: unknown) => {
           if (descartada(e)) return
-          // Recusa do servidor (4xx): nada foi criado, dá para corrigir. Sem resposta: continua pendente
-          if (e instanceof ApiError && e.status >= 400 && e.status < 500 && !e.temporario) pendencias.apagar('checkin', escopoCheckin(sessao))
+          // Recusa avaliada pelo servidor: nada foi criado, dá para corrigir. Sem resposta, sessão vencida ou limite:
+          // pode ter sido criado, então continua pendente e repete o mesmo id
+          const definitiva = e instanceof ApiError && e.recusaDefinitiva
+          if (definitiva) pendencias.apagar('checkin', escopoCheckin(sessao))
+          if (!aberta()) return
+          // A recusa aparece aqui: sai da fila antes de liberar o botão, para o envio corrigido não repetir os dados antigos
+          if (definitiva) await recusaVista(id)
           if (!aberta()) return
           if (!travado && e instanceof ApiError && e.status === 0) { formNovo(root, sessao); return }
+          if (definitiva && travado) destravar()
           botao.disabled = false
           botao.textContent = 'Gerar QR'
           if (e instanceof ApiError && Object.keys(e.campos).length > 0) {
@@ -278,16 +292,32 @@ function formNovo (root: HTMLElement, sessao: Sessao): void {
   h('button', { type: 'button', class: 'link center-block', onclick: () => abaClientes(root, sessao) }, 'Cancelar')
   )
 
+  const avisoPendente = pendente === null
+    ? null
+    : h('p', { class: 'alert', role: 'status' },
+      `O check-in de ${pendente.dados.nome} foi enviado e a resposta não chegou. Toque em Gerar QR: se ele já tinha chegado, a comanda é a mesma (não vira outra).`)
+
+  /** O servidor recusou o check-in que estava pendente: nada foi criado, então os dados voltam a poder ser corrigidos. */
+  function destravar (): void {
+    pendente = null
+    travado = false
+    nome.readOnly = false
+    whatsapp.readOnly = false
+    consentimento.disabled = false
+    if (avisoPendente !== null) avisoPendente.hidden = true
+    desenharGrade(opcoesAtuais)
+  }
+
   mount(root,
     h('header', { class: 'tab-head' }, h('h1', {}, 'Novo cliente')),
-    ...(pendente !== null
-      ? [h('p', { class: 'alert', role: 'status' },
-          `O check-in de ${pendente.dados.nome} foi enviado e a resposta não chegou. Toque em Gerar QR: se ele já tinha chegado, a comanda é a mesma (não vira outra).`)]
-      : []),
+    ...(avisoPendente !== null ? [avisoPendente] : []),
     form)
   if (travado) botao.focus()
   else nome.focus()
 }
+
+/** O mesmo limite da fila do aparelho (`novoCliente` em web-shared/src/validacao.ts). */
+const WHATSAPP_MAX = 25
 
 /** QR em tela cheia, grande o bastante para a câmera ler a ~50 cm, no sol. */
 function telaQr (sessao: Sessao, c: Comanda, aoFechar: () => void): void {
