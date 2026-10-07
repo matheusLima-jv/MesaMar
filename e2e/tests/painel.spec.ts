@@ -377,7 +377,9 @@ test('lançamento da equipe, teclado, modais, telas estreitas e aviso', async ({
   await app.getByRole('link', { name: /^Fila/ }).click()
   await app.evaluate(() => window.scrollTo(0, 400))
   await app.getByRole('link', { name: 'Clientes' }).click()
-  expect(await app.evaluate(() => window.scrollY)).toBe(0)
+  // A troca de aba roda no hashchange, que o navegador dispara depois do clique: espera a aba nova antes de conferir
+  await expect(app.getByRole('link', { name: 'Clientes' })).toHaveAttribute('aria-current', 'page')
+  await expect.poll(async () => await app.evaluate(() => window.scrollY)).toBe(0)
 
   // Os avisos importantes não somem sozinhos como o toast: um pedido parado fica na tela, em qualquer aba
   await expect(app.getByRole('region', { name: 'Avisos importantes' })).toBeHidden()
